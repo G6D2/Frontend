@@ -1,0 +1,105 @@
+/* ── Global reset ── */
+:global(*),
+:global(*::before),
+:global(*::after) {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:global(html),
+:global(body) {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Navbar ── */
+.navbar {
+  background-color: rgb(24, 36, 47);
+  height: 100vh;
+  width: 280px;
+  min-height: 100vh;
+  padding: var(--mantine-spacing-md);
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+}
+
+.navbarMain {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.header {
+  padding-bottom: var(--mantine-spacing-md);
+  margin-bottom: var(--mantine-spacing-xs);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.version {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.35);
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-sm);
+  margin-bottom: 2px;
+}
+
+.separator {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.12);
+  margin: var(--mantine-spacing-sm) var(--mantine-spacing-sm);
+}
+
+.footer {
+  padding-top: var(--mantine-spacing-md);
+  margin-top: var(--mantine-spacing-md);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: var(--mantine-spacing-md);
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  font-size: var(--mantine-font-size-sm);
+  color: rgba(255, 255, 255, 0.75);
+  padding: 8px var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-sm);
+  font-weight: 500;
+  gap: var(--mantine-spacing-sm);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.link:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.link[data-active] {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.link[data-active]:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.linkIcon {
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 150ms ease;
+}
+
+.link:hover .linkIcon,
+.link[data-active] .linkIcon {
+  color: #fff;
+}
