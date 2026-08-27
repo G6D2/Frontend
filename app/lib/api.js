@@ -2,8 +2,15 @@
 // La ia hizo este facil sistema para probar el funcionamiento del frontend
 // y facilitar la integracion del back. Cuando integremos el back, cambiamos la url
 // y el use_backend a true.
-export const USE_BACKEND = false;
-export const API_URL = "https://your-backend-url.com/api";
+export const USE_BACKEND = true;
+// El backend corre en la misma máquina que el front (puerto 4000), pero el browser
+// puede estar en otra: usamos el hostname con el que se abrió la página en vez de
+// hardcodear localhost. En SSR no hay window; el fetch real siempre corre en el cliente.
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined"
+    ? `http://${window.location.hostname}:4000/api`
+    : "http://localhost:4000/api");
 export const POLLING_INTERVAL_MS = 5000;
 // ─────────────────────────────────────────────────────────────────────
 
@@ -54,16 +61,27 @@ export const SEVERITY_CONFIG = {
 // ── Data fetching helpers ───────────────────────────────────────────
 
 export async function fetchEmergencies() {
-  if (USE_BACKEND) {
-    //logica backend
-  }
+  // El backend todavía no tiene endpoint de listado de emergencias,
+  // así que seguimos devolviendo los mocks aunque USE_BACKEND sea true.
   console.log("Polling emergencies (mock):", MOCK_EMERGENCIES.length, "active");
   return MOCK_EMERGENCIES;
 }
 
 export async function submitEmergency(payload) {
   if (USE_BACKEND) {
-    //logica backend
+    const res = await fetch(`${API_URL}/panic-button`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(data?.message || "Error al enviar la emergencia.");
+    }
+
+    return data;
   }
   console.log(payload);
   return { success: true };

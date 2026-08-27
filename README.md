@@ -87,9 +87,9 @@ Frontend/
 ### Vista Usuario (default)
 
 - Página centrada con un **Panic Button** .
-- Al presionar: envía un JSON de emergencia y se deshabilita para evitar duplicados.
-- Si el envío falla, el botón se rehabilita para reintentar.
-- Al enviarse correctamente, aparece un tooltip "Request sent!" y una notificación toast.
+- Al presionar: hace `POST /api/panic-button` al backend con coordenadas aleatorias de CABA (lat −34.70 a −34.53, lng −58.53 a −58.35) y se deshabilita mientras envía.
+- Al enviarse correctamente, muestra un toast con la respuesta real del backend (`ID <emergencyId> — lat X, lng Y`) y el botón se rehabilita solo a los 2 segundos, para poder disparar varias emergencias seguidas (comportamiento "por ahora", para demos).
+- Si el envío falla, muestra un toast rojo con el mensaje de error del backend y el botón se rehabilita para reintentar.
 
 **JSON de emergencia enviado:**
 
@@ -100,7 +100,7 @@ Frontend/
     "lat": -34.6037,
     "lng": -58.3816
   },
-  "description": "Necesito ayuda inmediata",
+  "description": "Botón de pánico activado",
   "severity": "critical"
 }
 ```
@@ -118,16 +118,26 @@ Frontend/
 
 ## Integración con backend
 
-El frontend está preparado para conectarse a un backend real. Toda la lógica de comunicación está centralizada en `app/lib/api.js`.
+Toda la lógica de comunicación está centralizada en `app/lib/api.js`. El botón de pánico ya le pega al backend real ([emergencias-backend](https://github.com/G6D2/emergencias-backend)); la vista Dispatcher sigue usando mocks porque el backend todavía no tiene endpoint de listado.
 
-### Toggle de backend
+### Configuración
 
 ```js
 // app/lib/api.js
-export const USE_BACKEND = false;                          // ← cambiar a true
-export const API_URL = "https://your-backend-url.com/api"; // ← URL real del backend
-export const POLLING_INTERVAL_MS = 5000;                   // ← intervalo de polling
+export const USE_BACKEND = true;         // false = todo mockeado (sin backend)
+export const POLLING_INTERVAL_MS = 5000; // intervalo de polling del dispatcher
 ```
+
+**URL del backend:** no está hardcodeada. Se asume que el backend corre en la **misma máquina que el front, puerto 4000**, y se arma con el hostname con el que abriste la página (`http://<hostname>:4000/api`). Esto es clave cuando el dev server corre en un server remoto y lo abrís por IP: si la URL fuera `localhost:4000`, el browser buscaría el backend en *tu* máquina, no en el server. Para apuntar a otro lado: `NEXT_PUBLIC_API_URL=http://otro-host:4000/api npm run dev`.
+
+## Desarrollo: dev server accedido desde otra máquina
+
+Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
+
+- **Puerto:** `npm run dev -- -p 4001` si el 3000 está ocupado.
+- **`allowedDevOrigins` es obligatorio para acceso por IP:** el dev server de Next 16 responde **403 en `/_next/*`** (los chunks de JS) cuando el host de la request no es `localhost`. El síntoma es traicionero: la página carga el HTML y se ve bien, pero React nunca hidrata — botones muertos, sin toasts, sin errores en pantalla; solo se ve en la consola del browser (`net::ERR_ABORTED 403` en los chunks y el websocket de HMR caído). La IP desde la que accedés tiene que estar en `allowedDevOrigins` en `next.config.mjs`.
+- Los cambios en `next.config.mjs` requieren reiniciar el dev server (no los toma el hot reload).
+
 ## Niveles de severidad
 
 | Clave | Color | Label |
