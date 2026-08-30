@@ -14,24 +14,26 @@ export default function PanicButton() {
     setLoading(true);
     setSent(true);
 
+    const lat = Number((Math.random() * (-34.53 - -34.7) + -34.7).toFixed(4));
+    const lng = Number((Math.random() * (-58.35 - -58.53) + -58.53).toFixed(4));
+
     const payload = {
       userId: "user-123",
-      location: {
-        lat: -34.6037,
-        lng: -58.3816,
-      },
-      description: "Necesito ayuda inmediata",
+      location: { lat, lng },
+      description: "Botón de pánico activado",
       severity: "critical",
     };
 
     try {
-      await submitEmergency(payload);
+      const result = await submitEmergency(payload);
       notifications.show({
-        title: "Success",
-        message: "Your data has been submitted.",
+        title: "Emergencia creada",
+        message: `ID ${result.emergencyId} — lat ${lat}, lng ${lng}`,
         color: "teal",
         autoClose: 4000,
       });
+      // Por ahora el botón se rehabilita solo, para poder disparar varias emergencias seguidas
+      setTimeout(() => setSent(false), 2000);
     } catch (error) {
       setSent(false);
       notifications.show({
