@@ -1,25 +1,22 @@
+"use client";
+
 import { Badge, Card, Group, Text } from "@mantine/core";
-import { IconAlertTriangle } from "@tabler/icons-react";
-import { SEVERITY_CONFIG } from "../lib/api";
+import { PRIORITY_CONFIG } from "../lib/emergencies";
 
 export default function EmergencyCard({ emergency }) {
-  const sev = SEVERITY_CONFIG[emergency.severity] || SEVERITY_CONFIG.medium;
+  const sev =
+    PRIORITY_CONFIG[emergency.severity] || PRIORITY_CONFIG.medium;
 
   return (
-    <Card withBorder padding="lg" radius="md">
-      <Group justify="space-between">
-        <IconAlertTriangle
-          size={32}
-          color={`var(--mantine-color-${sev.color}-6)`}
-        />
-        <Badge color={sev.color}>{sev.label}</Badge>
+    <Card withBorder padding="md" radius="md">
+      <Group justify="space-between" mb="xs">
+        <Text fw={600}>{emergency.description}</Text>
+        <Badge color={sev.color === "priority-high" ? "red" : "blue"}>
+          {sev.label}
+        </Badge>
       </Group>
-
-      <Text fz="lg" fw={500} mt="md">
-        {emergency.description}
-      </Text>
-      <Text fz="sm" c="dimmed" mt={5}>
-        {emergency.id.toUpperCase()} — Reportado por {emergency.userId}
+      <Text size="sm" c="dimmed">
+        {emergency.status} · {emergency.userId}
       </Text>
     </Card>
   );
