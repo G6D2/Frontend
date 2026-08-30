@@ -29,6 +29,8 @@ export default function PanicButton() {
         color: "teal",
         autoClose: 4000,
       });
+      // Por ahora el botón se rehabilita solo, para poder disparar varias emergencias seguidas
+      setTimeout(() => setSent(false), 2000);
     } catch (error) {
       setSent(false);
       notifications.show({
