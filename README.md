@@ -108,13 +108,12 @@ Frontend/
 ### Vista Dispatcher
 
 - Se accede haciendo clic en **"Mi Cuenta"** en el navbar (alterna entre Usuario y Dispatcher).
-- Muestra un listado FIFO de tarjetas de emergencia con:
-  - Icono de alerta coloreado por severidad
-  - Badge de severidad (Crítica, Alta, Media, Baja)
-  - Descripción de la emergencia
-  - ID y usuario que reportó
-- **Polling automático** cada 5 segundos para obtener emergencias activas.
-- Al cargar la vista, realiza un GET inicial para obtener el listado.
+- Incluye un botón en la esquina superior derecha para alternar entre dos vistas Kanban:
+  1. **Emergencias por Estado (`STATUS_CONFIG`):** 7 columnas correspondientes al ciclo de vida (Pendientes, Validadas, Despachadas, En Camino, En Lugar, Resuelta, Cerrada).
+  2. **Emergencias por Criticidad (`SEVERITY_CONFIG`):** 3 columnas (Baja, Media, Alta) que se expanden ocupando todo el ancho de la pantalla.
+- **Scroll vertical interno en cada columna:** cuando una categoría tiene múltiples emergencias, la columna cuenta con scroll interno para que no se pierda detalle de las tarjetas ni se rompa el layout.
+- **Navbar colapsable:** botón `<` en la barra lateral para ocultarla y ganar espacio de pantalla completa; botón flotante `>` en el extremo izquierdo para expandirla nuevamente.
+- **Polling automático** cada 5 segundos para actualizar el listado de emergencias.
 
 ## Integración con backend
 
@@ -142,7 +141,6 @@ Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
 
 | Clave | Color | Label |
 |---|---|---|
-| `critical` | Rojo | Crítica |
 | `high` | Naranja | Alta |
 | `medium` | Amarillo | Media |
 | `low` | Azul | Baja |

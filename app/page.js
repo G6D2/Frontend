@@ -9,6 +9,7 @@ import DispatcherView from "./components/DispatcherView";
 export default function Home() {
   const [active, setActive] = useState("Emergencias");
   const [role, setRole] = useState("usuario"); // "usuario" | "dispatcher"
+  const [navbarOpened, setNavbarOpened] = useState(true);
 
   // ── Role toggle via "Mi Cuenta" ──
   const handleNavClick = (label) => {
@@ -27,8 +28,14 @@ export default function Home() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Navbar active={active} role={role} onNavClick={handleNavClick} />
+    <div style={{ display: "flex", minHeight: "100vh", position: "relative" }}>
+      <Navbar
+        active={active}
+        role={role}
+        onNavClick={handleNavClick}
+        opened={navbarOpened}
+        onToggle={() => setNavbarOpened((prev) => !prev)}
+      />
 
       <main
         style={{
@@ -38,6 +45,9 @@ export default function Home() {
           justifyContent: "center",
           backgroundColor: "#ffffff",
           overflow: "auto",
+          minWidth: 0,
+          paddingLeft: !navbarOpened ? "48px" : 0,
+          transition: "padding 220ms ease",
         }}
       >
         {role === "usuario" ? <PanicButton /> : <DispatcherView />}

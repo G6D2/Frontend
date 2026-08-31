@@ -6,7 +6,7 @@ export default function EmergencyCard({ emergency }) {
   const sev = SEVERITY_CONFIG[emergency.severity] || SEVERITY_CONFIG.medium;
 
   return (
-    <Card withBorder padding="lg" radius="md">
+    <Card withBorder padding="lg" radius="md" style={{ flexShrink: 0, width: "100%" }}>
       <Group justify="space-between">
         <IconAlertTriangle
           size={32}

@@ -20,7 +20,8 @@ export const MOCK_EMERGENCIES = [
     id: "em-001",
     userId: "user-101",
     description: "Accidente de tránsito en Av. Corrientes y Callao",
-    severity: "critical",
+    severity: "high",
+    status: "pendiente",
     location: { lat: -34.6042, lng: -58.3922 },
     timestamp: "2026-08-25T22:10:00-03:00",
   },
@@ -29,6 +30,7 @@ export const MOCK_EMERGENCIES = [
     userId: "user-105",
     description: "suicidio",
     severity: "high",
+    status: "validada",
     location: { lat: -34.6042, lng: -58.3922 },
     timestamp: "2026-08-25T22:10:00-03:00",
   },
@@ -37,6 +39,7 @@ export const MOCK_EMERGENCIES = [
     userId: "user-205",
     description: "Incendio en edificio residencial, piso 3",
     severity: "medium",
+    status: "despachada",
     location: { lat: -34.6118, lng: -58.3816 },
     timestamp: "2026-08-25T22:15:00-03:00",
   },
@@ -45,18 +48,93 @@ export const MOCK_EMERGENCIES = [
     userId: "user-087",
     description: "Persona herida en espacio público, Plaza de Mayo",
     severity: "low",
+    status: "en_camino",
     location: { lat: -34.6083, lng: -58.3712 },
     timestamp: "2026-08-25T22:22:00-03:00",
-  }
+  },
+  {
+    id: "em-005",
+    userId: "user-123",
+    description: "Necesito ayuda inmediata",
+    severity: "high",
+    status: "pendiente",
+    location: { lat: -34.6037, lng: -58.3816 },
+    timestamp: "2026-08-25T22:35:00-03:00",
+  },
+  {
+    id: "em-006",
+    userId: "user-450",
+    description: "Robo a mano armada en calle Florida",
+    severity: "high",
+    status: "en_lugar",
+    location: { lat: -34.6030, lng: -58.3740 },
+    timestamp: "2026-08-25T22:40:00-03:00",
+  },
+  {
+    id: "em-007",
+    userId: "user-200",
+    description: "Bache peligroso en Av. Santa Fe 2100",
+    severity: "low",
+    status: "resuelta",
+    location: { lat: -34.5950, lng: -58.3990 },
+    timestamp: "2026-08-25T22:50:00-03:00",
+  },
+  {
+    id: "em-008",
+    userId: "user-330",
+    description: "Corte de luz en manzana completa",
+    severity: "medium",
+    status: "cerrada",
+    location: { lat: -34.6200, lng: -58.3700 },
+    timestamp: "2026-08-25T23:00:00-03:00",
+  },
+  {
+    id: "em-009",
+    userId: "user-512",
+    description: "Derrumbe parcial de mampostería en vereda",
+    severity: "high",
+    status: "pendiente",
+    location: { lat: -34.6010, lng: -58.3840 },
+    timestamp: "2026-08-25T23:10:00-03:00",
+  },
+  {
+    id: "em-010",
+    userId: "user-620",
+    description: "Inundación en paso bajo nivel",
+    severity: "high",
+    status: "pendiente",
+    location: { lat: -34.5900, lng: -58.4000 },
+    timestamp: "2026-08-25T23:15:00-03:00",
+  },
+  {
+    id: "em-011",
+    userId: "user-714",
+    description: "Árbol caído obstruyendo tránsito",
+    severity: "medium",
+    status: "despachada",
+    location: { lat: -34.6100, lng: -58.3900 },
+    timestamp: "2026-08-25T23:20:00-03:00",
+  },
 ];
 // ─────────────────────────────────────────────────────────────────────
 
+// ── Severity config (used for badges and criticality columns) ─────────
 export const SEVERITY_CONFIG = {
-  critical: { color: "red", label: "Crítica" },
-  high: { color: "orange", label: "Alta" },
-  medium: { color: "yellow", label: "Media" },
-  low: { color: "blue", label: "Baja" },
+  low: { key: "low", color: "blue", label: "Baja" },
+  medium: { key: "medium", color: "yellow", label: "Media" },
+  high: { key: "high", color: "orange", label: "Alta" },
 };
+
+// ── Status config (RF-09) ───────────────────────────────────────────
+export const STATUS_CONFIG = [
+  { key: "pendiente", label: "Pendientes", color: "red" },
+  { key: "validada", label: "Validadas", color: "orange" },
+  { key: "despachada", label: "Despachadas", color: "yellow" },
+  { key: "en_camino", label: "En Camino", color: "cyan" },
+  { key: "en_lugar", label: "En Lugar", color: "indigo" },
+  { key: "resuelta", label: "Resuelta", color: "teal" },
+  { key: "cerrada", label: "Cerrada", color: "gray" },
+];
 
 // ── Data fetching helpers ───────────────────────────────────────────
 

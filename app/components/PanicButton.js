@@ -21,7 +21,7 @@ export default function PanicButton() {
       userId: "user-123",
       location: { lat, lng },
       description: "Botón de pánico activado",
-      severity: "critical",
+      severity: "high",
     };
 
     try {
