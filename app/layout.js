@@ -6,8 +6,8 @@ import { MantineProvider, ColorSchemeScript } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 
 export const metadata = {
-  title: "CityPlus",
-  description: "CityPlus Frontend Application",
+  title: "CityPass+",
+  description: "CityPass+ Frontend Application",
 };
 
 export default function RootLayout({ children }) {

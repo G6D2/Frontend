@@ -36,10 +36,10 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ---
 
 <!-- ============================================================== -->
-<!-- DOCUMENTACIÓN DEL PROYECTO CITYPLUS - FRONTEND                  -->
+<!-- DOCUMENTACIÓN DEL PROYECTO CITYPASS+ - FRONTEND                  -->
 <!-- ============================================================== -->
 
-# CityPlus — Frontend
+# CityPass+ — Frontend
 
 Aplicación de gestión de servicios urbanos. Este repositorio contiene exclusivamente el **frontend**, construido con Next.js y Mantine UI.
 

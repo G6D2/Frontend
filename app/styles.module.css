@@ -39,9 +39,22 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.version {
-  background-color: rgba(255, 255, 255, 0.1);
+.brandName {
+  font-size: 18px;
+  font-weight: 700;
   color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.brandPlus {
+  color: rgb(210, 152, 63);
+}
+
+.navbarFooterImage {
+  display: flex;
+  justify-content: center;
+  padding: var(--mantine-spacing-md);
+  padding-bottom: var(--mantine-spacing-lg);
 }
 
 .sectionTitle {
