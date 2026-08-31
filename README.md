@@ -67,19 +67,23 @@ Frontend/
 ├── CLAUDE.md
 ├── README.md                  # Esta documentación
 │
+├── public/
+│   └── Images/                # Assets estáticos (logos e imágenes del navbar)
+│
 └── app/
     ├── layout.js              # Root layout: MantineProvider (light), Notifications
     ├── page.js                # Orquestador: maneja rol (usuario/dispatcher) y navegación
-    ├── styles.module.css      # CSS único: reset global + estilos del navbar
+    ├── styles.module.css      # CSS único: reset global + estilos navbar + tablero Kanban
     │
     ├── components/
     │   ├── Navbar.js          # Sidebar de navegación con secciones Servicios y Cuenta
     │   ├── PanicButton.js     # Botón de pánico (vista Usuario)
     │   ├── EmergencyCard.js   # Tarjeta individual de emergencia
-    │   └── DispatcherView.js  # Vista Dispatcher: lista de emergencias + polling
+    │   ├── DispatcherView.js  # Vista Dispatcher: tablero Kanban (estados/criticidad) + polling
+    │   └── ViewToggle.js      # Botón para alternar vistas (Estado vs Criticidad)
     │
     └── lib/
-        └── api.js             # Config backend, mock data, helpers de fetch
+        └── api.js             # Config backend, STATUS_CONFIG, SEVERITY_CONFIG, mocks y fetch
 ```
 
 ## Vistas
