@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge, Group, ScrollArea, Text, Title } from "@mantine/core";
 import {
   fetchEmergencies,
@@ -14,17 +14,61 @@ import classes from "../styles.module.css";
 
 export default function DispatcherView() {
   const [emergencies, setEmergencies] = useState([]);
+  const [newEmergencyIds, setNewEmergencyIds] = useState(new Set());
   const [viewMode, setViewMode] = useState("status"); // "status" | "criticality"
+  const isInitialLoadRef = useRef(true);
 
+  // ── RF-01 & RF-02: Polling y comparación en memoria ──
   const loadEmergencies = useCallback(async () => {
     try {
-      const data = await fetchEmergencies();
-      setEmergencies(data);
+      const incomingData = await fetchEmergencies();
+      if (!incomingData || !Array.isArray(incomingData)) return;
+
+      setEmergencies((currentList) => {
+        // Carga inicial: inicializar el array
+        if (isInitialLoadRef.current) {
+          isInitialLoadRef.current = false;
+          return incomingData;
+        }
+
+        // RF-02: Comparar con el array en memoria para identificar únicamente casos nuevos
+        const existingIdSet = new Set(currentList.map((e) => String(e.id)));
+        const newItems = incomingData.filter(
+          (item) => !existingIdSet.has(String(item.id))
+        );
+
+        if (newItems.length > 0) {
+          console.log(`🚨 RF-02: ${newItems.length} nueva(s) emergencia(s) detectada(s):`, newItems);
+
+          // RF-04: Registrar IDs de nuevas emergencias para la animación temporal
+          const newlyAddedIds = new Set(newItems.map((item) => String(item.id)));
+          setNewEmergencyIds((prevNew) => {
+            const updated = new Set(prevNew);
+            newlyAddedIds.forEach((id) => updated.add(id));
+            return updated;
+          });
+
+          // RF-04: Quitar la animación después de 6 segundos
+          setTimeout(() => {
+            setNewEmergencyIds((prevNew) => {
+              const updated = new Set(prevNew);
+              newlyAddedIds.forEach((id) => updated.delete(id));
+              return updated;
+            });
+          }, 6000);
+
+          // RF-02: Agregar solo los casos nuevos sin reiniciar ni sobrescribir los existentes
+          return [...newItems, ...currentList];
+        }
+
+        return currentList;
+      });
     } catch (error) {
       console.error("Error fetching emergencies:", error);
     }
   }, []);
 
+  // RF-01: setInterval (polling) cada POLLING_INTERVAL_MS segundos
   useEffect(() => {
     loadEmergencies();
     const interval = setInterval(loadEmergencies, POLLING_INTERVAL_MS);
@@ -38,7 +82,7 @@ export default function DispatcherView() {
   const columns =
     viewMode === "status" ? STATUS_CONFIG : Object.values(SEVERITY_CONFIG);
 
-  // ── Filter emergencies into columns (RF-10) ──
+  // ── Filter emergencies into columns (RF-10 & RF-03) ──
   const filterKey = viewMode === "status" ? "status" : "severity";
 
   return (
@@ -58,7 +102,7 @@ export default function DispatcherView() {
         <ViewToggle viewMode={viewMode} onToggle={toggleView} />
       </Group>
 
-      {/* ── Kanban board ── */}
+      {/* ── Kanban board (RF-03: se re-renderiza automáticamente al actualizarse el array) ── */}
       <ScrollArea type="auto" offsetScrollbars className={classes.boardScrollArea}>
         <div
           className={
@@ -103,7 +147,7 @@ export default function DispatcherView() {
                   </Group>
                 </div>
 
-                {/* Column cards with vertical scrolling */}
+                {/* Column cards with vertical scrolling and RF-04 highlight animation */}
                 <div className={classes.boardColumnCards}>
                   {items.length === 0 ? (
                     <Text size="xs" c="dimmed" ta="center" py="md">
@@ -111,7 +155,11 @@ export default function DispatcherView() {
                     </Text>
                   ) : (
                     items.map((em) => (
-                      <EmergencyCard key={em.id} emergency={em} />
+                      <EmergencyCard
+                        key={em.id}
+                        emergency={em}
+                        isNew={newEmergencyIds.has(String(em.id))}
+                      />
                     ))
                   )}
                 </div>

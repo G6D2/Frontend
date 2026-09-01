@@ -105,19 +105,23 @@ Frontend/
     "lng": -58.3816
   },
   "description": "Botón de pánico activado",
-  "severity": "critical"
+  "severity": "high"
 }
 ```
 
 ### Vista Dispatcher
 
 - Se accede haciendo clic en **"Mi Cuenta"** en el navbar (alterna entre Usuario y Dispatcher).
-- Incluye un botón en la esquina superior derecha para alternar entre dos vistas Kanban:
-  1. **Emergencias por Estado (`STATUS_CONFIG`):** 7 columnas correspondientes al ciclo de vida (Pendientes, Validadas, Despachadas, En Camino, En Lugar, Resuelta, Cerrada).
-  2. **Emergencias por Criticidad (`SEVERITY_CONFIG`):** 3 columnas (Baja, Media, Alta) que se expanden ocupando todo el ancho de la pantalla.
-- **Scroll vertical interno en cada columna:** cuando una categoría tiene múltiples emergencias, la columna cuenta con scroll interno para que no se pierda detalle de las tarjetas ni se rompa el layout.
-- **Navbar colapsable:** botón `<` en la barra lateral para ocultarla y ganar espacio de pantalla completa; botón flotante `>` en el extremo izquierdo para expandirla nuevamente.
-- **Polling automático** cada 5 segundos para actualizar el listado de emergencias.
+- **RF-01 (Polling periódico):** Implementa un `setInterval` que consulta periódicamente (cada 5 segundos configurables) las emergencias mediante `fetchEmergencies()` ejecutando un `GET /api/emergencies`.
+- **RF-02 (Merge incremental en memoria):** Al recibir los datos, compara los IDs entrantes contra el estado en memoria y agrega únicamente los casos nuevos (`[...newItems, ...currentList]`), sin resetear ni sobrescribir las emergencias existentes que el Dispatcher ya está visualizando.
+- **RF-03 (Re-render reactivo):** Al actualizarse el estado en memoria, la columna correspondiente (ej. *Pendientes*) y las métricas se re-renderizan automáticamente.
+- **RF-04 (Animación de atención visual):** Aplica una animación temporal de parpadeo/pulso con reborde rojo y badge `"NUEVO"` a las tarjetas recién agregadas durante 6 segundos.
+- **Herramienta de simulación por consola:** Se expone `window.simularNuevaEmergencia(description, severity)` y `window.mockDatabase` para inyectar emergencias en vivo desde la consola del navegador y observar el flujo en tiempo real:
+  ```javascript
+  window.simularNuevaEmergencia("Incendio en depósito químico", "high");
+  ```
+- **Vistas Kanban alternables (RF-08, RF-09, RF-09.2):** Botón toggle para alternar entre **Emergencias por Estado** (7 columnas) y **Emergencias por Criticidad** (3 columnas con ancho 100%).
+- **Scroll vertical independiente:** Cada columna cuenta con scroll interno para soportar decenas de emergencias sin romper el diseño del tablero.
 
 ## Integración con backend
 
@@ -130,8 +134,53 @@ Toda la lógica de comunicación está centralizada en `app/lib/api.js`. El bot�
 export const USE_BACKEND = true;         // false = todo mockeado (sin backend)
 export const POLLING_INTERVAL_MS = 5000; // intervalo de polling del dispatcher
 ```
-
 **URL del backend:** no está hardcodeada. Se asume que el backend corre en la **misma máquina que el front, puerto 4000**, y se arma con el hostname con el que abriste la página (`http://<hostname>:4000/api`). Esto es clave cuando el dev server corre en un server remoto y lo abrís por IP: si la URL fuera `localhost:4000`, el browser buscaría el backend en *tu* máquina, no en el server. Para apuntar a otro lado: `NEXT_PUBLIC_API_URL=http://otro-host:4000/api npm run dev`.
+## Desarrollo: dev server accedido desde otra máquina
+
+Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
+- **Puerto:** `npm run dev -- -p 4001` si el 3000 está ocupado.
+- **`allowedDevOrigins` es obligatorio para acceso por IP:** el dev server de Next 16 responde **403 en `/_next/*`** (los chunks de JS) cuando el host de la request no es `localhost`. El síntoma es traicionero: la página carga el HTML y se ve bien, pero React nunca hidrata — botones muertos, sin toasts, sin errores en pantalla; solo se ve en la consola del browser (`net::ERR_ABORTED 403` en los chunks y el websocket de HMR caído). La IP desde la que accedés tiene que estar en `allowedDevOrigins` en `next.config.mjs`.
+- Los cambios en `next.config.mjs` requieren reiniciar el dev server (no los toma el hot reload).
+
+### Contrato de datos explícito: `GET /api/emergencies`
+
+La vista de Dispatcher (`DispatcherView.js`) espera recibir un array JSON de objetos de emergencia con la siguiente estructura exacta:
+
+```json
+[
+  {
+    "id": "em-001",
+    "userId": "user-101",
+    "description": "Accidente de tránsito en Av. Corrientes y Callao",
+    "severity": "high",
+    "status": "pendiente",
+    "location": {
+      "lat": -34.6042,
+      "lng": -58.3922
+    },
+    "timestamp": "2026-08-25T22:10:00-03:00"
+  }
+]
+```
+### Niveles de severidad (`severity`)
+
+| Clave | Color | Label |
+|---|---|---|
+| `high` | Naranja | Alta |
+| `medium` | Amarillo | Media |
+| `low` | Azul | Baja |
+
+### Estados (`status`)
+
+| Clave | Color | Label |
+|---|---|---|
+| `pendiente` | Rojo | Pendientes |
+| `validada` | Naranja | Validadas |
+| `despachada` | Amarillo | Despachadas |
+| `en_camino` | Cian | En Camino |
+| `en_lugar` | Índigo | En Lugar |
+| `resuelta` | Verde azulado | Resuelta |
+| `cerrada` | Gris | Cerrada |
 
 ## Desarrollo: dev server accedido desde otra máquina
 
@@ -140,11 +189,3 @@ Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
 - **Puerto:** `npm run dev -- -p 4001` si el 3000 está ocupado.
 - **`allowedDevOrigins` es obligatorio para acceso por IP:** el dev server de Next 16 responde **403 en `/_next/*`** (los chunks de JS) cuando el host de la request no es `localhost`. El síntoma es traicionero: la página carga el HTML y se ve bien, pero React nunca hidrata — botones muertos, sin toasts, sin errores en pantalla; solo se ve en la consola del browser (`net::ERR_ABORTED 403` en los chunks y el websocket de HMR caído). La IP desde la que accedés tiene que estar en `allowedDevOrigins` en `next.config.mjs`.
 - Los cambios en `next.config.mjs` requieren reiniciar el dev server (no los toma el hot reload).
-
-## Niveles de severidad
-
-| Clave | Color | Label |
-|---|---|---|
-| `high` | Naranja | Alta |
-| `medium` | Amarillo | Media |
-| `low` | Azul | Baja |

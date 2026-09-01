@@ -136,11 +136,45 @@ export const STATUS_CONFIG = [
   { key: "cerrada", label: "Cerrada", color: "gray" },
 ];
 
+// ── Inyección para pruebas en consola (RF-01 .. RF-04) ───────────────
+if (typeof window !== "undefined") {
+  window.mockDatabase = MOCK_EMERGENCIES;
+
+  window.simularNuevaEmergencia = (description = "Nueva Emergencia Reportada", severity = "high") => {
+    const nueva = {
+      id: `em-${Date.now()}`,
+      userId: `user-${Math.floor(100 + Math.random() * 900)}`,
+      description,
+      severity, // "low" | "medium" | "high"
+      status: "pendiente", // "pendiente" | "validada" | "despachada" | "en_camino" | "en_lugar" | "resuelta" | "cerrada"
+      location: { lat: -34.6037, lng: -58.3816 },
+      timestamp: new Date().toISOString(),
+    };
+
+    MOCK_EMERGENCIES.unshift(nueva);
+    console.log("🚨 Emergencia inyectada en la base falsa. Espera al próximo ciclo de polling...", nueva);
+    return nueva;
+  };
+}
+
 // ── Data fetching helpers ───────────────────────────────────────────
 
 export async function fetchEmergencies() {
-  // El backend todavía no tiene endpoint de listado de emergencias,
-  // así que seguimos devolviendo los mocks aunque USE_BACKEND sea true.
+  if (USE_BACKEND) {
+    try {
+      const res = await fetch(`${API_URL}/emergencies`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          return data;
+        }
+      }
+    } catch {
+      // Backend list endpoint not yet available, fallback to mocks
+    }
+  }
+
+  // Fallback mock polling
   console.log("Polling emergencies (mock):", MOCK_EMERGENCIES.length, "active");
   return MOCK_EMERGENCIES;
 }
