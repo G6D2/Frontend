@@ -1,10 +1,15 @@
-import { Badge, Card, Group, Text } from "@mantine/core";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { Badge, Button, Card, Group, Text } from "@mantine/core";
+import { IconAlertTriangle, IconUserCheck, IconShield } from "@tabler/icons-react";
 import { SEVERITY_CONFIG } from "../lib/api";
 import classes from "../styles.module.css";
 
-export default function EmergencyCard({ emergency, isNew = false }) {
+export default function EmergencyCard({
+  emergency,
+  isNew = false,
+  onAssignOfficer,
+}) {
   const sev = SEVERITY_CONFIG[emergency.severity] || SEVERITY_CONFIG.medium;
+  const isValidated = emergency.status === "validada";
 
   return (
     <Card
@@ -32,9 +37,39 @@ export default function EmergencyCard({ emergency, isNew = false }) {
       <Text fz="lg" fw={500} mt="md">
         {emergency.description}
       </Text>
+
       <Text fz="sm" c="dimmed" mt={5}>
         {String(emergency.id).toUpperCase()} — Reportado por {emergency.userId}
       </Text>
+
+      {/* Oficial asignado (RF-08) */}
+      {emergency.assignedOfficer && (
+        <Group gap={6} mt="xs" align="center">
+          <Badge
+            size="sm"
+            variant="light"
+            color="blue"
+            leftSection={<IconShield size={12} />}
+          >
+            {emergency.assignedOfficer}
+          </Badge>
+        </Group>
+      )}
+
+      {/* Botón Asignar Oficial exclusivo para estado VALIDADA (RF-05) */}
+      {isValidated && (
+        <Button
+          variant="light"
+          color="orange"
+          size="xs"
+          fullWidth
+          mt="sm"
+          leftSection={<IconUserCheck size={16} />}
+          onClick={() => onAssignOfficer?.(emergency)}
+        >
+          Asignar Oficial
+        </Button>
+      )}
     </Card>
   );
 }

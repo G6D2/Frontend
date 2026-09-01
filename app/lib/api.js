@@ -115,8 +115,45 @@ export const MOCK_EMERGENCIES = [
     location: { lat: -34.6100, lng: -58.3900 },
     timestamp: "2026-08-25T23:20:00-03:00",
   },
+  {
+    id: "em-012",
+    userId: "user-805",
+    description: "Escape de gas en establecimiento escolar",
+    severity: "medium",
+    status: "validada",
+    location: { lat: -34.6050, lng: -58.3850 },
+    timestamp: "2026-08-25T23:25:00-03:00",
+  },
 ];
 // ─────────────────────────────────────────────────────────────────────
+
+// ── Mock Officers (RF-06) ───────────────────────────────────────────
+export const MOCK_OFFICERS = [
+  {
+    id: "of-001",
+    name: "Oficial Carlos Gómez",
+    badgeNumber: "CP-4021",
+    location: "Av. 9 de Julio y Corrientes",
+    distance: "350 m",
+    status: "disponible",
+  },
+  {
+    id: "of-002",
+    name: "Oficial Mariana López",
+    badgeNumber: "CP-3108",
+    location: "Plaza de Mayo",
+    distance: "800 m",
+    status: "disponible",
+  },
+  {
+    id: "of-003",
+    name: "Oficial Martín Rodríguez",
+    badgeNumber: "CP-5520",
+    location: "Av. Santa Fe y Callao",
+    distance: "1.2 km",
+    status: "disponible",
+  },
+];
 
 // ── Severity config (used for badges and criticality columns) ─────────
 export const SEVERITY_CONFIG = {
@@ -139,6 +176,7 @@ export const STATUS_CONFIG = [
 // ── Inyección para pruebas en consola (RF-01 .. RF-04) ───────────────
 if (typeof window !== "undefined") {
   window.mockDatabase = MOCK_EMERGENCIES;
+  window.mockOfficers = MOCK_OFFICERS;
 
   window.simularNuevaEmergencia = (description = "Nueva Emergencia Reportada", severity = "high") => {
     const nueva = {
@@ -177,6 +215,65 @@ export async function fetchEmergencies() {
   // Fallback mock polling
   console.log("Polling emergencies (mock):", MOCK_EMERGENCIES.length, "active");
   return MOCK_EMERGENCIES;
+}
+
+export async function fetchOfficers() {
+  if (USE_BACKEND) {
+    try {
+      const res = await fetch(`${API_URL}/officers`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          return data;
+        }
+      }
+    } catch {
+      // Backend officers endpoint not yet available, fallback to mocks
+    }
+  }
+
+  return MOCK_OFFICERS;
+}
+
+export async function assignOfficer(emergencyId, officerId) {
+  const officer = MOCK_OFFICERS.find((o) => o.id === officerId) || {
+    id: officerId,
+    name: `Oficial ${officerId}`,
+  };
+
+  if (USE_BACKEND) {
+    try {
+      const res = await fetch(`${API_URL}/emergencies/${emergencyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          officerId,
+          status: "despachada",
+          assignedOfficer: officer.name,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        return data || { success: true, status: "despachada", assignedOfficer: officer.name };
+      }
+    } catch {
+      // Fallback a asignación local mock
+    }
+  }
+
+  // Actualizar en MOCK_EMERGENCIES
+  const index = MOCK_EMERGENCIES.findIndex((e) => String(e.id) === String(emergencyId));
+  if (index !== -1) {
+    MOCK_EMERGENCIES[index] = {
+      ...MOCK_EMERGENCIES[index],
+      status: "despachada",
+      assignedOfficer: officer.name,
+      assignedOfficerId: officerId,
+    };
+  }
+
+  return { success: true, status: "despachada", assignedOfficer: officer.name };
 }
 
 export async function submitEmergency(payload) {

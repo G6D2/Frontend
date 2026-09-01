@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge, Group, ScrollArea, Text, Title } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   fetchEmergencies,
+  assignOfficer,
   POLLING_INTERVAL_MS,
   STATUS_CONFIG,
   SEVERITY_CONFIG,
 } from "../lib/api";
 import EmergencyCard from "./EmergencyCard";
+import AssignOfficerModal from "./AssignOfficerModal";
 import ViewToggle from "./ViewToggle";
 import classes from "../styles.module.css";
 
@@ -17,6 +20,10 @@ export default function DispatcherView() {
   const [newEmergencyIds, setNewEmergencyIds] = useState(new Set());
   const [viewMode, setViewMode] = useState("status"); // "status" | "criticality"
   const isInitialLoadRef = useRef(true);
+
+  // Estado para el modal de asignación de oficial (RF-05, RF-06)
+  const [selectedEmergency, setSelectedEmergency] = useState(null);
+  const [modalOpened, setModalOpened] = useState(false);
 
   // ── RF-01 & RF-02: Polling y comparación en memoria ──
   const loadEmergencies = useCallback(async () => {
@@ -74,6 +81,48 @@ export default function DispatcherView() {
     const interval = setInterval(loadEmergencies, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [loadEmergencies]);
+
+  // ── RF-05 & RF-06: Abrir modal de asignación ──
+  const handleOpenAssignModal = (emergency) => {
+    setSelectedEmergency(emergency);
+    setModalOpened(true);
+  };
+
+  // ── RF-07 & RF-08: Confirmar asignación vía PATCH y mover a DESPACHADA ──
+  const handleAssignOfficer = async (emergencyId, officerId) => {
+    try {
+      const result = await assignOfficer(emergencyId, officerId);
+
+      // RF-08: Actualizar estado local a DESPACHADA y asociar oficial asignado
+      setEmergencies((prevList) =>
+        prevList.map((em) =>
+          String(em.id) === String(emergencyId)
+            ? {
+                ...em,
+                status: "despachada",
+                assignedOfficer: result.assignedOfficer,
+                assignedOfficerId: officerId,
+              }
+            : em
+        )
+      );
+
+      notifications.show({
+        title: "Oficial Asignado",
+        message: `La emergencia ${String(emergencyId).toUpperCase()} fue asignada a ${result.assignedOfficer} y pasó a estado DESPACHADA.`,
+        color: "teal",
+        autoClose: 4000,
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Error al asignar oficial",
+        message: error.message || "No se pudo completar la asignación.",
+        color: "red",
+        autoClose: 4000,
+      });
+      throw error;
+    }
+  };
 
   const toggleView = () =>
     setViewMode((prev) => (prev === "status" ? "criticality" : "status"));
@@ -159,6 +208,7 @@ export default function DispatcherView() {
                         key={em.id}
                         emergency={em}
                         isNew={newEmergencyIds.has(String(em.id))}
+                        onAssignOfficer={handleOpenAssignModal}
                       />
                     ))
                   )}
@@ -168,6 +218,14 @@ export default function DispatcherView() {
           })}
         </div>
       </ScrollArea>
+
+      {/* ── Modal de asignación de oficial (RF-06, RF-07, RF-08) ── */}
+      <AssignOfficerModal
+        opened={modalOpened}
+        onClose={() => setModalOpened(false)}
+        emergency={selectedEmergency}
+        onAssign={handleAssignOfficer}
+      />
     </div>
   );
 }

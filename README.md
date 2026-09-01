@@ -72,18 +72,16 @@ Frontend/
 │
 └── app/
     ├── layout.js              # Root layout: MantineProvider (light), Notifications
-    ├── page.js                # Orquestador: maneja rol (usuario/dispatcher) y navegación
-    ├── styles.module.css      # CSS único: reset global + estilos navbar + tablero Kanban
-    │
-    ├── components/
-    │   ├── Navbar.js          # Sidebar de navegación con secciones Servicios y Cuenta
-    │   ├── PanicButton.js     # Botón de pánico (vista Usuario)
-    │   ├── EmergencyCard.js   # Tarjeta individual de emergencia
-    │   ├── DispatcherView.js  # Vista Dispatcher: tablero Kanban (estados/criticidad) + polling
-    │   └── ViewToggle.js      # Botón para alternar vistas (Estado vs Criticidad)
+    ├── page.js                # Orquestador: maneja rol (usuario/dispatcher) y navegac    ├── components/
+    │   ├── Navbar.js             # Sidebar de navegación con secciones Servicios y Cuenta
+    │   ├── PanicButton.js        # Botón de pánico (vista Usuario)
+    │   ├── EmergencyCard.js      # Tarjeta individual de emergencia
+    │   ├── DispatcherView.js     # Vista Dispatcher: tablero Kanban (estados/criticidad) + polling
+    │   ├── ViewToggle.js         # Botón para alternar vistas (Estado vs Criticidad)
+    │   └── AssignOfficerModal.js # Modal de asignación de oficial a emergencias validadas
     │
     └── lib/
-        └── api.js             # Config backend, STATUS_CONFIG, SEVERITY_CONFIG, mocks y fetch
+        └── api.js                # Config backend, STATUS_CONFIG, SEVERITY_CONFIG, mocks, officers y fetch
 ```
 
 ## Vistas
@@ -116,6 +114,10 @@ Frontend/
 - **RF-02 (Merge incremental en memoria):** Al recibir los datos, compara los IDs entrantes contra el estado en memoria y agrega únicamente los casos nuevos (`[...newItems, ...currentList]`), sin resetear ni sobrescribir las emergencias existentes que el Dispatcher ya está visualizando.
 - **RF-03 (Re-render reactivo):** Al actualizarse el estado en memoria, la columna correspondiente (ej. *Pendientes*) y las métricas se re-renderizan automáticamente.
 - **RF-04 (Animación de atención visual):** Aplica una animación temporal de parpadeo/pulso con reborde rojo y badge `"NUEVO"` a las tarjetas recién agregadas durante 6 segundos.
+- **RF-05 (Botón Asignar Oficial):** Las tarjetas en estado `validada` renderizan exclusivamente un botón naranja *"Asignar Oficial"*.
+- **RF-06 (Consulta de oficiales y Modal):** Al presionar *"Asignar Oficial"*, se realiza una consulta `GET /api/officers` (o fallback a `MOCK_OFFICERS`) y se abre un modal con los oficiales disponibles, su ubicación y distancia.
+- **RF-07 (Confirmación y PATCH):** Al seleccionar un oficial y confirmar, se envía un `PATCH /api/emergencies/:id` con `{ officerId, status: "despachada", assignedOfficer }`.
+- **RF-08 (Transición a Despachada):** Con respuesta exitosa (HTTP 200), el estado local de la emergencia se actualiza a `despachada`, moviéndose automáticamente a la columna **Despachadas** y exhibiendo el badge del oficial asignado.
 - **Herramienta de simulación por consola:** Se expone `window.simularNuevaEmergencia(description, severity)` y `window.mockDatabase` para inyectar emergencias en vivo desde la consola del navegador y observar el flujo en tiempo real:
   ```javascript
   window.simularNuevaEmergencia("Incendio en depósito químico", "high");
@@ -125,7 +127,7 @@ Frontend/
 
 ## Integración con backend
 
-Toda la lógica de comunicación está centralizada en `app/lib/api.js`. El botón de pánico ya le pega al backend real ([emergencias-backend](https://github.com/G6D2/emergencias-backend)); la vista Dispatcher sigue usando mocks porque el backend todavía no tiene endpoint de listado.
+Toda la lógica de comunicación está centralizada en `app/lib/api.js`.
 
 ### Configuración
 
@@ -134,18 +136,13 @@ Toda la lógica de comunicación está centralizada en `app/lib/api.js`. El bot�
 export const USE_BACKEND = true;         // false = todo mockeado (sin backend)
 export const POLLING_INTERVAL_MS = 5000; // intervalo de polling del dispatcher
 ```
-**URL del backend:** no está hardcodeada. Se asume que el backend corre en la **misma máquina que el front, puerto 4000**, y se arma con el hostname con el que abriste la página (`http://<hostname>:4000/api`). Esto es clave cuando el dev server corre en un server remoto y lo abrís por IP: si la URL fuera `localhost:4000`, el browser buscaría el backend en *tu* máquina, no en el server. Para apuntar a otro lado: `NEXT_PUBLIC_API_URL=http://otro-host:4000/api npm run dev`.
-## Desarrollo: dev server accedido desde otra máquina
 
-Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
-- **Puerto:** `npm run dev -- -p 4001` si el 3000 está ocupado.
-- **`allowedDevOrigins` es obligatorio para acceso por IP:** el dev server de Next 16 responde **403 en `/_next/*`** (los chunks de JS) cuando el host de la request no es `localhost`. El síntoma es traicionero: la página carga el HTML y se ve bien, pero React nunca hidrata — botones muertos, sin toasts, sin errores en pantalla; solo se ve en la consola del browser (`net::ERR_ABORTED 403` en los chunks y el websocket de HMR caído). La IP desde la que accedés tiene que estar en `allowedDevOrigins` en `next.config.mjs`.
-- Los cambios en `next.config.mjs` requieren reiniciar el dev server (no los toma el hot reload).
+**URL del backend:** no está hardcodeada. Se asume que el backend corre en la **misma máquina que el front, puerto 4000**, y se arma con el hostname con el que abriste la página (`http://<hostname>:4000/api`). Para apuntar a otro lado: `NEXT_PUBLIC_API_URL=http://otro-host:4000/api npm run dev`.
 
-### Contrato de datos explícito: `GET /api/emergencies`
+### Endpoints y Contratos
 
-La vista de Dispatcher (`DispatcherView.js`) espera recibir un array JSON de objetos de emergencia con la siguiente estructura exacta:
-
+#### 1. `GET /api/emergencies`
+Retorna el array de emergencias activas:
 ```json
 [
   {
@@ -154,14 +151,37 @@ La vista de Dispatcher (`DispatcherView.js`) espera recibir un array JSON de obj
     "description": "Accidente de tránsito en Av. Corrientes y Callao",
     "severity": "high",
     "status": "pendiente",
-    "location": {
-      "lat": -34.6042,
-      "lng": -58.3922
-    },
+    "location": { "lat": -34.6042, "lng": -58.3922 },
     "timestamp": "2026-08-25T22:10:00-03:00"
   }
 ]
 ```
+
+#### 2. `GET /api/officers`
+Retorna el listado de oficiales disponibles para asignación:
+```json
+[
+  {
+    "id": "of-001",
+    "name": "Oficial Carlos Gómez",
+    "badgeNumber": "CP-4021",
+    "location": "Av. 9 de Julio y Corrientes",
+    "distance": "350 m",
+    "status": "disponible"
+  }
+]
+```
+
+#### 3. `PATCH /api/emergencies/:id`
+Asigna un oficial a una emergencia validada y actualiza su estado:
+```json
+{
+  "officerId": "of-002",
+  "status": "despachada",
+  "assignedOfficer": "Oficial Mariana López"
+}
+```
+
 ### Niveles de severidad (`severity`)
 
 | Clave | Color | Label |

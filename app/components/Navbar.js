@@ -147,7 +147,10 @@ export default function Navbar({
           {cuentaLinks}
         </div>
 
-        {/* ── Footer image ── */}
+        {/* ── la imagen rara de abajo del navbar ── */}
+        {/* ── TODOS los width y los height estan a ojos
+            ESO ESTA MAL, deberia preguntar en el canal de discord de Front para ver los datos
+            reales de las medidas ── */}
         <div className={classes.navbarFooterImage}>
           <Image
             src="/Images/CityPass_footer_navbar_image.png"
