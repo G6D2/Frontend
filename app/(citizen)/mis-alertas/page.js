@@ -13,12 +13,17 @@ import {
   getStatusConfig,
   isActiveStatus,
   locationLabel,
+  emergencyTitle,
+  TYPE_LABELS,
 } from "../../lib/emergencies";
 
 function AlertCard({ emergency }) {
   const statusCfg = getStatusConfig(emergency.status);
   const active = isActiveStatus(emergency.status);
-  const isCreated = emergency.status === "CREATED";
+  const isCreated = emergency.status === "CREATED" || emergency.status === "PENDING";
+  const typeLabel =
+    TYPE_LABELS[emergency.emergencyType] ||
+    TYPE_LABELS[String(emergency.emergencyType || "").toLowerCase()];
 
   return (
     <article
@@ -41,9 +46,10 @@ function AlertCard({ emergency }) {
           </div>
           <div className="flex flex-col">
             <h3 className="text-xl font-semibold text-on-surface">
-              {emergency.description || "Emergencia"}
+              {emergencyTitle(emergency)}
             </h3>
             <span className="text-xs font-medium text-on-surface-variant">
+              {typeLabel ? `${typeLabel} · ` : ""}
               {formatTime(emergency.createdAt)}
             </span>
           </div>
@@ -88,7 +94,7 @@ export default function MisAlertasPage() {
   const load = useCallback(async () => {
     try {
       const data = await fetchEmergencies();
-      setEmergencies(data);
+      setEmergencies(Array.isArray(data) ? data : []);
       setError("");
     } catch (err) {
       setError(err.message || "No se pudieron cargar las alertas");

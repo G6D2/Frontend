@@ -18,6 +18,8 @@ import {
   elapsedMinutes,
   locationLabel,
   hasValidCoords,
+  isPendingStatus,
+  isActiveStatus,
 } from "../lib/emergencies";
 
 function PriorityBadge({ severity }) {
@@ -97,11 +99,11 @@ export default function OpsPage() {
     };
   }, [load, router]);
 
-  const pending = emergencies.filter((e) => e.status === "CREATED");
+  const pending = emergencies.filter((e) => isPendingStatus(e.status));
   const critical = emergencies.filter(
     (e) =>
       (e.severity === "critical" || e.severity === "high") &&
-      e.status === "CREATED"
+      isPendingStatus(e.status)
   );
   const showCriticalBanner = critical.length > 0 && !alertAcked;
 
@@ -110,7 +112,7 @@ export default function OpsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 shrink-0">
         {[
           { label: "Pendientes", value: pending.length },
-          { label: "Total activas", value: emergencies.filter((e) => e.status === "CREATED" || e.status === "VALIDATED").length },
+          { label: "Total activas", value: emergencies.filter((e) => isActiveStatus(e.status) && e.status !== "CANCELLED").length },
           {
             label: "Críticas",
             value: critical.length,
@@ -212,7 +214,7 @@ export default function OpsPage() {
                       key={em.id}
                       onClick={() => {
                         setSelected(em);
-                        if (em.status === "CREATED") setAlertAcked(false);
+                        if (isPendingStatus(em.status)) setAlertAcked(false);
                       }}
                       className={`h-8 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors cursor-pointer ${
                         selected?.id === em.id

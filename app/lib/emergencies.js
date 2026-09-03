@@ -10,6 +10,7 @@ export const PRIORITY_CONFIG = {
 // PENDIENTE→VALIDADA→DESPACHADA→EN_CAMINO→EN_LUGAR→RESUELTA→CERRADA (+ DESCARTADA/CANCELADA)
 export const STATUS_CONFIG = {
   CREATED: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
+  PENDING: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
   VALIDATED: { label: "VALIDADA", color: "status-validada", key: "validada" },
   CANCELLED: { label: "CANCELADA", color: "status-pendiente", key: "cancelada" },
   DISPATCHED: { label: "DESPACHADA", color: "status-despachada", key: "despachada" },
@@ -28,16 +29,34 @@ export const STATUS_CONFIG = {
 };
 
 export const TYPE_LABELS = {
-  medical: "Médica",
+  medical: "Emergencia médica",
   fire: "Incendio",
   infrastructure: "Infraestructura",
-  disturbance: "Disturbio",
-  other: "Otro",
+  disturbance: "Disturbio o evento",
+  other: "Otro incidente",
   panic: "Botón de pánico",
+  MEDICA: "Emergencia médica",
+  SEGURIDAD: "Seguridad",
+  INCENDIO: "Incendio",
+  TRANSITO: "Tránsito",
 };
+
+export function emergencyTitle(emergency) {
+  if (!emergency) return "Emergencia";
+  if (emergency.description) return emergency.description;
+  const typeLabel =
+    TYPE_LABELS[emergency.emergencyType] ||
+    TYPE_LABELS[String(emergency.emergencyType || "").toLowerCase()];
+  if (typeLabel) return typeLabel;
+  return "Emergencia";
+}
 
 export function getStatusConfig(status) {
   return STATUS_CONFIG[status] || STATUS_CONFIG.CREATED;
+}
+
+export function isPendingStatus(status) {
+  return status === "PENDING" || status === "CREATED" || status === "pendiente";
 }
 
 export function isActiveStatus(status) {
@@ -47,7 +66,7 @@ export function isActiveStatus(status) {
 }
 
 export function isCancelable(status) {
-  return status === "CREATED";
+  return status === "CREATED" || status === "PENDING" || status === "VALIDATED";
 }
 
 export function formatTime(iso) {

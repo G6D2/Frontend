@@ -7,6 +7,13 @@ import {
 
 export const POLLING_INTERVAL_MS = 5000;
 
+function redirectToLogin() {
+  clearStoredUser();
+  if (typeof window === "undefined") return;
+  if (window.location.pathname.startsWith("/acceso")) return;
+  window.location.replace("/acceso");
+}
+
 // ── Endpoints vía BFF (/api/backend/*) con cookie httpOnly ───────────
 // Contrato seguridad backend (2026-08):
 // - lat/lng cifrados en reposo; respuesta puede traer locationAnonymized:true y coords null
@@ -60,7 +67,7 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
     const message =
       data?.message || data?.error || `Error HTTP ${res.status}`;
     if (res.status === 401) {
-      clearStoredUser();
+      redirectToLogin();
     }
     throw new ApiError(message, { status: res.status, body: data });
   }
@@ -107,7 +114,11 @@ export async function fetchCurrentUser() {
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) {
-    clearStoredUser();
+    if (res.status === 401) {
+      redirectToLogin();
+    } else {
+      clearStoredUser();
+    }
     throw new ApiError(data?.message || "Sin sesión", {
       status: res.status,
       body: data,
@@ -129,8 +140,9 @@ export async function hasValidSession() {
 export async function triggerPanicButton({
   latitude,
   longitude,
-  description = "Necesito ayuda inmediata",
+  description,
   severity = "critical",
+  emergencyType = "panic",
 }) {
   // Backend exige numbers (AES location crypto + ValidationError si NaN/string)
   const lat = Number(latitude);
@@ -141,13 +153,16 @@ export async function triggerPanicButton({
     });
   }
 
+  const body = {
+    location: { latitude: lat, longitude: lng },
+    severity,
+    emergencyType,
+  };
+  if (description) body.description = description;
+
   return apiFetch("/api/panic-button", {
     method: "POST",
-    body: {
-      location: { latitude: lat, longitude: lng },
-      description,
-      severity,
-    },
+    body,
   });
 }
 
@@ -157,8 +172,10 @@ export async function fetchEmergencyById(id) {
 }
 
 export async function fetchEmergencies() {
-  const res = await apiFetch("/api/emergencies");
-  return res.data || [];
+  const res = await apiFetch("/api/emergencies?limit=100&sortBy=createdAt&order=desc");
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res)) return res;
+  return [];
 }
 
 export async function cancelEmergency(id, reason = null) {
@@ -215,9 +232,23 @@ export const MOCK_OFFICERS = [
   },
 ];
 
-export async function reportIncident() {
-  throw new ApiError("TODO(back): POST reportar incidente (HU-02)", {
-    status: 501,
+export async function reportIncident({
+  category,
+  latitude,
+  longitude,
+  severity,
+  description,
+}) {
+  const type = String(category || "other").toLowerCase();
+  // SOS = critical; incidentes: medical/fire = high, resto = medium
+  const defaultSeverity =
+    type === "medical" || type === "fire" ? "high" : "medium";
+  return triggerPanicButton({
+    latitude,
+    longitude,
+    emergencyType: type,
+    severity: severity || defaultSeverity,
+    description: description || undefined,
   });
 }
 

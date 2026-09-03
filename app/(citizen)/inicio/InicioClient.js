@@ -28,15 +28,16 @@ export default function InicioClient() {
     });
   }, []);
 
-  const handleConfirmSos = async () => {
+  const handleConfirmSos = async (optionalDescription = "") => {
     setLoading(true);
     try {
       const location = await getCurrentLocation();
       const result = await triggerPanicButton({
         latitude: location.latitude,
         longitude: location.longitude,
-        description: "Necesito ayuda inmediata",
         severity: "critical",
+        emergencyType: "panic",
+        description: optionalDescription || undefined,
       });
       // TODO(back): correlationId / eventId (HU-01)
       // TODO(back): reintento ante 504 del bus

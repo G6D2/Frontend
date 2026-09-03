@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import MaterialIcon from "./MaterialIcon";
 
 const tabs = [
@@ -13,9 +14,22 @@ const tabs = [
 
 export default function CitizenBottomNav() {
   const pathname = usePathname();
+  const [sosOpen, setSosOpen] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setSosOpen(document.body.dataset.sosOpen === "1");
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-sos-open"],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   // Detail pages hide bottom nav per design
   if (/^\/mis-alertas\/[^/]+$/.test(pathname)) return null;
+  if (sosOpen) return null;
 
   return (
     <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 pb-safe h-20 bg-surface shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] rounded-t-xl md:hidden">
