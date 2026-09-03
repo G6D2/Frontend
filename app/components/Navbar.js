@@ -4,38 +4,33 @@ import Image from "next/image";
 import { ActionIcon, Group, Tooltip } from "@mantine/core";
 import {
   IconHome,
-  IconBike,
-  IconTrash,
   IconMessageReport,
   IconShieldExclamation,
-  IconTrees,
-  IconTheater,
-  IconChartBar,
+  IconLayoutKanban,
+  IconList,
+  IconMap,
+  IconUsers,
+  IconHistory,
   IconUser,
-  IconBell,
-  IconSettings,
-  IconHelpCircle,
   IconChevronLeft,
   IconChevronRight,
 } from "@tabler/icons-react";
 import classes from "../styles.module.css";
 
-const serviciosData = [
-  { link: "", label: "Inicio", icon: IconHome },
-  { link: "", label: "Movilidad", icon: IconBike },
-  { link: "", label: "Residuos", icon: IconTrash },
-  { link: "", label: "Reclamos", icon: IconMessageReport },
-  { link: "", label: "Emergencias", icon: IconShieldExclamation },
-  { link: "", label: "Espacios Públicos", icon: IconTrees },
-  { link: "", label: "Cultura y Eventos", icon: IconTheater },
-  { link: "", label: "Analítica Urbana", icon: IconChartBar },
+const CITIZEN_NAV = [
+  { label: "Inicio", icon: IconHome },
+  { label: "Mis alertas", icon: IconShieldExclamation },
+  { label: "Reclamos", icon: IconMessageReport },
+  { label: "Mi Cuenta", icon: IconUser },
 ];
 
-const cuentaData = [
-  { link: "", label: "Mi Cuenta", icon: IconUser },
-  { link: "", label: "Notificaciones", icon: IconBell },
-  { link: "", label: "Configuración", icon: IconSettings },
-  { link: "", label: "Ayuda", icon: IconHelpCircle },
+const DISPATCHER_NAV = [
+  { label: "Kanban", icon: IconLayoutKanban },
+  { label: "Lista", icon: IconList },
+  { label: "Mapa", icon: IconMap },
+  { label: "Oficiales", icon: IconUsers },
+  { label: "Historial", icon: IconHistory },
+  { label: "Mi Cuenta", icon: IconUser },
 ];
 
 export default function Navbar({
@@ -45,31 +40,13 @@ export default function Navbar({
   opened = true,
   onToggle,
 }) {
-  const serviciosLinks = serviciosData.map((item) => (
+  const items = role === "dispatcher" ? DISPATCHER_NAV : CITIZEN_NAV;
+
+  const links = items.map((item) => (
     <a
       className={classes.link}
       data-active={item.label === active || undefined}
-      href={item.link}
-      key={item.label}
-      onClick={(event) => {
-        event.preventDefault();
-        onNavClick(item.label);
-      }}
-    >
-      <item.icon className={classes.linkIcon} stroke={1.5} />
-      <span>{item.label}</span>
-    </a>
-  ));
-
-  const cuentaLinks = cuentaData.map((item) => (
-    <a
-      className={classes.link}
-      data-active={
-        item.label === "Mi Cuenta"
-          ? undefined
-          : item.label === active || undefined
-      }
-      href={item.link}
+      href="#"
       key={item.label}
       onClick={(event) => {
         event.preventDefault();
@@ -87,7 +64,6 @@ export default function Navbar({
 
   return (
     <>
-      {/* ── Floating button when navbar is collapsed ── */}
       {!opened && onToggle && (
         <Tooltip label="Expandir menú" position="right" withArrow>
           <ActionIcon
@@ -103,12 +79,10 @@ export default function Navbar({
         </Tooltip>
       )}
 
-      {/* ── Main Navbar Sidebar ── */}
       <nav
         className={`${classes.navbar} ${!opened ? classes.navbarCollapsed : ""}`}
       >
         <div className={classes.navbarMain}>
-          {/* ── Header with Logo and Collapse button ── */}
           <Group className={classes.header} justify="space-between" align="center">
             <Group gap="sm" align="center" style={{ flex: 1 }}>
               <Image
@@ -139,18 +113,10 @@ export default function Navbar({
             )}
           </Group>
 
-          <div className={classes.sectionTitle}>Servicios</div>
-          {serviciosLinks}
-
-          <div className={classes.separator} />
-
-          {cuentaLinks}
+          <div className={classes.sectionTitle}>Navegación</div>
+          {links}
         </div>
 
-        {/* ── la imagen rara de abajo del navbar ── */}
-        {/* ── TODOS los width y los height estan a ojos
-            ESO ESTA MAL, deberia preguntar en el canal de discord de Front para ver los datos
-            reales de las medidas ── */}
         <div className={classes.navbarFooterImage}>
           <Image
             src="/Images/CityPass_footer_navbar_image.png"

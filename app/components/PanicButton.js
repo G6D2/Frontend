@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { Button, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconCheck, IconSend } from "@tabler/icons-react";
-import { submitEmergency } from "../lib/api";
+import { useState } from "react";
+import {
+  triggerPanicButton,
+  getCurrentLocation,
+} from "../lib/api";
 
+/** @deprecated Preferir la pantalla /inicio con diseño Civic Guardian */
 export default function PanicButton() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -13,22 +17,15 @@ export default function PanicButton() {
   const handleSubmit = async () => {
     setLoading(true);
     setSent(true);
-
-    const lat = Number((Math.random() * (-34.53 - -34.7) + -34.7).toFixed(4));
-    const lng = Number((Math.random() * (-58.35 - -58.53) + -58.53).toFixed(4));
-
-    const payload = {
-      userId: "user-123",
-      location: { lat, lng },
-      description: "Botón de pánico activado",
-      severity: "high",
-    };
-
     try {
-      const result = await submitEmergency(payload);
+      const loc = await getCurrentLocation();
+      await triggerPanicButton({
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+      });
       notifications.show({
-        title: "Emergencia creada",
-        message: `ID ${result.emergencyId} — lat ${lat}, lng ${lng}`,
+        title: "Success",
+        message: "Alerta enviada al backend.",
         color: "teal",
         autoClose: 4000,
       });

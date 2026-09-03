@@ -1,3 +1,5 @@
+"use client";
+
 import { Badge, Button, Card, Group, Text } from "@mantine/core";
 import { IconAlertTriangle, IconUserCheck, IconShield } from "@tabler/icons-react";
 import { SEVERITY_CONFIG } from "../lib/api";
@@ -9,7 +11,8 @@ export default function EmergencyCard({
   onAssignOfficer,
 }) {
   const sev = SEVERITY_CONFIG[emergency.severity] || SEVERITY_CONFIG.medium;
-  const isValidated = emergency.status === "validada";
+  const isValidated =
+    emergency.status === "validada" || emergency.status === "VALIDATED";
 
   return (
     <Card
