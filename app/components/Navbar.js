@@ -79,7 +79,13 @@ export default function Navbar({
       <item.icon className={classes.linkIcon} stroke={1.5} />
       <span>
         {item.label === "Mi Cuenta"
-          ? `Mi Cuenta (${role === "usuario" ? "Usuario" : "Dispatcher"})`
+          ? `Mi Cuenta (${
+              role === "usuario"
+                ? "Usuario"
+                : role === "dispatcher"
+                ? "Dispatcher"
+                : "Oficial"
+            })`
           : item.label}
       </span>
     </a>
@@ -150,7 +156,7 @@ export default function Navbar({
         {/* ── la imagen rara de abajo del navbar ── */}
         {/* ── TODOS los width y los height estan a ojos
             ESO ESTA MAL, deberia preguntar en el canal de discord de Front para ver los datos
-            reales de las medidas ── */}
+            reales de las medidas. Btw no se por q se borro esto ── */}
         <div className={classes.navbarFooterImage}>
           <Image
             src="/Images/CityPass_footer_navbar_image.png"

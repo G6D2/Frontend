@@ -72,25 +72,29 @@ Frontend/
 │
 └── app/
     ├── layout.js              # Root layout: MantineProvider (light), Notifications
-    ├── page.js                # Orquestador: maneja rol (usuario/dispatcher) y navegac    ├── components/
-    │   ├── Navbar.js             # Sidebar de navegación con secciones Servicios y Cuenta
+    ├── components/
+    │   ├── Navbar.js             # Sidebar de navegación con secciones Servicios y Cuenta (rotación 3 roles)
     │   ├── PanicButton.js        # Botón de pánico (vista Usuario)
     │   ├── EmergencyCard.js      # Tarjeta individual de emergencia
     │   ├── DispatcherView.js     # Vista Dispatcher: tablero Kanban (estados/criticidad) + polling
     │   ├── ViewToggle.js         # Botón para alternar vistas (Estado vs Criticidad)
-    │   └── AssignOfficerModal.js # Modal de asignación de oficial a emergencias validadas
+    │   ├── AssignOfficerModal.js # Modal de asignación de oficial a emergencias validadas
+    │   └── OfficerView.js        # Vista Oficial: mapa táctico, información vital y patrullaje normal
     │
     └── lib/
         └── api.js                # Config backend, STATUS_CONFIG, SEVERITY_CONFIG, mocks, officers y fetch
 ```
 
-## Vistas
+## Vistas y Roles
 
-### Vista Usuario (default)
+Se alterna entre las tres vistas haciendo clic repetidamente en **"Mi Cuenta"** en el navbar:
+`Usuario` ➔ `Dispatcher` ➔ `Oficial` ➔ `Usuario`
 
-- Página centrada con un **Panic Button** .
+### 1. Vista Usuario (default)
+
+- Página centrada con un **Panic Button**.
 - Al presionar: hace `POST /api/panic-button` al backend con coordenadas aleatorias de CABA (lat −34.70 a −34.53, lng −58.53 a −58.35) y se deshabilita mientras envía.
-- Al enviarse correctamente, muestra un toast con la respuesta real del backend (`ID <emergencyId> — lat X, lng Y`) y el botón se rehabilita solo a los 2 segundos, para poder disparar varias emergencias seguidas (comportamiento "por ahora", para demos).
+- Al enviarse correctamente, muestra un toast con la respuesta real del backend (`ID <emergencyId> — lat X, lng Y`) y el botón se rehabilita solo a los 2 segundos para poder disparar varias emergencias seguidas.
 - Si el envío falla, muestra un toast rojo con el mensaje de error del backend y el botón se rehabilita para reintentar.
 
 **JSON de emergencia enviado:**
@@ -107,23 +111,71 @@ Frontend/
 }
 ```
 
-### Vista Dispatcher
+### 2. Vista Dispatcher
 
-- Se accede haciendo clic en **"Mi Cuenta"** en el navbar (alterna entre Usuario y Dispatcher).
-- **RF-01 (Polling periódico):** Implementa un `setInterval` que consulta periódicamente (cada 5 segundos configurables) las emergencias mediante `fetchEmergencies()` ejecutando un `GET /api/emergencies`.
-- **RF-02 (Merge incremental en memoria):** Al recibir los datos, compara los IDs entrantes contra el estado en memoria y agrega únicamente los casos nuevos (`[...newItems, ...currentList]`), sin resetear ni sobrescribir las emergencias existentes que el Dispatcher ya está visualizando.
-- **RF-03 (Re-render reactivo):** Al actualizarse el estado en memoria, la columna correspondiente (ej. *Pendientes*) y las métricas se re-renderizan automáticamente.
-- **RF-04 (Animación de atención visual):** Aplica una animación temporal de parpadeo/pulso con reborde rojo y badge `"NUEVO"` a las tarjetas recién agregadas durante 6 segundos.
-- **RF-05 (Botón Asignar Oficial):** Las tarjetas en estado `validada` renderizan exclusivamente un botón naranja *"Asignar Oficial"*.
-- **RF-06 (Consulta de oficiales y Modal):** Al presionar *"Asignar Oficial"*, se realiza una consulta `GET /api/officers` (o fallback a `MOCK_OFFICERS`) y se abre un modal con los oficiales disponibles, su ubicación y distancia.
-- **RF-07 (Confirmación y PATCH):** Al seleccionar un oficial y confirmar, se envía un `PATCH /api/emergencies/:id` con `{ officerId, status: "despachada", assignedOfficer }`.
-- **RF-08 (Transición a Despachada):** Con respuesta exitosa (HTTP 200), el estado local de la emergencia se actualiza a `despachada`, moviéndose automáticamente a la columna **Despachadas** y exhibiendo el badge del oficial asignado.
-- **Herramienta de simulación por consola:** Se expone `window.simularNuevaEmergencia(description, severity)` y `window.mockDatabase` para inyectar emergencias en vivo desde la consola del navegador y observar el flujo en tiempo real:
+- Tablero Kanban con dos modos de visualización: **Estados** (7 columnas) y **Criticidad** (3 columnas).
+- **RF-01 (Polling periódico):** `setInterval` cada 5 segundos ejecutando `fetchEmergencies()` (`GET /api/emergencies`).
+- **RF-02 (Merge incremental en memoria):** Compara IDs entrantes contra memoria y agrega únicamente casos nuevos (`[...newItems, ...currentList]`), sin reiniciar ni sobrescribir las existentes.
+- **RF-03 (Re-render reactivo):** La columna correspondiente y métricas se re-renderizan automáticamente.
+- **RF-04 (Animación de atención visual):** Parpadeo/pulso con reborde rojo y badge `"NUEVO"` durante 6 segundos.
+- **RF-05 (Botón Asignar Oficial):** Las tarjetas en estado `validada` renderizan exclusivamente el botón naranja *"Asignar Oficial"*.
+- **RF-06 (Consulta de oficiales y Modal):** Consulta `GET /api/officers` (o `MOCK_OFFICERS`) y abre un modal con oficiales disponibles, ubicación y distancia.
+- **RF-07 (Confirmación y PATCH):** Envía `PATCH /api/emergencies/:id` con `{ officerId, status: "despachada", assignedOfficer }`.
+- **RF-08 (Transición a Despachada):** Actualiza el estado local a `despachada`, moviendo la tarjeta a **Despachadas** con el badge del oficial asignado.
+
+### 3. Vista Oficial en Terreno (OfficerView)
+
+- **RF-01 (Carga de datos):** Al ingresar, ejecuta un `GET` a la API (`GET /api/officer/assigned-emergency`) enviando el token de sesión en la cabecera `Authorization: Bearer <token>` (con fallback automático a los mocks en `app/lib/api.js` buscando emergencias en estado `despachada` o `en_camino`).
+  
+  **Código exacto de consulta:**
   ```javascript
-  window.simularNuevaEmergencia("Incendio en depósito químico", "high");
+  // app/lib/api.js -> fetchAssignedEmergency()
+  export async function fetchAssignedEmergency() {
+    if (USE_BACKEND) {
+      try {
+        const sessionToken = "mock-officer-session-token";
+        const res = await fetch(`${API_URL}/officer/assigned-emergency`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch {
+        // Fallback a mocks
+      }
+    }
+    return MOCK_EMERGENCIES.find(
+      (e) => e.status === "despachada" || e.status === "en_camino"
+    ) || null;
+  }
   ```
-- **Vistas Kanban alternables (RF-08, RF-09, RF-09.2):** Botón toggle para alternar entre **Emergencias por Estado** (7 columnas) y **Emergencias por Criticidad** (3 columnas con ancho 100%).
-- **Scroll vertical independiente:** Cada columna cuenta con scroll interno para soportar decenas de emergencias sin romper el diseño del tablero.
+
+- **RF-02 (Renderizado de Mapa):** Si hay una emergencia asignada, se reserva un contenedor en blanco de 360px donde se integrará la librería de mapas.
+  *(Incluye el comentario `// TODO: Integrar Leaflet.js o Google Maps API con marcador interactivo en coords: lat, lng` para la futura integración del mapa).*
+
+- **RF-03 (Información Vital):** Debajo del mapa, renderiza dinámicamente:
+  - **Tipo de incidente / Descripción**
+  - **Nivel de prioridad / Severidad** (`Baja`, `Media`, `Alta`)
+  - **Dirección y Coordenadas GPS**
+  - **Identificador de emergencia y datos del reportante / hora**
+  - **Botón de acción:** Botón centrado *"Pedir Refuerzos"* (color rojo) que eleva automáticamente la criticidad de la emergencia a `High` independientemente de su valor original.
+
+- **RF-04 (Estado Vacío / Fallback):** Si el oficial no tiene ninguna emergencia asignada (`null`), oculta el mapa y muestra el componente visual de estado vacío con un escudo verde y el mensaje:
+  > **"Patrullaje normal - Sin emergencias asignadas"**  
+  > *Actualmente no tienes incidentes despachados a tu unidad. Mantén el patrullaje preventivo y la comunicación abierta con el centro de despacho.*
+
+- **Simulaciones por consola:**
+  ```javascript
+  // Simular oficial SIN emergencias (activa estado vacío de patrullaje normal)
+  window.simularAsignacionOficial(false);
+
+  // Simular oficial CON emergencia asignada
+  window.simularAsignacionOficial(true);
+  ```
 
 ## Integración con backend
 
@@ -158,17 +210,25 @@ Retorna el array de emergencias activas:
 ```
 
 #### 2. `GET /api/officers`
-Retorna el listado de oficiales disponibles para asignación:
+Retorna el listado de oficiales disponibles para asignación.
+
+#### 3. `GET /api/officer/assigned-emergency`
+Retorna la emergencia actualmente asignada al oficial autenticado (o `null`):
 ```json
 [
-  {
-    "id": "of-001",
-    "name": "Oficial Carlos Gómez",
-    "badgeNumber": "CP-4021",
-    "location": "Av. 9 de Julio y Corrientes",
-    "distance": "350 m",
-    "status": "disponible"
-  }
+{
+  "id": "em-002",
+  "userId": "user-205",
+  "description": "Incendio en edificio residencial, piso 3",
+  "severity": "medium",
+  "status": "despachada",
+  "location": {
+    "lat": -34.6118,
+    "lng": -58.3816
+  },
+  "timestamp": "2026-08-25T22:15:00-03:00",
+  "assignedOfficer": "Oficial Carlos Gómez"
+}
 ]
 ```
 

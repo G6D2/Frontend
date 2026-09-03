@@ -5,20 +5,32 @@ import { notifications } from "@mantine/notifications";
 import Navbar from "./components/Navbar";
 import PanicButton from "./components/PanicButton";
 import DispatcherView from "./components/DispatcherView";
+import OfficerView from "./components/OfficerView";
 
 export default function Home() {
   const [active, setActive] = useState("Emergencias");
-  const [role, setRole] = useState("usuario"); // "usuario" | "dispatcher"
+  const [role, setRole] = useState("usuario"); // "usuario" | "dispatcher" | "oficial"
   const [navbarOpened, setNavbarOpened] = useState(true);
 
-  // ── Role toggle via "Mi Cuenta" ──
+  // ── Role rotation via "Mi Cuenta": Usuario -> Dispatcher -> Oficial -> Usuario ──
   const handleNavClick = (label) => {
     if (label === "Mi Cuenta") {
-      const newRole = role === "usuario" ? "dispatcher" : "usuario";
+      let newRole = "usuario";
+      if (role === "usuario") newRole = "dispatcher";
+      else if (role === "dispatcher") newRole = "oficial";
+      else if (role === "oficial") newRole = "usuario";
+
       setRole(newRole);
+      const roleDisplayName =
+        newRole === "usuario"
+          ? "Usuario"
+          : newRole === "dispatcher"
+          ? "Dispatcher"
+          : "Oficial en Terreno";
+
       notifications.show({
-        title: "Role changed",
-        message: `Now viewing as: ${newRole === "usuario" ? "Usuario" : "Dispatcher"}`,
+        title: "Rol cambiado",
+        message: `Viendo como: ${roleDisplayName}`,
         color: "blue",
         autoClose: 2000,
       });
@@ -41,7 +53,7 @@ export default function Home() {
         style={{
           flex: 1,
           display: "flex",
-          alignItems: role === "dispatcher" ? "flex-start" : "center",
+          alignItems: role === "usuario" ? "center" : "flex-start",
           justifyContent: "center",
           backgroundColor: "#ffffff",
           overflow: "auto",
@@ -50,7 +62,13 @@ export default function Home() {
           transition: "padding 220ms ease",
         }}
       >
-        {role === "usuario" ? <PanicButton /> : <DispatcherView />}
+        {role === "usuario" ? (
+          <PanicButton />
+        ) : role === "dispatcher" ? (
+          <DispatcherView />
+        ) : (
+          <OfficerView />
+        )}
       </main>
     </div>
   );

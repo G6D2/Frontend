@@ -193,6 +193,24 @@ if (typeof window !== "undefined") {
     console.log("🚨 Emergencia inyectada en la base falsa. Espera al próximo ciclo de polling...", nueva);
     return nueva;
   };
+
+  window.simularAsignacionOficial = (hasEmergency = true) => {
+    if (!hasEmergency) {
+      MOCK_EMERGENCIES.forEach((e) => {
+        if (e.status === "despachada" || e.status === "en_camino") {
+          e.status = "resuelta";
+        }
+      });
+      console.log("👮 Simulación: Oficial SIN emergencia asignada (Patrullaje normal activo).");
+    } else {
+      const target = MOCK_EMERGENCIES.find((e) => e.id === "em-002") || MOCK_EMERGENCIES[0];
+      if (target) {
+        target.status = "despachada";
+        target.assignedOfficer = "Oficial Carlos Gómez";
+      }
+      console.log("👮 Simulación: Emergencia asignada a la unidad del oficial:", target);
+    }
+  };
 }
 
 // ── Data fetching helpers ───────────────────────────────────────────
@@ -274,6 +292,87 @@ export async function assignOfficer(emergencyId, officerId) {
   }
 
   return { success: true, status: "despachada", assignedOfficer: officer.name };
+}
+
+export async function fetchAssignedEmergency() {
+  if (USE_BACKEND) {
+    try {
+      const sessionToken = "mock-officer-session-token";
+      const res = await fetch(`${API_URL}/officer/assigned-emergency`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch {
+      // Backend assigned emergency endpoint not yet available, fallback to mocks
+    }
+  }
+
+  // Fallback mock: buscar primera emergencia en estado 'despachada' o 'en_camino'
+  const assigned = MOCK_EMERGENCIES.find(
+    (e) => e.status === "despachada" || e.status === "en_camino"
+  );
+  return assigned || null;
+}
+
+export async function updateEmergencyStatus(emergencyId, newStatus) {
+  if (USE_BACKEND) {
+    try {
+      const res = await fetch(`${API_URL}/emergencies/${emergencyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        return data || { success: true, status: newStatus };
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  const index = MOCK_EMERGENCIES.findIndex((e) => String(e.id) === String(emergencyId));
+  if (index !== -1) {
+    MOCK_EMERGENCIES[index] = {
+      ...MOCK_EMERGENCIES[index],
+      status: newStatus,
+    };
+  }
+  return { success: true, status: newStatus };
+}
+
+export async function requestBackup(emergencyId) {
+  if (USE_BACKEND) {
+    try {
+      const res = await fetch(`${API_URL}/emergencies/${emergencyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ severity: "high" }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        return data || { success: true, severity: "high" };
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  const index = MOCK_EMERGENCIES.findIndex((e) => String(e.id) === String(emergencyId));
+  if (index !== -1) {
+    MOCK_EMERGENCIES[index] = {
+      ...MOCK_EMERGENCIES[index],
+      severity: "high",
+    };
+  }
+  return { success: true, severity: "high" };
 }
 
 export async function submitEmergency(payload) {
