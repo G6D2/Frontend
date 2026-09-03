@@ -72,7 +72,7 @@ export default function AlertDetailPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="fixed top-0 left-0 w-full z-50 flex items-center px-4 h-14 bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+      <header className="sticky top-0 z-40 flex items-center px-4 h-14 bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
         <Link
           href="/mis-alertas"
           aria-label="Volver"
@@ -85,7 +85,7 @@ export default function AlertDetailPage() {
         </h1>
       </header>
 
-      <main className="mt-14 p-4 md:p-12 max-w-md w-full mx-auto flex-1 flex flex-col gap-6 pb-8">
+      <main className="p-4 md:p-12 max-w-md w-full mx-auto flex-1 flex flex-col gap-6 pb-8">
         {loading && (
           <p className="text-on-surface-variant text-center py-12">Cargando…</p>
         )}

@@ -15,7 +15,29 @@ import AssignOfficerModal from "./AssignOfficerModal";
 import ViewToggle from "./ViewToggle";
 import classes from "../styles.module.css";
 
-/** @deprecated Preferir /ops con diseño Civic Guardian Ops */
+/** Mapea estados backend (CREATED) a columnas del kanban (pendiente). */
+const STATUS_TO_KANBAN = {
+  CREATED: "pendiente",
+  PENDING: "pendiente",
+  VALIDATED: "validada",
+  DISPATCHED: "despachada",
+  EN_ROUTE: "en_camino",
+  ON_SITE: "en_lugar",
+  RESOLVED: "resuelta",
+  CLOSED: "cerrada",
+  CANCELLED: "cerrada",
+  DISCARDED: "cerrada",
+};
+
+function kanbanValue(emergency, filterKey) {
+  const raw = emergency?.[filterKey];
+  if (filterKey === "status") {
+    return STATUS_TO_KANBAN[raw] || raw;
+  }
+  if (filterKey === "severity" && raw === "critical") return "high";
+  return raw;
+}
+
 export default function DispatcherView() {
   const [emergencies, setEmergencies] = useState([]);
   const [newEmergencyIds, setNewEmergencyIds] = useState(new Set());
@@ -162,7 +184,9 @@ export default function DispatcherView() {
           }
         >
           {columns.map((col) => {
-            const items = emergencies.filter((em) => em[filterKey] === col.key);
+            const items = emergencies.filter(
+              (em) => kanbanValue(em, filterKey) === col.key
+            );
             return (
               <div
                 key={col.key}

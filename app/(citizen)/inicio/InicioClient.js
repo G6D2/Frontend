@@ -69,7 +69,7 @@ export default function InicioClient() {
     <>
       <CitizenTopBar showMenu />
 
-      <main className="flex-grow pt-14 pb-24 px-4 md:px-12 max-w-[1280px] mx-auto w-full flex flex-col items-center justify-center relative min-h-screen">
+      <main className="flex-grow pb-24 lg:pb-8 px-4 md:px-12 max-w-[1280px] mx-auto w-full flex flex-col items-center justify-center relative min-h-[calc(100vh-3.5rem)]">
         <div className="absolute top-20 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 bg-tertiary-container text-on-tertiary-container px-4 py-2 rounded-full text-xs font-medium shadow-sm w-max max-w-full">
           <MaterialIcon name="location_on" size={16} />
           <span>{locationStatus}</span>

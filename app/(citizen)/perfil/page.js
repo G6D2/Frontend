@@ -33,7 +33,7 @@ export default function PerfilPage() {
     <>
       <CitizenTopBar showMenu />
 
-      <main className="flex-grow pt-20 pb-32 px-4 md:px-12 max-w-[1280px] mx-auto w-full flex flex-col gap-6">
+      <main className="flex-grow pb-24 lg:pb-8 px-4 md:px-12 max-w-[1280px] mx-auto w-full flex flex-col gap-6">
         <div className="flex flex-col items-center gap-4 py-4">
           <div className="w-20 h-20 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-2xl font-bold">
             {(user?.username || "CP").slice(0, 2).toUpperCase()}

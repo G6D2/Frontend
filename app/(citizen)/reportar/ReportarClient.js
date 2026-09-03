@@ -95,7 +95,7 @@ export default function ReportarClient() {
         showNotifications={false}
       />
 
-      <main className="flex-1 mt-14 mb-40 px-4 md:px-12 md:max-w-[1280px] md:mx-auto w-full pt-6">
+      <main className="flex-1 px-4 md:px-12 md:max-w-[1280px] md:mx-auto w-full pt-6 pb-8">
         <div className="mb-8">
           <h2 className="text-2xl md:text-[32px] font-bold text-on-surface mb-2">
             ¿Qué está pasando?
@@ -184,8 +184,8 @@ export default function ReportarClient() {
         </div>
       </main>
 
-      <footer className="fixed bottom-20 md:bottom-0 left-0 w-full z-40 bg-surface border-t border-outline-variant px-4 py-4 pb-safe flex justify-end items-center shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)]">
-        <div className="md:max-w-[1280px] md:mx-auto w-full flex justify-end">
+      <footer className="sticky bottom-0 z-40 bg-surface border-t border-outline-variant px-4 py-4 pb-safe flex justify-end items-center shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)]">
+        <div className="w-full flex justify-end">
           <button
             type="submit"
             form="report-form"

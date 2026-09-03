@@ -1,5 +1,7 @@
-import OpsShell from "../components/ops/OpsShell";
+"use client";
+
+import CityPassAppShell from "../components/CityPassAppShell";
 
 export default function OpsLayout({ children }) {
-  return <OpsShell>{children}</OpsShell>;
+  return <CityPassAppShell role="dispatcher">{children}</CityPassAppShell>;
 }

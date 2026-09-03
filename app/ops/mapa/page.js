@@ -62,7 +62,7 @@ export default function MapaOperativoPage() {
   };
 
   return (
-    <main className="p-3 sm:p-4 h-[calc(100vh-3rem)] lg:h-[calc(100vh-2.5rem)] flex flex-col gap-3 sm:gap-4">
+    <main className="p-3 sm:p-4 h-screen flex flex-col gap-3 sm:gap-4">
       <div className="flex items-center justify-between shrink-0">
         <h1 className="text-xl font-bold text-primary">Mapa Operativo</h1>
         <button

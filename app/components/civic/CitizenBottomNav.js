@@ -32,7 +32,7 @@ export default function CitizenBottomNav() {
   if (sosOpen) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 pb-safe h-20 bg-surface shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] rounded-t-xl md:hidden">
+    <nav className="sticky bottom-0 mt-auto z-50 flex justify-around items-center px-2 pb-safe h-20 bg-surface shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] rounded-t-xl lg:hidden">
       {tabs.map((tab) => {
         const isActive =
           pathname === tab.href || pathname.startsWith(tab.href + "/");
