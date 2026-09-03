@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { notifications } from "@mantine/notifications";
 import Navbar from "./Navbar";
-import { logout } from "../lib/api";
 
 const CITIZEN_ROUTES = {
   Inicio: "/inicio",
@@ -19,10 +17,12 @@ const DISPATCHER_ROUTES = {
   Mapa: "/ops/mapa",
   Oficiales: "/ops/oficiales",
   Historial: "/ops/historial",
+  "Mi Cuenta": "/ops/cuenta",
 };
 
 function resolveActive(pathname, role) {
   if (role === "dispatcher") {
+    if (pathname.startsWith("/ops/cuenta")) return "Mi Cuenta";
     if (pathname.startsWith("/ops/lista")) return "Lista";
     if (pathname.startsWith("/ops/historial")) return "Historial";
     if (pathname.startsWith("/ops/mapa")) return "Mapa";
@@ -45,23 +45,7 @@ export default function CityPassAppShell({ role = "usuario", children }) {
   const [opened, setOpened] = useState(true);
   const active = resolveActive(pathname, role);
 
-  const handleNavClick = async (label) => {
-    if (label === "Mi Cuenta" && role === "dispatcher") {
-      try {
-        await logout();
-      } catch {
-        // ignore
-      }
-      notifications.show({
-        title: "Sesión cerrada",
-        message: "Volvé a ingresar cuando lo necesites.",
-        color: "blue",
-        autoClose: 2500,
-      });
-      router.replace("/acceso");
-      return;
-    }
-
+  const handleNavClick = (label) => {
     const map = role === "dispatcher" ? DISPATCHER_ROUTES : CITIZEN_ROUTES;
     const href = map[label];
     if (href) {
