@@ -28,14 +28,11 @@ export default function AssignOfficerModal({
 
   useEffect(() => {
     if (opened && emergency) {
-      setSelectedOfficerId("");
       setLoadingOfficers(true);
       fetchOfficers()
         .then((data) => {
           setOfficers(data || []);
-          if (data && data.length > 0) {
-            setSelectedOfficerId(data[0].id);
-          }
+          setSelectedOfficerId(data && data.length > 0 ? data[0].id : "");
         })
         .catch((err) => console.error("Error fetching officers:", err))
         .finally(() => setLoadingOfficers(false));
