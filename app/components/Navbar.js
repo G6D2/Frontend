@@ -1,6 +1,7 @@
 "use client";
 
-import { Code, Group } from "@mantine/core";
+import Image from "next/image";
+import { ActionIcon, Group, Tooltip } from "@mantine/core";
 import {
   IconHome,
   IconBike,
@@ -14,8 +15,9 @@ import {
   IconBell,
   IconSettings,
   IconHelpCircle,
+  IconChevronLeft,
+  IconChevronRight,
 } from "@tabler/icons-react";
-import { MantineLogo } from "@mantinex/mantine-logo";
 import classes from "../styles.module.css";
 
 const serviciosData = [
@@ -36,7 +38,13 @@ const cuentaData = [
   { link: "", label: "Ayuda", icon: IconHelpCircle },
 ];
 
-export default function Navbar({ active, role, onNavClick }) {
+export default function Navbar({
+  active,
+  role,
+  onNavClick,
+  opened = true,
+  onToggle,
+}) {
   const serviciosLinks = serviciosData.map((item) => (
     <a
       className={classes.link}
@@ -78,22 +86,81 @@ export default function Navbar({ active, role, onNavClick }) {
   ));
 
   return (
-    <nav className={classes.navbar}>
-      <div className={classes.navbarMain}>
-        <Group className={classes.header} justify="space-between">
-          <MantineLogo size={28} inverted style={{ color: "white" }} />
-          <Code fw={700} className={classes.version}>
-            v3.1.2
-          </Code>
-        </Group>
+    <>
+      {/* ── Floating button when navbar is collapsed ── */}
+      {!opened && onToggle && (
+        <Tooltip label="Expandir menú" position="right" withArrow>
+          <ActionIcon
+            variant="filled"
+            size="lg"
+            radius="xl"
+            onClick={onToggle}
+            className={classes.navbarExpandFloatingBtn}
+            aria-label="Expandir menú"
+          >
+            <IconChevronRight size={20} />
+          </ActionIcon>
+        </Tooltip>
+      )}
 
-        <div className={classes.sectionTitle}>Servicios</div>
-        {serviciosLinks}
+      {/* ── Main Navbar Sidebar ── */}
+      <nav
+        className={`${classes.navbar} ${!opened ? classes.navbarCollapsed : ""}`}
+      >
+        <div className={classes.navbarMain}>
+          {/* ── Header with Logo and Collapse button ── */}
+          <Group className={classes.header} justify="space-between" align="center">
+            <Group gap="sm" align="center" style={{ flex: 1 }}>
+              <Image
+                src="/Images/CityPass_logo.png"
+                alt="CityPass+ Logo"
+                width={45}
+                height={45}
+                style={{ objectFit: "contain" }}
+              />
+              <span className={classes.brandName}>
+                CityPass<span className={classes.brandPlus}>+</span>
+              </span>
+            </Group>
 
-        <div className={classes.separator} />
+            {onToggle && (
+              <Tooltip label="Ocultar menú" position="bottom" withArrow>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="md"
+                  radius="md"
+                  onClick={onToggle}
+                  aria-label="Ocultar menú"
+                >
+                  <IconChevronLeft size={20} color="rgba(255,255,255,0.7)" />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
 
-        {cuentaLinks}
-      </div>
-    </nav>
+          <div className={classes.sectionTitle}>Servicios</div>
+          {serviciosLinks}
+
+          <div className={classes.separator} />
+
+          {cuentaLinks}
+        </div>
+
+        {/* ── la imagen rara de abajo del navbar ── */}
+        {/* ── TODOS los width y los height estan a ojos
+            ESO ESTA MAL, deberia preguntar en el canal de discord de Front para ver los datos
+            reales de las medidas ── */}
+        <div className={classes.navbarFooterImage}>
+          <Image
+            src="/Images/CityPass_footer_navbar_image.png"
+            alt="CityPass+"
+            width={225}
+            height={105}
+            style={{ objectFit: "contain" }}
+          />
+        </div>
+      </nav>
+    </>
   );
 }

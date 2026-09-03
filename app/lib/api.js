@@ -169,6 +169,52 @@ export async function cancelEmergency(id, reason = null) {
   return res.data;
 }
 
+// ── Kanban legacy (DispatcherView Mantine) ───────────────────────────
+export const SEVERITY_CONFIG = {
+  low: { key: "low", color: "blue", label: "Baja" },
+  medium: { key: "medium", color: "yellow", label: "Media" },
+  high: { key: "high", color: "orange", label: "Alta" },
+  critical: { key: "critical", color: "red", label: "Crítica" },
+};
+
+export const STATUS_CONFIG = [
+  { key: "pendiente", label: "Pendientes", color: "red" },
+  { key: "validada", label: "Validadas", color: "orange" },
+  { key: "despachada", label: "Despachadas", color: "yellow" },
+  { key: "en_camino", label: "En Camino", color: "cyan" },
+  { key: "en_lugar", label: "En Lugar", color: "indigo" },
+  { key: "resuelta", label: "Resuelta", color: "teal" },
+  { key: "cerrada", label: "Cerrada", color: "gray" },
+];
+
+// Mock officers hasta que el backend exponga GET /api/officers (HU-06)
+export const MOCK_OFFICERS = [
+  {
+    id: "of-001",
+    name: "Oficial Carlos Gómez",
+    badgeNumber: "CP-4021",
+    location: "Av. 9 de Julio y Corrientes",
+    distance: "350 m",
+    status: "disponible",
+  },
+  {
+    id: "of-002",
+    name: "Oficial Mariana López",
+    badgeNumber: "CP-3108",
+    location: "Plaza de Mayo",
+    distance: "800 m",
+    status: "disponible",
+  },
+  {
+    id: "of-003",
+    name: "Oficial Martín Rodríguez",
+    badgeNumber: "CP-5520",
+    location: "Av. Santa Fe y Callao",
+    distance: "1.2 km",
+    status: "disponible",
+  },
+];
+
 export async function reportIncident() {
   throw new ApiError("TODO(back): POST reportar incidente (HU-02)", {
     status: 501,
@@ -194,15 +240,46 @@ export async function overridePriority() {
 }
 
 export async function fetchOfficers() {
-  throw new ApiError("TODO(back): GET oficiales disponibles (HU-06)", {
-    status: 501,
-  });
+  try {
+    const res = await apiFetch("/api/officers");
+    if (Array.isArray(res?.data)) return res.data;
+    if (Array.isArray(res)) return res;
+  } catch {
+    // Backend officers endpoint not yet available
+  }
+  return MOCK_OFFICERS;
 }
 
-export async function assignOfficer() {
-  throw new ApiError("TODO(back): POST asignar oficial (HU-06)", {
-    status: 501,
-  });
+export async function assignOfficer(emergencyId, officerId) {
+  const officer = MOCK_OFFICERS.find((o) => o.id === officerId) || {
+    id: officerId,
+    name: `Oficial ${officerId}`,
+  };
+
+  try {
+    const res = await apiFetch(`/api/emergencies/${emergencyId}`, {
+      method: "PATCH",
+      body: {
+        officerId,
+        status: "despachada",
+        assignedOfficer: officer.name,
+      },
+    });
+    return (
+      res?.data || {
+        success: true,
+        status: "despachada",
+        assignedOfficer: officer.name,
+      }
+    );
+  } catch {
+    // Fallback local hasta HU-06 en backend
+    return {
+      success: true,
+      status: "despachada",
+      assignedOfficer: officer.name,
+    };
+  }
 }
 
 export async function updateEmergencyStatus() {
