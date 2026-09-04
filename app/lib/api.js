@@ -1,133 +1,210 @@
-// ── Backend integration toggle ──────────────────────────────────────
-// La ia hizo este facil sistema para probar el funcionamiento del frontend
-// y facilitar la integracion del back. Cuando integremos el back, cambiamos la url
-// y el use_backend a true.
-export const USE_BACKEND = true;
-// El backend corre en la misma máquina que el front (puerto 4000), pero el browser
-// puede estar en otra: usamos el hostname con el que se abrió la página en vez de
-// hardcodear localhost. En SSR no hay window; el fetch real siempre corre en el cliente.
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== "undefined"
-    ? `http://${window.location.hostname}:4000/api`
-    : "http://localhost:4000/api");
+import {
+  clearStoredUser,
+  getStoredUser,
+  setStoredUser,
+  getHomePathForUser,
+} from "./auth";
+
 export const POLLING_INTERVAL_MS = 5000;
-// ─────────────────────────────────────────────────────────────────────
 
-// ── Mock data (used when USE_BACKEND = false) ───────────────────────
-export const MOCK_EMERGENCIES = [
-  {
-    id: "em-001",
-    userId: "user-101",
-    description: "Accidente de tránsito en Av. Corrientes y Callao",
-    severity: "high",
-    status: "pendiente",
-    location: { lat: -34.6042, lng: -58.3922 },
-    timestamp: "2026-08-25T22:10:00-03:00",
-  },
-  {
-    id: "em-004",
-    userId: "user-105",
-    description: "suicidio",
-    severity: "high",
-    status: "validada",
-    location: { lat: -34.6042, lng: -58.3922 },
-    timestamp: "2026-08-25T22:10:00-03:00",
-  },
-  {
-    id: "em-002",
-    userId: "user-205",
-    description: "Incendio en edificio residencial, piso 3",
-    severity: "medium",
-    status: "despachada",
-    location: { lat: -34.6118, lng: -58.3816 },
-    timestamp: "2026-08-25T22:15:00-03:00",
-  },
-  {
-    id: "em-003",
-    userId: "user-087",
-    description: "Persona herida en espacio público, Plaza de Mayo",
-    severity: "low",
-    status: "en_camino",
-    location: { lat: -34.6083, lng: -58.3712 },
-    timestamp: "2026-08-25T22:22:00-03:00",
-  },
-  {
-    id: "em-005",
-    userId: "user-123",
-    description: "Necesito ayuda inmediata",
-    severity: "high",
-    status: "pendiente",
-    location: { lat: -34.6037, lng: -58.3816 },
-    timestamp: "2026-08-25T22:35:00-03:00",
-  },
-  {
-    id: "em-006",
-    userId: "user-450",
-    description: "Robo a mano armada en calle Florida",
-    severity: "high",
-    status: "en_lugar",
-    location: { lat: -34.6030, lng: -58.3740 },
-    timestamp: "2026-08-25T22:40:00-03:00",
-  },
-  {
-    id: "em-007",
-    userId: "user-200",
-    description: "Bache peligroso en Av. Santa Fe 2100",
-    severity: "low",
-    status: "resuelta",
-    location: { lat: -34.5950, lng: -58.3990 },
-    timestamp: "2026-08-25T22:50:00-03:00",
-  },
-  {
-    id: "em-008",
-    userId: "user-330",
-    description: "Corte de luz en manzana completa",
-    severity: "medium",
-    status: "cerrada",
-    location: { lat: -34.6200, lng: -58.3700 },
-    timestamp: "2026-08-25T23:00:00-03:00",
-  },
-  {
-    id: "em-009",
-    userId: "user-512",
-    description: "Derrumbe parcial de mampostería en vereda",
-    severity: "high",
-    status: "pendiente",
-    location: { lat: -34.6010, lng: -58.3840 },
-    timestamp: "2026-08-25T23:10:00-03:00",
-  },
-  {
-    id: "em-010",
-    userId: "user-620",
-    description: "Inundación en paso bajo nivel",
-    severity: "high",
-    status: "pendiente",
-    location: { lat: -34.5900, lng: -58.4000 },
-    timestamp: "2026-08-25T23:15:00-03:00",
-  },
-  {
-    id: "em-011",
-    userId: "user-714",
-    description: "Árbol caído obstruyendo tránsito",
-    severity: "medium",
-    status: "despachada",
-    location: { lat: -34.6100, lng: -58.3900 },
-    timestamp: "2026-08-25T23:20:00-03:00",
-  },
-  {
-    id: "em-012",
-    userId: "user-805",
-    description: "Escape de gas en establecimiento escolar",
-    severity: "medium",
-    status: "validada",
-    location: { lat: -34.6050, lng: -58.3850 },
-    timestamp: "2026-08-25T23:25:00-03:00",
-  },
+function redirectToLogin() {
+  clearStoredUser();
+  if (typeof window === "undefined") return;
+  if (window.location.pathname.startsWith("/acceso")) return;
+  window.location.replace("/acceso");
+}
+
+// ── Endpoints vía BFF (/api/backend/*) con cookie httpOnly ───────────
+// Contrato seguridad backend (2026-08):
+// - lat/lng cifrados en reposo; respuesta puede traer locationAnonymized:true y coords null
+// - body JSON máx 32kb; location.latitude/longitude deben ser number
+// - CORS_ORIGIN en prod; el front usa BFF same-origin (no llama al API directo)
+//
+// TODO(back): POST reportar incidente (HU-02)
+// TODO(back): PATCH validar / descartar (HU-05)
+// TODO(back): PATCH prioridad (HU-04)
+// TODO(back): oficiales / asignar (HU-06)
+// TODO(back): estados oficial / observaciones / refuerzos (HU-08/09/10)
+// TODO(back): historial timeline + live updates (HU-07/11)
+// TODO(back): Auth IdP real (HU-12)
+// TODO(back): Rol officer (HU-08+)
+// TODO(back): Consumir eventos externos (HU-13)
+
+export class ApiError extends Error {
+  constructor(message, { status, body } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+async function parseJsonSafe(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
+  const headers = { Accept: "application/json" };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const url = auth ? `/api/backend${path}` : path;
+  const res = await fetch(url, {
+    method,
+    headers,
+    credentials: "same-origin",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  const data = await parseJsonSafe(res);
+
+  if (!res.ok) {
+    const message =
+      data?.message || data?.error || `Error HTTP ${res.status}`;
+    if (res.status === 401) {
+      redirectToLogin();
+    }
+    throw new ApiError(message, { status: res.status, body: data });
+  }
+
+  return data;
+}
+
+/** Login vía Route Handler: setea cookie httpOnly (no guarda JWT en el browser). */
+// TODO(back): reemplazar por login federado IdP cuando AUTH_MODE=idp (HU-12)
+export async function loginDev({
+  sub,
+  preferred_username,
+  groups = ["citizen"],
+}) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ sub, preferred_username, groups }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || data?.error || `Error HTTP ${res.status}`,
+      { status: res.status, body: data }
+    );
+  }
+  setStoredUser(data.user);
+  return { user: data.user };
+}
+
+export async function logout() {
+  await fetch("/api/auth/logout", {
+    method: "POST",
+    credentials: "same-origin",
+  });
+  clearStoredUser();
+}
+
+export async function fetchCurrentUser() {
+  const res = await fetch("/api/auth/session", {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    if (res.status === 401) {
+      redirectToLogin();
+    } else {
+      clearStoredUser();
+    }
+    throw new ApiError(data?.message || "Sin sesión", {
+      status: res.status,
+      body: data,
+    });
+  }
+  setStoredUser(data.data);
+  return data.data;
+}
+
+export async function hasValidSession() {
+  try {
+    await fetchCurrentUser();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function triggerPanicButton({
+  latitude,
+  longitude,
+  description,
+  severity = "critical",
+  emergencyType = "panic",
+}) {
+  // Backend exige numbers (AES location crypto + ValidationError si NaN/string)
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw new ApiError("Ubicación inválida: latitude/longitude deben ser números", {
+      status: 400,
+    });
+  }
+
+  const body = {
+    location: { latitude: lat, longitude: lng },
+    severity,
+    emergencyType,
+  };
+  if (description) body.description = description;
+
+  return apiFetch("/api/panic-button", {
+    method: "POST",
+    body,
+  });
+}
+
+export async function fetchEmergencyById(id) {
+  const res = await apiFetch(`/api/panic-button/${id}`);
+  return res.data;
+}
+
+export async function fetchEmergencies() {
+  const res = await apiFetch("/api/emergencies?limit=100&sortBy=createdAt&order=desc");
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res)) return res;
+  return [];
+}
+
+export async function cancelEmergency(id, reason = null) {
+  const res = await apiFetch(`/api/emergencies/${id}/cancel`, {
+    method: "PATCH",
+    body: reason ? { reason } : {},
+  });
+  return res.data;
+}
+
+// ── Kanban legacy (DispatcherView Mantine) ───────────────────────────
+export const SEVERITY_CONFIG = {
+  low: { key: "low", color: "blue", label: "Baja" },
+  medium: { key: "medium", color: "yellow", label: "Media" },
+  high: { key: "high", color: "orange", label: "Alta" },
+  critical: { key: "critical", color: "red", label: "Crítica" },
+};
+
+export const STATUS_CONFIG = [
+  { key: "pendiente", label: "Pendientes", color: "red" },
+  { key: "validada", label: "Validadas", color: "orange" },
+  { key: "despachada", label: "Despachadas", color: "yellow" },
+  { key: "en_camino", label: "En Camino", color: "cyan" },
+  { key: "en_lugar", label: "En Lugar", color: "indigo" },
+  { key: "resuelta", label: "Resuelta", color: "teal" },
+  { key: "cerrada", label: "Cerrada", color: "gray" },
 ];
-// ─────────────────────────────────────────────────────────────────────
 
-// ── Mock Officers (RF-06) ───────────────────────────────────────────
+// Mock officers hasta que el backend exponga GET /api/officers (HU-06)
 export const MOCK_OFFICERS = [
   {
     id: "of-001",
@@ -155,83 +232,52 @@ export const MOCK_OFFICERS = [
   },
 ];
 
-// ── Severity config (used for badges and criticality columns) ─────────
-export const SEVERITY_CONFIG = {
-  low: { key: "low", color: "blue", label: "Baja" },
-  medium: { key: "medium", color: "yellow", label: "Media" },
-  high: { key: "high", color: "orange", label: "Alta" },
-};
-
-// ── Status config (RF-09) ───────────────────────────────────────────
-export const STATUS_CONFIG = [
-  { key: "pendiente", label: "Pendientes", color: "red" },
-  { key: "validada", label: "Validadas", color: "orange" },
-  { key: "despachada", label: "Despachadas", color: "yellow" },
-  { key: "en_camino", label: "En Camino", color: "cyan" },
-  { key: "en_lugar", label: "En Lugar", color: "indigo" },
-  { key: "resuelta", label: "Resuelta", color: "teal" },
-  { key: "cerrada", label: "Cerrada", color: "gray" },
-];
-
-// ── Inyección para pruebas en consola (RF-01 .. RF-04) ───────────────
-if (typeof window !== "undefined") {
-  window.mockDatabase = MOCK_EMERGENCIES;
-  window.mockOfficers = MOCK_OFFICERS;
-
-  window.simularNuevaEmergencia = (description = "Nueva Emergencia Reportada", severity = "high") => {
-    const nueva = {
-      id: `em-${Date.now()}`,
-      userId: `user-${Math.floor(100 + Math.random() * 900)}`,
-      description,
-      severity, // "low" | "medium" | "high"
-      status: "pendiente", // "pendiente" | "validada" | "despachada" | "en_camino" | "en_lugar" | "resuelta" | "cerrada"
-      location: { lat: -34.6037, lng: -58.3816 },
-      timestamp: new Date().toISOString(),
-    };
-
-    MOCK_EMERGENCIES.unshift(nueva);
-    console.log("🚨 Emergencia inyectada en la base falsa. Espera al próximo ciclo de polling...", nueva);
-    return nueva;
-  };
+export async function reportIncident({
+  category,
+  latitude,
+  longitude,
+  severity,
+  description,
+}) {
+  const type = String(category || "other").toLowerCase();
+  // SOS = critical; incidentes: medical/fire = high, resto = medium
+  const defaultSeverity =
+    type === "medical" || type === "fire" ? "high" : "medium";
+  return triggerPanicButton({
+    latitude,
+    longitude,
+    emergencyType: type,
+    severity: severity || defaultSeverity,
+    description: description || undefined,
+  });
 }
 
-// ── Data fetching helpers ───────────────────────────────────────────
+export async function validateEmergency() {
+  throw new ApiError("TODO(back): PATCH validar emergencia (HU-05)", {
+    status: 501,
+  });
+}
 
-export async function fetchEmergencies() {
-  if (USE_BACKEND) {
-    try {
-      const res = await fetch(`${API_URL}/emergencies`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          return data;
-        }
-      }
-    } catch {
-      // Backend list endpoint not yet available, fallback to mocks
-    }
-  }
+export async function discardEmergency() {
+  throw new ApiError("TODO(back): PATCH descartar emergencia (HU-05)", {
+    status: 501,
+  });
+}
 
-  // Fallback mock polling
-  console.log("Polling emergencies (mock):", MOCK_EMERGENCIES.length, "active");
-  return MOCK_EMERGENCIES;
+export async function overridePriority() {
+  throw new ApiError("TODO(back): PATCH prioridad manual (HU-04)", {
+    status: 501,
+  });
 }
 
 export async function fetchOfficers() {
-  if (USE_BACKEND) {
-    try {
-      const res = await fetch(`${API_URL}/officers`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          return data;
-        }
-      }
-    } catch {
-      // Backend officers endpoint not yet available, fallback to mocks
-    }
+  try {
+    const res = await apiFetch("/api/officers");
+    if (Array.isArray(res?.data)) return res.data;
+    if (Array.isArray(res)) return res;
+  } catch {
+    // Backend officers endpoint not yet available
   }
-
   return MOCK_OFFICERS;
 }
 
@@ -241,57 +287,79 @@ export async function assignOfficer(emergencyId, officerId) {
     name: `Oficial ${officerId}`,
   };
 
-  if (USE_BACKEND) {
-    try {
-      const res = await fetch(`${API_URL}/emergencies/${emergencyId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          officerId,
-          status: "despachada",
-          assignedOfficer: officer.name,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        return data || { success: true, status: "despachada", assignedOfficer: officer.name };
+  try {
+    const res = await apiFetch(`/api/emergencies/${emergencyId}`, {
+      method: "PATCH",
+      body: {
+        officerId,
+        status: "despachada",
+        assignedOfficer: officer.name,
+      },
+    });
+    return (
+      res?.data || {
+        success: true,
+        status: "despachada",
+        assignedOfficer: officer.name,
       }
-    } catch {
-      // Fallback a asignación local mock
-    }
-  }
-
-  // Actualizar en MOCK_EMERGENCIES
-  const index = MOCK_EMERGENCIES.findIndex((e) => String(e.id) === String(emergencyId));
-  if (index !== -1) {
-    MOCK_EMERGENCIES[index] = {
-      ...MOCK_EMERGENCIES[index],
+    );
+  } catch {
+    // Fallback local hasta HU-06 en backend
+    return {
+      success: true,
       status: "despachada",
       assignedOfficer: officer.name,
-      assignedOfficerId: officerId,
     };
   }
-
-  return { success: true, status: "despachada", assignedOfficer: officer.name };
 }
 
-export async function submitEmergency(payload) {
-  if (USE_BACKEND) {
-    const res = await fetch(`${API_URL}/panic-button`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+export async function updateEmergencyStatus() {
+  throw new ApiError(
+    "TODO(back): PATCH estado EN_ROUTE/ON_SITE/RESOLVED (HU-08)",
+    { status: 501 }
+  );
+}
 
-    const data = await res.json().catch(() => null);
+export async function addObservation() {
+  throw new ApiError("TODO(back): POST observaciones/evidencias (HU-09)", {
+    status: 501,
+  });
+}
 
-    if (!res.ok) {
-      throw new Error(data?.message || "Error al enviar la emergencia.");
-    }
+export async function requestReinforcements() {
+  throw new ApiError("TODO(back): POST refuerzos (HU-10)", { status: 501 });
+}
 
-    return data;
+export async function fetchEmergencyHistory() {
+  throw new ApiError("TODO(back): GET historial de estados / timeline", {
+    status: 501,
+  });
+}
+
+export function getCurrentLocation() {
+  const fallback = {
+    latitude: -34.6037,
+    longitude: -58.3816,
+    precise: false,
+  };
+
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return Promise.resolve(fallback);
   }
-  console.log(payload);
-  return { success: true };
+
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          precise: true,
+        });
+      },
+      () => resolve(fallback),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  });
 }
+
+export { getStoredUser, getHomePathForUser, clearStoredUser as clearSession };

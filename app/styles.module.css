@@ -1,18 +1,4 @@
-/* ── Global reset ── */
-:global(*),
-:global(*::before),
-:global(*::after) {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-:global(html),
-:global(body) {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
+/* Navbar / kanban styles only — no global resets (Tailwind lives in globals.css). */
 
 /* ── Navbar ── */
 .navbar {
@@ -27,6 +13,8 @@
   flex-direction: column;
   position: sticky;
   top: 0;
+  align-self: flex-start;
+  flex-shrink: 0;
   transition: width 220ms ease, min-width 220ms ease, padding 220ms ease, opacity 220ms ease;
   overflow: hidden;
   z-index: 100;
