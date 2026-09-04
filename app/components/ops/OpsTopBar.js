@@ -10,6 +10,7 @@ export default function OpsTopBar({ onMenuClick }) {
 
   useEffect(() => {
     const user = getStoredUser();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInitials((user?.username || "OP").slice(0, 2).toUpperCase());
   }, []);
 

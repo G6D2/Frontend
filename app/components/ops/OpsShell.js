@@ -25,6 +25,7 @@ export default function OpsShell({ children }) {
   const toggleNav = useCallback(() => setOpen((v) => !v), []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpen(false);
   }, [pathname]);
 

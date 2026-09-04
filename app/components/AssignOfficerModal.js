@@ -28,6 +28,7 @@ export default function AssignOfficerModal({
 
   useEffect(() => {
     if (opened && emergency) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingOfficers(true);
       fetchOfficers()
         .then((data) => {

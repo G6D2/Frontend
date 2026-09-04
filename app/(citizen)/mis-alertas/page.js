@@ -104,6 +104,7 @@ export default function MisAlertasPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     const interval = setInterval(load, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
