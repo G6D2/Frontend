@@ -6,6 +6,8 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { MantineProvider, ColorSchemeScript } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 
+import BackendWarmup from "./components/BackendWarmup";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -38,6 +40,7 @@ export default function RootLayout({ children }) {
       <body className="antialiased">
         <MantineProvider defaultColorScheme="light">
           <Notifications position="top-right" />
+          <BackendWarmup />
           {children}
         </MantineProvider>
       </body>
