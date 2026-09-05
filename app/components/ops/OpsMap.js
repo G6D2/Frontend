@@ -39,6 +39,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
   const onSelectRef = useRef(onSelect);
   const fittedRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
+  // eslint-disable-next-line react-hooks/refs
   onSelectRef.current = onSelect;
 
   useEffect(() => {
