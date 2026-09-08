@@ -9,16 +9,41 @@ import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
   triggerPanicButton,
   getCurrentLocation,
+  getStoredUser,
+  fetchCurrentUser,
   ApiError,
 } from "../../lib/api";
+import { ANTIPANIC_MODE } from "../../lib/features";
 
 export default function InicioClient() {
   const router = useRouter();
+  // Cargamos el perfil del usuario para leer el flag hasAntipanicButton
+  const [user, setUser] = useState(getStoredUser());
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [locationStatus, setLocationStatus] = useState("Obteniendo ubicación…");
 
+  // Refresca usuario y geolocalización al montar el componente
   useEffect(() => {
+    // En modo "mock": hasAntipanicButton viene del toggle del login y vive en sessionStorage.
+    //   fetchCurrentUser() lo perdería (el backend no lo conoce), así que lo recuperamos del storage.
+    // En modo "backend": hasAntipanicButton viene directamente del backend en la sesión fresca.
+    //   fetchCurrentUser() ya lo trae; no necesitamos hacer nada especial.
+    const savedAntipanicFlag =
+      ANTIPANIC_MODE === "mock"
+        ? (getStoredUser()?.hasAntipanicButton ?? false)
+        : undefined; // en modo backend lo provee el backend
+
+    fetchCurrentUser()
+      .then((freshUser) => {
+        const antipanicValue =
+          ANTIPANIC_MODE === "mock"
+            ? savedAntipanicFlag          // preservar el valor del toggle de login
+            : (freshUser.hasAntipanicButton ?? false); // confiar en el backend
+        setUser({ ...freshUser, hasAntipanicButton: antipanicValue });
+      })
+      .catch(() => {}); // silencioso: si falla, seguimos con el usuario del storage
+
     getCurrentLocation().then((loc) => {
       setLocationStatus(
         loc.precise
@@ -65,6 +90,9 @@ export default function InicioClient() {
     }
   };
 
+  // IF principal: ¿tiene este usuario habilitado el Botón Antipánico?
+  const canUseAntipanicButton = Boolean(user?.hasAntipanicButton);
+
   return (
     <>
       <CitizenTopBar showMenu />
@@ -76,19 +104,48 @@ export default function InicioClient() {
         </div>
 
         <div className="flex flex-col items-center justify-center mt-12 w-full max-w-sm">
-          <button
-            aria-label="Pedir Ayuda"
-            onClick={() => setModalOpen(true)}
-            className="pulse-sos bg-error text-on-error w-64 h-64 rounded-full flex flex-col items-center justify-center shadow-[0_8px_32px_rgba(186,26,26,0.4)] active:scale-95 transition-transform duration-200"
-          >
-            <MaterialIcon name="emergency" filled size={64} className="mb-4" />
-            <span className="text-2xl font-bold uppercase tracking-wider">
-              Pedir Ayuda
-            </span>
-          </button>
-          <p className="text-base text-on-surface-variant text-center mt-8 px-4">
-            Envía una alerta de emergencia con tu ubicación actual.
-          </p>
+          {canUseAntipanicButton ? (
+            // ── Botón Antipánico (visible solo para usuarios con el permiso habilitado) ──
+            <>
+              <button
+                id="btn-antipanico"
+                aria-label="Botón Antipánico"
+                onClick={() => setModalOpen(true)}
+                className="pulse-sos bg-error text-on-error w-64 h-64 rounded-full flex flex-col items-center justify-center shadow-[0_8px_32px_rgba(186,26,26,0.4)] active:scale-95 transition-transform duration-200"
+              >
+                <MaterialIcon name="emergency" filled size={64} className="mb-4" />
+                <span className="text-2xl font-black uppercase tracking-widest text-center leading-tight px-4">
+                  ANTIPANICO
+                </span>
+              </button>
+              <p className="text-base text-on-surface-variant text-center mt-8 px-4">
+                Envía una alerta de emergencia con tu ubicación actual.
+              </p>
+            </>
+          ) : (
+            // ── Sin acceso: usuario sin el permiso hasAntipanicButton ──
+            <div
+              id="no-antipanic-info"
+              className="flex flex-col items-center gap-4 text-center px-4 py-8 rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-sm"
+            >
+              <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center">
+                <MaterialIcon
+                  name="emergency_home"
+                  size={36}
+                  className="text-on-surface-variant"
+                />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-on-surface">
+                  Botón Antipánico no habilitado
+                </p>
+                <p className="text-sm text-on-surface-variant mt-1">
+                  Tu cuenta no tiene acceso al Botón Antipánico. Podés
+                  reportar incidentes desde la sección Reclamos.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-12 w-full max-w-sm">

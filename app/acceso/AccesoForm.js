@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import MaterialIcon from "../components/civic/MaterialIcon";
 import { loginDev, ApiError, getHomePathForUser } from "../lib/api";
+import { ANTIPANIC_MODE } from "../lib/features";
 
 export default function AccesoForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [role, setRole] = useState("citizen");
+  const [hasAntipanicButton, setHasAntipanicButton] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,6 +32,7 @@ export default function AccesoForm() {
         sub,
         preferred_username: username,
         groups,
+        hasAntipanicButton: role === "citizen" ? hasAntipanicButton : false,
       });
       router.replace(getHomePathForUser(user));
     } catch (err) {
@@ -110,6 +113,36 @@ export default function AccesoForm() {
                   </button>
                 </div>
               </div>
+
+              {/* Toggle Botón Antipánico — solo visible en modo mock (ANTIPANIC_MODE="mock").
+                  En modo "backend" este campo viene del endpoint GET /api/user. */}
+              {role === "citizen" && ANTIPANIC_MODE === "mock" && (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-surface-container-lowest">
+                  <div className="flex items-center gap-2">
+                    <MaterialIcon name="emergency" size={20} className="text-error" />
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">Botón Antipánico</p>
+                      <p className="text-xs text-on-surface-variant">Habilitar acceso al botón de emergencia</p>
+                    </div>
+                  </div>
+                  <button
+                    id="toggle-antipanic"
+                    type="button"
+                    role="switch"
+                    aria-checked={hasAntipanicButton}
+                    onClick={() => setHasAntipanicButton((v) => !v)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 ${
+                      hasAntipanicButton ? "bg-error" : "bg-outline-variant"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        hasAntipanicButton ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -139,6 +172,7 @@ export default function AccesoForm() {
                       sub: "U000042",
                       preferred_username: "ciudadano",
                       groups: ["citizen"],
+                      hasAntipanicButton: false,
                     });
                     router.replace(getHomePathForUser(user));
                   } catch (err) {

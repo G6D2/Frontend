@@ -81,12 +81,13 @@ export async function loginDev({
   sub,
   preferred_username,
   groups = ["citizen"],
+  hasAntipanicButton = false,
 }) {
   const res = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({ sub, preferred_username, groups }),
+    body: JSON.stringify({ sub, preferred_username, groups, hasAntipanicButton }),
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) {
