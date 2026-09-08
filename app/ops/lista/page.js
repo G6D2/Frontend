@@ -16,11 +16,11 @@ import {
   getStatusConfig,
   formatTimeShort,
   elapsedMinutes,
-  locationLabel,
   hasValidCoords,
   isPendingStatus,
   isActiveStatus,
 } from "../../lib/emergencies";
+import GeoLabel from "../../components/civic/GeoLabel";
 
 function PriorityBadge({ severity }) {
   const cfg = PRIORITY_CONFIG[severity] || PRIORITY_CONFIG.medium;
@@ -231,7 +231,9 @@ export default function OpsPage() {
                       <td className="p-2 font-bold max-w-[200px] truncate">
                         {em.description}
                       </td>
-                      <td className="p-2">{locationLabel(em)}</td>
+                      <td className="p-2 max-w-[180px] truncate">
+                        <GeoLabel emergency={em} fallback="…" />
+                      </td>
                       <td className="p-2 font-mono text-[13px]">
                         {formatTimeShort(em.createdAt)}
                       </td>
@@ -282,14 +284,12 @@ export default function OpsPage() {
                 />
                 <div>
                   <div className="text-sm font-bold text-on-surface">
-                    {locationLabel(selected)}
+                    <GeoLabel
+                      emergency={selected}
+                      fallback="Obteniendo dirección…"
+                      showCoords
+                    />
                   </div>
-                  {hasValidCoords(selected) && (
-                    <div className="text-xs text-on-surface-variant">
-                      lat {Number(selected.latitude).toFixed(5)} / lng{" "}
-                      {Number(selected.longitude).toFixed(5)}
-                    </div>
-                  )}
                 </div>
               </div>
               <div className="bg-surface-container-low p-3 rounded border border-outline-variant/50 text-xs">
