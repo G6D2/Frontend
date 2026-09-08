@@ -363,4 +363,4 @@ export function getCurrentLocation() {
   });
 }
 
-export { getStoredUser, getHomePathForUser, clearStoredUser as clearSession };
+export { getStoredUser, setStoredUser, getHomePathForUser, clearStoredUser as clearSession };

@@ -10,6 +10,7 @@ import {
   triggerPanicButton,
   getCurrentLocation,
   getStoredUser,
+  setStoredUser,
   fetchCurrentUser,
   ApiError,
 } from "../../lib/api";
@@ -40,7 +41,11 @@ export default function InicioClient() {
           ANTIPANIC_MODE === "mock"
             ? savedAntipanicFlag          // preservar el valor del toggle de login
             : (freshUser.hasAntipanicButton ?? false); // confiar en el backend
-        setUser({ ...freshUser, hasAntipanicButton: antipanicValue });
+        const merged = { ...freshUser, hasAntipanicButton: antipanicValue };
+        // Persistir el usuario fusionado en sessionStorage para que el flag
+        // sobreviva las navegaciones entre páginas (fetchCurrentUser lo sobreescribía sin el flag).
+        setStoredUser(merged);
+        setUser(merged);
       })
       .catch(() => {}); // silencioso: si falla, seguimos con el usuario del storage
 
