@@ -24,8 +24,7 @@ export default function GeoLabel({
   showCoords = false,
   className = "",
 }) {
-  const [address, setAddress] = useState(null);
-  const [resolving, setResolving] = useState(false);
+  const [resolvedGeo, setResolvedGeo] = useState(null);
 
   const lat = Number(emergency?.latitude);
   const lng = Number(emergency?.longitude);
@@ -40,12 +39,10 @@ export default function GeoLabel({
     if (skipGeocode) return;
 
     let cancelled = false;
-    setResolving(true);
 
     reverseGeocode(lat, lng).then((result) => {
       if (!cancelled) {
-        setAddress(result);
-        setResolving(false);
+        setResolvedGeo({ lat, lng, address: result });
       }
     });
 
@@ -53,6 +50,14 @@ export default function GeoLabel({
       cancelled = true;
     };
   }, [lat, lng, skipGeocode]);
+
+  const isCurrentResolved =
+    resolvedGeo !== null &&
+    resolvedGeo.lat === lat &&
+    resolvedGeo.lng === lng;
+
+  const resolving = !skipGeocode && !isCurrentResolved;
+  const address = isCurrentResolved ? resolvedGeo.address : null;
 
   // ── Determinar el texto a mostrar ──
   let displayText;
