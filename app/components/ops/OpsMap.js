@@ -44,6 +44,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
 
   useEffect(() => {
     let cancelled = false;
+    const markers = markersRef.current;
 
     async function init() {
       const L = (await import("leaflet")).default;
@@ -71,7 +72,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
 
     return () => {
       cancelled = true;
-      markersRef.current.clear();
+      markers.clear();
       mapRef.current?.remove();
       mapRef.current = null;
     };

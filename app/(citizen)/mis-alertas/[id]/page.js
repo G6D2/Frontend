@@ -13,9 +13,9 @@ import {
 import {
   getStatusConfig,
   isCancelable,
-  locationLabel,
   formatTime,
 } from "../../../lib/emergencies";
+import GeoLabel from "../../../components/civic/GeoLabel";
 
 export default function AlertDetailPage() {
   const params = useParams();
@@ -129,7 +129,9 @@ export default function AlertDetailPage() {
                   size={18}
                   className="text-primary"
                 />
-                <span>{locationLabel(emergency)}</span>
+                <span>
+                  <GeoLabel emergency={emergency} fallback="Obteniendo dirección…" />
+                </span>
               </div>
               <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                 <MaterialIcon name="schedule" size={18} />

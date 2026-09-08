@@ -12,10 +12,10 @@ import {
   formatTime,
   getStatusConfig,
   isActiveStatus,
-  locationLabel,
   emergencyTitle,
   TYPE_LABELS,
 } from "../../lib/emergencies";
+import GeoLabel from "../../components/civic/GeoLabel";
 
 function AlertCard({ emergency }) {
   const statusCfg = getStatusConfig(emergency.status);
@@ -70,7 +70,7 @@ function AlertCard({ emergency }) {
       <div className="flex items-center gap-3 bg-surface-container-low p-3 rounded-lg border border-surface-container-highest">
         <MaterialIcon name="location_on" className="text-primary" />
         <p className="text-base text-on-surface font-medium">
-          {locationLabel(emergency)}
+          <GeoLabel emergency={emergency} fallback="Obteniendo dirección…" />
         </p>
       </div>
 
