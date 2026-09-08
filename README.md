@@ -43,6 +43,35 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 Aplicación de gestión de servicios urbanos. Este repositorio contiene exclusivamente el **frontend**, construido con Next.js y Mantine UI.
 
+## Deploy y Docker
+
+### Producción (Render)
+
+El frontend corre en Render como web service Node (ver `render.yaml`). El CD
+(`.github/workflows/cd.yml`) dispara el deploy hook en cada push a `main`.
+
+Variables de entorno del servicio:
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `API_URL` | `https://emergencias-backend-34go.onrender.com` | URL del backend que usan el BFF y el login desde el servidor |
+| `NODE_ENV` | `production` | Cookies `secure`, build optimizado |
+| `BACKEND_WARMUP_PATH` | `/health` | Endpoint que pega `/api/warmup` para despertar el backend |
+| `BACKEND_WARMUP` | (vacío) | Poner `off` cuando el backend sea always-on |
+
+`next start` escucha en `$PORT` (Render lo define) y cae a 3001 en local.
+
+### Docker
+
+```bash
+docker build -t emergencias-frontend .
+docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergencias-frontend
+# http://localhost:3001
+```
+
+`host.docker.internal` apunta al backend corriendo en la máquina host; si el
+backend también está en Docker, usar el nombre del servicio de la red.
+
 ## Stack tecnológico
 
 | Tecnología | Versión | Uso |
