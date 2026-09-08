@@ -5,6 +5,7 @@ import {
   sessionCookieOptions,
   userFromJwt,
 } from "@/lib/session";
+import { ANTIPANIC_MODE } from "@/app/lib/features";
 
 // TODO(back): reemplazar body por login IdP real cuando AUTH_MODE=idp (HU-12)
 export async function POST(request) {
@@ -57,6 +58,14 @@ export async function POST(request) {
     }
   } catch {
     // keep JWT-derived user
+  }
+
+  // Propagate frontend-managed permission flags.
+  // En modo "mock": hasAntipanicButton viene del toggle del formulario de login (body).
+  // En modo "backend": el campo ya viene incluido en me.data desde GET /api/user (no se toca).
+  // ▶ Cambiar ANTIPANIC_MODE en app/lib/features.js para conectar con el backend real.
+  if (ANTIPANIC_MODE === "mock" && typeof body.hasAntipanicButton === "boolean") {
+    user = { ...user, hasAntipanicButton: body.hasAntipanicButton };
   }
 
   const response = NextResponse.json({
