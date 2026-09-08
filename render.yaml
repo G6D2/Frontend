@@ -1,0 +1,22 @@
+# Blueprint de Render para el frontend (Next.js). Se aplica una sola vez desde
+# Render → New → Blueprint apuntando a este repo; después los deploys los
+# dispara el CD (.github/workflows/cd.yml) via deploy hook.
+services:
+  - type: web
+    name: emergencias-frontend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /acceso
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # URL publica del backend (sin barra final). El BFF (app/api/backend) y el
+      # login la usan desde el servidor; no se expone al browser.
+      - key: API_URL
+        value: https://emergencias-backend-34go.onrender.com
+      # El backend en Render duerme: /api/warmup lo despierta al cargar la app.
+      - key: BACKEND_WARMUP_PATH
+        value: /health
