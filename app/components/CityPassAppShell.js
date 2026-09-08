@@ -12,7 +12,7 @@ const CITIZEN_ROUTES = {
 };
 
 const DISPATCHER_ROUTES = {
-  Kanban: "/ops",
+  Estados: "/ops",
   Lista: "/ops/lista",
   Mapa: "/ops/mapa",
   Oficiales: "/ops/oficiales",
@@ -27,7 +27,7 @@ function resolveActive(pathname, role) {
     if (pathname.startsWith("/ops/historial")) return "Historial";
     if (pathname.startsWith("/ops/mapa")) return "Mapa";
     if (pathname.startsWith("/ops/oficiales")) return "Oficiales";
-    return "Kanban";
+    return "Estados";
   }
 
   if (pathname.startsWith("/mis-alertas")) return "Mis alertas";

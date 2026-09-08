@@ -8,15 +8,13 @@ import {
   assignOfficer,
   POLLING_INTERVAL_MS,
   STATUS_CONFIG,
-  SEVERITY_CONFIG,
 } from "../lib/api";
 import EmergencyCard from "./EmergencyCard";
 import AssignOfficerModal from "./AssignOfficerModal";
-import ViewToggle from "./ViewToggle";
 import classes from "../styles.module.css";
 
-/** Mapea estados backend (CREATED) a columnas del kanban (pendiente). */
-const STATUS_TO_KANBAN = {
+/** Mapea estados del backend (CREATED, VALIDATED, …) a columnas del tablero por estado. */
+const STATUS_TO_COLUMN = {
   CREATED: "pendiente",
   PENDING: "pendiente",
   VALIDATED: "validada",
@@ -29,19 +27,14 @@ const STATUS_TO_KANBAN = {
   DISCARDED: "cerrada",
 };
 
-function kanbanValue(emergency, filterKey) {
-  const raw = emergency?.[filterKey];
-  if (filterKey === "status") {
-    return STATUS_TO_KANBAN[raw] || raw;
-  }
-  if (filterKey === "severity" && raw === "critical") return "high";
-  return raw;
+function columnKey(emergency) {
+  const raw = emergency?.status;
+  return STATUS_TO_COLUMN[raw] || raw;
 }
 
 export default function DispatcherView() {
   const [emergencies, setEmergencies] = useState([]);
   const [newEmergencyIds, setNewEmergencyIds] = useState(new Set());
-  const [viewMode, setViewMode] = useState("status"); // "status" | "criticality"
   const isInitialLoadRef = useRef(true);
 
   // Estado para el modal de asignación de oficial (RF-05, RF-06)
@@ -147,55 +140,29 @@ export default function DispatcherView() {
     }
   };
 
-  const toggleView = () =>
-    setViewMode((prev) => (prev === "status" ? "criticality" : "status"));
-
-  // ── Pick columns based on view mode (RF-10) ──
-  const columns =
-    viewMode === "status" ? STATUS_CONFIG : Object.values(SEVERITY_CONFIG);
-
-  // ── Filter emergencies into columns (RF-10 & RF-03) ──
-  const filterKey = viewMode === "status" ? "status" : "severity";
-
   return (
     <div style={{ width: "100%", padding: "24px", overflow: "hidden" }}>
       {/* ── Header ── */}
       <Group justify="space-between" mb="lg">
         <Group gap="md">
           <Title order={3} c="dark">
-            {viewMode === "status"
-              ? "Emergencias por Estado"
-              : "Emergencias por Criticidad"}
+            Emergencias por Estado
           </Title>
           <Badge size="lg" variant="light" color="red">
             {emergencies.length} activas
           </Badge>
         </Group>
-        <ViewToggle viewMode={viewMode} onToggle={toggleView} />
       </Group>
 
-      {/* ── Kanban board (RF-03: se re-renderiza automáticamente al actualizarse el array) ── */}
+      {/* ── Tablero por Estado (RF-03: se re-renderiza automáticamente al actualizarse el array) ── */}
       <ScrollArea type="auto" offsetScrollbars className={classes.boardScrollArea}>
-        <div
-          className={
-            viewMode === "status"
-              ? classes.boardStatus
-              : classes.boardCriticality
-          }
-        >
-          {columns.map((col) => {
+        <div className={classes.boardStatus}>
+          {STATUS_CONFIG.map((col) => {
             const items = emergencies.filter(
-              (em) => kanbanValue(em, filterKey) === col.key
+              (em) => columnKey(em) === col.key
             );
             return (
-              <div
-                key={col.key}
-                className={
-                  viewMode === "status"
-                    ? classes.boardColumnStatus
-                    : classes.boardColumnCriticality
-                }
-              >
+              <div key={col.key} className={classes.boardColumnStatus}>
                 {/* Column header */}
                 <div className={classes.boardColumnHeader}>
                   <Group justify="space-between" align="center">
