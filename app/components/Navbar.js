@@ -25,7 +25,7 @@ const CITIZEN_NAV = [
 ];
 
 const DISPATCHER_NAV = [
-  { label: "Kanban", icon: IconLayoutKanban },
+  { label: "Estados", icon: IconLayoutKanban },
   { label: "Lista", icon: IconList },
   { label: "Mapa", icon: IconMap },
   { label: "Oficiales", icon: IconUsers },
