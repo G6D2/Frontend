@@ -344,6 +344,10 @@ export function getCurrentLocation() {
     precise: false,
   };
 
+  if (typeof window !== "undefined" && window.__lastCoords) {
+    return Promise.resolve(window.__lastCoords);
+  }
+
   if (typeof navigator === "undefined" || !navigator.geolocation) {
     return Promise.resolve(fallback);
   }

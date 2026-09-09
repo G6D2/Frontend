@@ -27,7 +27,12 @@ export default function OpsTopBar({ onMenuClick }) {
           <MaterialIcon name="menu" />
         </button>
         <span className="text-base lg:text-xl font-bold text-primary truncate">
-          CityPass Emergencias
+          <span className="hidden sm:inline">
+            CityPass<span style={{ color: "rgb(210, 152, 63)" }}>+</span> Emergencia
+          </span>
+          <span className="sm:hidden">
+            CP<span style={{ color: "rgb(210, 152, 63)" }}>+</span> Emergencia
+          </span>
         </span>
       </div>
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">

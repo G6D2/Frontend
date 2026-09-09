@@ -62,6 +62,29 @@ export default function Navbar({
     </a>
   ));
 
+  const bottomLinks = items.map((item) => {
+    const isActive = item.label === active;
+    const isAccount = item.label === "Mi Cuenta";
+    const label = isAccount ? "Cuenta" : item.label;
+
+    return (
+      <button
+        key={item.label}
+        type="button"
+        className={classes.bottomNavLink}
+        data-active={isActive || undefined}
+        onClick={() => onNavClick(item.label)}
+        aria-label={item.label}
+      >
+        <item.icon
+          className={classes.bottomNavIcon}
+          stroke={isActive ? 2.2 : 1.6}
+        />
+        <span className={classes.bottomNavLabel}>{label}</span>
+      </button>
+    );
+  });
+
   return (
     <>
       {!opened && onToggle && (
@@ -79,6 +102,7 @@ export default function Navbar({
         </Tooltip>
       )}
 
+      {/* Desktop Sidebar Navbar */}
       <nav
         className={`${classes.navbar} ${!opened ? classes.navbarCollapsed : ""}`}
       >
@@ -126,6 +150,11 @@ export default function Navbar({
             style={{ objectFit: "contain" }}
           />
         </div>
+      </nav>
+
+      {/* Mobile Bottom Navbar */}
+      <nav className={classes.bottomNavbar} aria-label="Navegación móvil">
+        {bottomLinks}
       </nav>
     </>
   );

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Navbar from "./Navbar";
+import classes from "../styles.module.css";
 
 const CITIZEN_ROUTES = {
   Inicio: "/inicio",
@@ -54,14 +55,7 @@ export default function CityPassAppShell({ role = "usuario", children }) {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        position: "relative",
-        backgroundColor: "#ffffff",
-      }}
-    >
+    <div className={classes.shellContainer}>
       <Navbar
         active={active}
         role={role}
@@ -70,15 +64,7 @@ export default function CityPassAppShell({ role = "usuario", children }) {
         onToggle={() => setOpened((v) => !v)}
       />
       <main
-        style={{
-          flex: 1,
-          minWidth: 0,
-          minHeight: "100vh",
-          overflow: "auto",
-          position: "relative",
-          paddingLeft: !opened ? 48 : 0,
-          transition: "padding 220ms ease",
-        }}
+        className={`${classes.shellMain} ${!opened ? classes.shellMainCollapsed : ""}`}
       >
         {children}
       </main>
