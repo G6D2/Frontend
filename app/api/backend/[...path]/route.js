@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { BACKEND_URL, readAccessToken, SESSION_COOKIE } from "@/lib/session";
+import { fetchBackend } from "@/lib/backend-fetch";
 
 async function proxy(request, context) {
   const { path = [] } = await context.params;
@@ -33,10 +34,12 @@ async function proxy(request, context) {
 
   let backendRes;
   try {
-    backendRes = await fetch(target, init);
+    // Reintenta 502/503/504 y errores de red: el backend dormido de Render
+    // nunca llegó a procesar la request, así que es seguro incluso para POST.
+    backendRes = await fetchBackend(target, init);
   } catch {
     return NextResponse.json(
-      { error: "Bad Gateway", message: "No se pudo contactar al backend" },
+      { error: "Bad Gateway", message: "El backend no responde. Probá de nuevo en unos segundos." },
       { status: 502 }
     );
   }

@@ -6,6 +6,7 @@ import {
   userFromJwt,
 } from "@/lib/session";
 import { ANTIPANIC_MODE } from "@/app/lib/features";
+import { fetchBackend } from "@/lib/backend-fetch";
 
 // TODO(back): reemplazar body por login IdP real cuando AUTH_MODE=idp (HU-12)
 export async function POST(request) {
@@ -19,11 +20,20 @@ export async function POST(request) {
     );
   }
 
-  const res = await fetch(`${BACKEND_URL}/auth/dev/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res;
+  try {
+    // Reintenta mientras el backend despierta (Render free devuelve 502 al instante).
+    res = await fetchBackend(`${BACKEND_URL}/auth/dev/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Bad Gateway", message: "El backend no responde. Probá de nuevo en unos segundos." },
+      { status: 502 }
+    );
+  }
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
@@ -46,7 +56,7 @@ export async function POST(request) {
 
   let user = userFromJwt(accessToken);
   try {
-    const meRes = await fetch(`${BACKEND_URL}/api/user`, {
+    const meRes = await fetchBackend(`${BACKEND_URL}/api/user`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",

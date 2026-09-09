@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, BACKEND_URL } from "@/lib/session";
+import { fetchBackend } from "@/lib/backend-fetch";
 
 export async function GET() {
   const session = await getServerSession();
@@ -11,7 +12,7 @@ export async function GET() {
   }
 
   try {
-    const meRes = await fetch(`${BACKEND_URL}/api/user`, {
+    const meRes = await fetchBackend(`${BACKEND_URL}/api/user`, {
       headers: {
         Authorization: `Bearer ${session.token}`,
         Accept: "application/json",
