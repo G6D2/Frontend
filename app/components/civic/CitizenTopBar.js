@@ -43,7 +43,9 @@ export default function CitizenTopBar({
   const [locStatus, setLocStatus] = useState("loading");
 
   const requestLocation = useCallback((forceFresh = false) => {
-    setLocStatus("loading");
+    if (forceFresh) {
+      setLocStatus("loading");
+    }
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocStatus("imprecise");
@@ -90,6 +92,7 @@ export default function CitizenTopBar({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     requestLocation(false);
   }, [requestLocation]);
 
