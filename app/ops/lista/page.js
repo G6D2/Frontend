@@ -63,11 +63,10 @@ export default function OpsPage() {
       setEmergencies(data);
       setError("");
       setSelected((prev) => {
-        if (!prev && data.length > 0) return data[0];
         if (prev) {
-          return data.find((e) => e.id === prev.id) || prev;
+          return data.find((e) => e.id === prev.id) || null;
         }
-        return prev;
+        return null;
       });
     } catch (err) {
       setError(
@@ -108,11 +107,16 @@ export default function OpsPage() {
   const showCriticalBanner = critical.length > 0 && !alertAcked;
 
   return (
-    <main className="p-3 sm:p-4 h-screen flex flex-col gap-3 sm:gap-4 overflow-hidden">
+    <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 shrink-0">
         {[
           { label: "Pendientes", value: pending.length },
-          { label: "Total activas", value: emergencies.filter((e) => isActiveStatus(e.status) && e.status !== "CANCELLED").length },
+          {
+            label: "Total activas",
+            value: emergencies.filter(
+              (e) => isActiveStatus(e.status) && e.status !== "CANCELLED"
+            ).length,
+          },
           {
             label: "Críticas",
             value: critical.length,
@@ -125,7 +129,7 @@ export default function OpsPage() {
         ].map((s) => (
           <div
             key={s.label}
-            className={`bg-surface-container-lowest border rounded p-3 flex flex-col ${
+            className={`bg-surface-container-lowest border rounded-lg p-3 flex flex-col ${
               s.critical
                 ? "border-2 border-priority-high bg-error-container/20"
                 : "border-outline-variant"
@@ -157,8 +161,8 @@ export default function OpsPage() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0">
-        <div className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant rounded overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0 relative">
+        <div className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden min-h-0 w-full">
           {showCriticalBanner && (
             <div className="bg-priority-high text-on-primary px-3 sm:px-4 py-2 flex items-center justify-between gap-2 animate-pulse shrink-0">
               <div className="flex items-center gap-2 min-w-0">
@@ -176,22 +180,22 @@ export default function OpsPage() {
             </div>
           )}
 
-          <div className="flex-1 overflow-auto">
-            <table className="w-full min-w-[640px] text-left border-collapse">
+          {/* Desktop & Tablet Table (Sin descripción para que entre en el contenedor) */}
+          <div className="hidden sm:block flex-1 overflow-auto w-full">
+            <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-surface-container z-10">
                 <tr>
                   {[
                     "Prioridad",
                     "Estado",
-                    "Descripción",
                     "Ubicación",
                     "Hora",
-                    "T. Transc",
+                    "Transcurrido",
                     "Usuario",
                   ].map((h) => (
                     <th
                       key={h}
-                      className="p-2 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant"
+                      className="p-2.5 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant"
                     >
                       {h}
                     </th>
@@ -202,7 +206,7 @@ export default function OpsPage() {
                 {emergencies.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={6}
                       className="p-8 text-center text-on-surface-variant"
                     >
                       No hay emergencias. Esperando botón de pánico…
@@ -213,32 +217,29 @@ export default function OpsPage() {
                     <tr
                       key={em.id}
                       onClick={() => {
-                        setSelected(em);
+                        setSelected((prev) => (prev?.id === em.id ? null : em));
                         if (isPendingStatus(em.status)) setAlertAcked(false);
                       }}
-                      className={`h-8 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors cursor-pointer ${
+                      className={`h-10 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors cursor-pointer ${
                         selected?.id === em.id
                           ? "bg-surface-container-low border-l-4 border-l-secondary"
                           : ""
                       }`}
                     >
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <PriorityBadge severity={em.severity || "critical"} />
                       </td>
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <StatusBadge status={em.status} />
                       </td>
-                      <td className="p-2 font-bold max-w-[200px] truncate">
-                        {em.description}
-                      </td>
-                      <td className="p-2 max-w-[180px] truncate">
+                      <td className="p-2.5 max-w-[200px] truncate">
                         <GeoLabel emergency={em} fallback="…" />
                       </td>
-                      <td className="p-2 font-mono text-[13px]">
+                      <td className="p-2.5 font-mono text-[13px]">
                         {formatTimeShort(em.createdAt)}
                       </td>
                       <td
-                        className="p-2 font-mono text-[13px] font-bold"
+                        className="p-2.5 font-mono text-[13px] font-bold"
                         style={{
                           color:
                             em.severity === "critical" || em.severity === "high"
@@ -248,64 +249,133 @@ export default function OpsPage() {
                       >
                         {elapsedMinutes(em.createdAt)}
                       </td>
-                      <td className="p-2 font-mono">{em.userId}</td>
+                      <td className="p-2.5 font-mono text-on-surface-variant">{em.userId}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
-        </div>
 
-        {selected && (
-          <div className="w-full lg:w-[320px] shrink-0 bg-surface-container-lowest border border-outline-variant rounded flex flex-col shadow-xl max-h-[42vh] lg:max-h-none">
-            <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start">
-              <div>
-                <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
-                  #{selected.id.slice(0, 8)}
-                </h2>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  {getStatusConfig(selected.status).label} ·{" "}
-                  {PRIORITY_CONFIG[selected.severity || "critical"]?.label}
-                </span>
+          {/* Mobile Card List (Ajustado al contenedor móvil, detalle al tocar) */}
+          <div className="sm:hidden flex-1 overflow-auto divide-y divide-outline-variant/40">
+            {emergencies.length === 0 ? (
+              <div className="p-8 text-center text-on-surface-variant text-xs">
+                No hay emergencias. Esperando botón de pánico…
               </div>
-              <button
-                onClick={() => setSelected(null)}
-                className="text-on-surface-variant hover:text-on-surface"
-              >
-                <MaterialIcon name="close" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-              <div className="flex items-start gap-2">
-                <MaterialIcon
-                  name="location_on"
-                  className="text-on-surface-variant mt-0.5"
-                />
-                <div>
-                  <div className="text-sm font-bold text-on-surface">
-                    <GeoLabel
-                      emergency={selected}
-                      fallback="Obteniendo dirección…"
-                      showCoords
-                    />
+            ) : (
+              emergencies.map((em) => (
+                <div
+                  key={em.id}
+                  onClick={() => {
+                    setSelected(em);
+                    if (isPendingStatus(em.status)) setAlertAcked(false);
+                  }}
+                  className={`p-3 flex flex-col gap-2 active:bg-surface-container-low transition-colors cursor-pointer ${
+                    selected?.id === em.id ? "bg-surface-container-low border-l-4 border-l-secondary" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <PriorityBadge severity={em.severity || "critical"} />
+                      <StatusBadge status={em.status} />
+                    </div>
+                    <span className="font-mono text-xs font-bold text-on-surface-variant">
+                      {elapsedMinutes(em.createdAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-on-surface">
+                    <MaterialIcon name="location_on" size={16} className="text-on-surface-variant shrink-0" />
+                    <span className="truncate">
+                      <GeoLabel emergency={em} fallback="Obteniendo ubicación…" />
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
+                    <span className="font-mono">#{em.id?.slice(0, 8)}</span>
+                    <span className="font-mono">{formatTimeShort(em.createdAt)}</span>
                   </div>
                 </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Modal / Drawer de Detalle (Aparece cuando se toca una emergencia) */}
+        {selected && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4 lg:static lg:inset-auto lg:z-auto lg:bg-transparent lg:p-0">
+            <div className="w-full sm:max-w-md lg:w-[320px] bg-surface-container-lowest border border-outline-variant rounded-t-2xl sm:rounded-xl lg:rounded-lg flex flex-col shadow-2xl max-h-[85vh] lg:max-h-full overflow-hidden shrink-0 animate-in fade-in slide-in-from-bottom-4 duration-200">
+              <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start">
+                <div>
+                  <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
+                    #{selected.id.slice(0, 8)}
+                  </h2>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    {getStatusConfig(selected.status).label} ·{" "}
+                    {PRIORITY_CONFIG[selected.severity || "critical"]?.label}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cerrar detalle"
+                  onClick={() => setSelected(null)}
+                  className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors"
+                >
+                  <MaterialIcon name="close" size={20} />
+                </button>
               </div>
-              <div className="bg-surface-container-low p-3 rounded border border-outline-variant/50 text-xs">
-                &quot;{selected.description}&quot;
+
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+                <div className="flex items-start gap-2">
+                  <MaterialIcon
+                    name="location_on"
+                    className="text-on-surface-variant mt-0.5 shrink-0"
+                  />
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block">
+                      Ubicación
+                    </span>
+                    <div className="text-sm font-bold text-on-surface">
+                      <GeoLabel
+                        emergency={selected}
+                        fallback="Obteniendo dirección…"
+                        showCoords
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
+                    Descripción del Incidente
+                  </span>
+                  <div className="bg-surface-container-low p-3 rounded-lg border border-outline-variant/50 text-xs text-on-surface leading-relaxed">
+                    &quot;{selected.description}&quot;
+                  </div>
+                </div>
+
+                <div className="text-xs text-on-surface-variant flex flex-col gap-1 border-t border-outline-variant/40 pt-3">
+                  <div className="flex justify-between">
+                    <span>Usuario:</span>
+                    <span className="font-mono font-medium text-on-surface">{selected.userId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Hora de reporte:</span>
+                    <span className="font-mono font-medium text-on-surface">{formatTimeShort(selected.createdAt)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tiempo transcurrido:</span>
+                    <span className="font-mono font-bold text-on-surface">{elapsedMinutes(selected.createdAt)}</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="mt-2 w-full py-2 bg-surface-container text-on-surface text-xs font-semibold rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors"
+                >
+                  Cerrar detalle
+                </button>
               </div>
-              <div className="text-xs text-on-surface-variant">
-                <div>Usuario: <span className="font-mono">{selected.userId}</span></div>
-                <div>Creada: {formatTimeShort(selected.createdAt)}</div>
-              </div>
-                            <p className="text-[11px] text-on-surface-variant/70 italic">
-                {/* TODO(back): HU-05 validateEmergency / discardEmergency */}
-                {/* TODO(back): HU-04 overridePriority · HU-06 asignar · HU-11 alerta critica */}
-                {/* TODO(back): timeline + mapa real */}
-                Validar / asignar aun no expuestos en el backend (solo lectura
-                dispatcher).
-              </p>
             </div>
           </div>
         )}

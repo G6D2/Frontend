@@ -22,9 +22,8 @@ export default function InicioClient() {
   const [user, setUser] = useState(getStoredUser());
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [locationStatus, setLocationStatus] = useState("Obteniendo ubicación…");
 
-  // Refresca usuario y geolocalización al montar el componente
+  // Refresca usuario al montar el componente
   useEffect(() => {
     // En modo "mock": hasAntipanicButton viene del toggle del login y vive en sessionStorage.
     //   fetchCurrentUser() lo perdería (el backend no lo conoce), así que lo recuperamos del storage.
@@ -48,14 +47,6 @@ export default function InicioClient() {
         setUser(merged);
       })
       .catch(() => {}); // silencioso: si falla, seguimos con el usuario del storage
-
-    getCurrentLocation().then((loc) => {
-      setLocationStatus(
-        loc.precise
-          ? "Ubicación precisa obtenida"
-          : "Usando última ubicación conocida (imprecisa)"
-      );
-    });
   }, []);
 
   const handleConfirmSos = async (optionalDescription = "") => {
@@ -103,12 +94,7 @@ export default function InicioClient() {
       <CitizenTopBar showMenu />
 
       <main className="flex-grow pb-24 lg:pb-8 px-4 md:px-12 max-w-[1280px] mx-auto w-full flex flex-col items-center justify-center relative min-h-[calc(100vh-3.5rem)]">
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 bg-tertiary-container text-on-tertiary-container px-4 py-2 rounded-full text-xs font-medium shadow-sm w-max max-w-full">
-          <MaterialIcon name="location_on" size={16} />
-          <span>{locationStatus}</span>
-        </div>
-
-        <div className="flex flex-col items-center justify-center mt-12 w-full max-w-sm">
+        <div className="flex flex-col items-center justify-center mt-6 sm:mt-12 w-full max-w-sm">
           {canUseAntipanicButton ? (
             // ── Botón Antipánico (visible solo para usuarios con el permiso habilitado) ──
             <>

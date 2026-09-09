@@ -252,3 +252,208 @@
   background-color: rgba(255, 245, 245, 0.95) !important;
   transition: all 300ms ease;
 }
+
+/* ── App Shell Container & Main ── */
+.shellContainer {
+  display: flex;
+  min-height: 100vh;
+  position: relative;
+  background-color: #ffffff;
+  width: 100%;
+}
+
+.shellMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: auto;
+  position: relative;
+  padding-left: 0;
+  transition: padding 220ms ease;
+}
+
+.shellMainCollapsed {
+  padding-left: 48px;
+}
+
+/* ── Mobile Bottom Navbar ── */
+.bottomNavbar {
+  display: none;
+}
+
+/* ── Responsive Mobile (max-width: 768px) ── */
+@media (max-width: 768px) {
+  .navbar {
+    display: none !important;
+  }
+
+  .navbarExpandFloatingBtn {
+    display: none !important;
+  }
+
+  .shellContainer {
+    flex-direction: column;
+  }
+
+  .shellMain,
+  .shellMainCollapsed {
+    padding-left: 0 !important;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .bottomNavbar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 62px;
+    background-color: #ffffff;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    z-index: 1000;
+    align-items: center;
+    justify-content: space-around;
+    padding: 4px 6px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08), 0 -1px 4px rgba(0, 0, 0, 0.04);
+  }
+
+  .bottomNavLink {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    color: #64748b;
+    padding: 6px 2px;
+    border-radius: 10px;
+    flex: 1;
+    min-width: 0;
+    gap: 2px;
+    transition: color 150ms ease, background-color 150ms ease, transform 120ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottomNavLink:active {
+    transform: scale(0.92);
+  }
+
+  .bottomNavLink:hover {
+    color: #334155;
+  }
+
+  .bottomNavLink[data-active] {
+    color: #0f172a;
+    background-color: rgba(210, 152, 63, 0.14);
+  }
+
+  .bottomNavLink[data-active] .bottomNavIcon {
+    color: rgb(210, 152, 63);
+  }
+
+  .bottomNavIcon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    color: #64748b;
+    transition: color 150ms ease;
+  }
+
+  .bottomNavLabel {
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    color: #64748b;
+  }
+
+  .bottomNavLink[data-active] .bottomNavLabel {
+    font-weight: 700;
+    color: #0f172a;
+  }
+}
+
+/* ── Desktop vs Mobile Estados (Kanban vs Tinder-style Swipe) ── */
+.desktopBoard {
+  display: block;
+  width: 100%;
+}
+
+.mobileBoard {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .desktopBoard {
+    display: none !important;
+  }
+
+  .mobileBoard {
+    display: flex !important;
+    flex-direction: column;
+    width: 100%;
+  }
+}
+
+.mobileEstadosContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: calc(100vh - 130px);
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.mobileSwipeTrack {
+  display: flex;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  transition: transform 280ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.mobileSwipeSlide {
+  min-width: 100%;
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 4px 0 10px 0;
+}
+
+.mobileStatusCard {
+  background-color: var(--mantine-color-gray-0);
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid var(--mantine-color-gray-2);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.mobileCardsList {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+
+

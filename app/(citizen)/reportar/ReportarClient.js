@@ -87,7 +87,6 @@ export default function ReportarClient() {
   return (
     <>
       <CitizenTopBar
-        title="Reportar"
         showBack
         backHref="/inicio"
         showClose

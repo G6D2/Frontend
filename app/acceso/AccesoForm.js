@@ -56,7 +56,7 @@ export default function AccesoForm() {
             </span>
             <div>
               <h1 className="text-2xl md:text-[32px] font-bold text-primary leading-tight">
-                CityPass Emergencias
+                CityPass<span style={{ color: "rgb(210, 152, 63)" }}>+</span>
               </h1>
               <p className="text-base text-on-surface-variant mt-2">
                 Acceso seguro a los servicios de la ciudad.
@@ -117,12 +117,12 @@ export default function AccesoForm() {
               {/* Toggle Botón Antipánico — solo visible en modo mock (ANTIPANIC_MODE="mock").
                   En modo "backend" este campo viene del endpoint GET /api/user. */}
               {role === "citizen" && ANTIPANIC_MODE === "mock" && (
-                <div className="flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-surface-container-lowest">
-                  <div className="flex items-center gap-2">
-                    <MaterialIcon name="emergency" size={20} className="text-error" />
-                    <div>
-                      <p className="text-sm font-semibold text-on-surface">Botón Antipánico</p>
-                      <p className="text-xs text-on-surface-variant">Habilitar acceso al botón de emergencia</p>
+                <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-outline-variant bg-surface-container-lowest">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <MaterialIcon name="emergency" size={22} className="text-error shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-on-surface truncate">Botón Antipánico</p>
+                      <p className="text-xs text-on-surface-variant leading-tight">Acceso rápido a emergencia</p>
                     </div>
                   </div>
                   <button
@@ -131,7 +131,7 @@ export default function AccesoForm() {
                     role="switch"
                     aria-checked={hasAntipanicButton}
                     onClick={() => setHasAntipanicButton((v) => !v)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 ${
+                    className={`shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 ${
                       hasAntipanicButton ? "bg-error" : "bg-outline-variant"
                     }`}
                   >
@@ -151,11 +151,11 @@ export default function AccesoForm() {
               </div>
             )}
 
-            <div className="flex flex-col gap-4 mt-2">
+            <div className="flex flex-col gap-3 mt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="h-14 w-full bg-primary text-on-primary font-semibold text-sm tracking-wide rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 min-h-[56px] disabled:opacity-60"
+                className="min-h-[52px] py-3 px-4 w-full bg-primary text-on-primary font-semibold text-sm tracking-wide rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {loading ? "Ingresando..." : "Iniciar sesión"}
                 <MaterialIcon name="arrow_forward" />
@@ -185,10 +185,11 @@ export default function AccesoForm() {
                     setLoading(false);
                   }
                 }}
-                className="h-12 w-full bg-surface-container text-on-surface font-semibold text-sm tracking-wide rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors flex items-center justify-center gap-2"
+                className="min-h-12 py-2.5 px-3 w-full bg-surface-container text-on-surface font-semibold text-xs sm:text-sm tracking-wide rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors flex items-center justify-center text-center gap-2"
               >
-                <MaterialIcon name="account_balance" className="text-primary" />
-                Iniciar con cuenta ciudadana
+                <MaterialIcon name="account_balance" className="text-primary shrink-0" size={20} />
+                <span className="hidden sm:inline">Iniciar con cuenta ciudadana</span>
+                <span className="sm:hidden">Ciudadano</span>
               </button>
             </div>
           </form>
