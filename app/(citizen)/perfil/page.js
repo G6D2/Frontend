@@ -29,6 +29,8 @@ export default function PerfilPage() {
     { icon: "help", label: "Ayuda" },
   ];
 
+  const isAnon = user?.loginMethod === "anonima";
+
   return (
     <>
       <CitizenTopBar showMenu />
@@ -74,6 +76,43 @@ export default function PerfilPage() {
             </button>
           ))}
         </section>
+
+        {/* Sign-up CTA — activo si entró anónimo, gris si ya tiene sesión */}
+        <div className="rounded-xl border border-outline-variant bg-white overflow-hidden flex items-center gap-4 px-4 py-4">
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+              isAnon ? "bg-primary text-on-primary" : "bg-outline-variant/30 text-on-surface-variant"
+            }`}
+          >
+            <MaterialIcon name="person_add" size={22} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`font-semibold text-sm ${isAnon ? "text-on-surface" : "text-on-surface-variant"}`}>
+              Sign up
+            </p>
+            <p className="text-xs text-on-surface-variant leading-tight mt-0.5">
+              {isAnon
+                ? "Registrate para guardar tus datos y preferencias"
+                : "Ya iniciaste sesión con una cuenta existente"}
+            </p>
+          </div>
+          <button
+            disabled={!isAnon}
+            aria-disabled={!isAnon}
+            onClick={async () => {
+              await logout();
+              router.push("/acceso");
+            }}
+            className={`shrink-0 h-10 px-4 rounded-lg font-semibold text-sm transition-all ${
+              isAnon
+                ? "bg-primary text-on-primary hover:opacity-90 cursor-pointer"
+                : "bg-outline-variant/30 text-on-surface-variant cursor-not-allowed"
+            }`}
+          >
+            {isAnon ? "Registrarme" : "No disponible"}
+          </button>
+        </div>
+
 
         <button
           onClick={async () => {
