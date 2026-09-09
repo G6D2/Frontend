@@ -29,15 +29,22 @@ export const STATUS_CONFIG = {
 };
 
 export const TYPE_LABELS = {
+  // Canónicos del backend (src/domain/emergency-type.js)
+  PANICO: "Botón de pánico",
+  MEDICA: "Emergencia médica",
+  INCENDIO: "Incendio",
+  INFRAESTRUCTURA: "Infraestructura",
+  DISTURBIO_EVENTO_MASIVO: "Disturbio o evento masivo",
+  OTRO: "Otro incidente",
+  // Alias que todavía manda el formulario (el backend los normaliza)
+  panic: "Botón de pánico",
   medical: "Emergencia médica",
   fire: "Incendio",
   infrastructure: "Infraestructura",
   disturbance: "Disturbio o evento",
   other: "Otro incidente",
-  panic: "Botón de pánico",
-  MEDICA: "Emergencia médica",
+  // Legacy
   SEGURIDAD: "Seguridad",
-  INCENDIO: "Incendio",
   TRANSITO: "Tránsito",
 };
 
