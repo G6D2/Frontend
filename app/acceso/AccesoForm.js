@@ -33,6 +33,7 @@ export default function AccesoForm() {
         preferred_username: username,
         groups,
         hasAntipanicButton: role === "citizen" ? hasAntipanicButton : false,
+        loginMethod: "sesion",
       });
       router.replace(getHomePathForUser(user));
     } catch (err) {
@@ -173,6 +174,7 @@ export default function AccesoForm() {
                       preferred_username: "ciudadano",
                       groups: ["citizen"],
                       hasAntipanicButton: false,
+                      loginMethod: "anonima",
                     });
                     router.replace(getHomePathForUser(user));
                   } catch (err) {

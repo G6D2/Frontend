@@ -82,6 +82,7 @@ export async function loginDev({
   preferred_username,
   groups = ["citizen"],
   hasAntipanicButton = false,
+  loginMethod = "anonima",
 }) {
   const res = await fetch("/api/auth/login", {
     method: "POST",
@@ -96,8 +97,10 @@ export async function loginDev({
       { status: res.status, body: data }
     );
   }
-  setStoredUser(data.user);
-  return { user: data.user };
+  // Attach loginMethod to local profile (not sent to backend – mock only)
+  const user = { ...data.user, loginMethod };
+  setStoredUser(user);
+  return { user };
 }
 
 export async function logout() {
@@ -125,8 +128,11 @@ export async function fetchCurrentUser() {
       body: data,
     });
   }
-  setStoredUser(data.data);
-  return data.data;
+  // Preserve mock-only fields (e.g. loginMethod) that the session API doesn't return
+  const existing = getStoredUser();
+  const merged = { ...(existing || {}), ...data.data };
+  setStoredUser(merged);
+  return merged;
 }
 
 export async function hasValidSession() {
