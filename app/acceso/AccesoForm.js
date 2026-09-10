@@ -1,17 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import MaterialIcon from "../components/civic/MaterialIcon";
 import { loginDev, ApiError, getHomePathForUser } from "../lib/api";
 import { ANTIPANIC_MODE } from "../lib/features";
 
 export default function AccesoForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [role, setRole] = useState("citizen");
+  const [mode, setMode] = useState(
+    searchParams.get("signup") === "1" ? "signup" : "login"
+  ); // "login" | "signup"
   const [hasAntipanicButton, setHasAntipanicButton] = useState(false);
+
+  const isSignup = mode === "signup";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,20 +25,25 @@ export default function AccesoForm() {
     setError("");
     const form = e.target;
     const username = (form.email.value || "ciudadano").trim();
-    // TODO(back): rol real viene del IdP — selector solo para AUTH_MODE=local
-    const groups = role === "dispatcher" ? ["dispatcher"] : ["citizen"];
+    // TODO(back): AUTH_MODE=local demo — el sub se inventa como CIT-<usuario> /
+    // DISP-<usuario>, así cualquiera entra como cualquiera. Reemplazar por IdP
+    // (Grupo 2 / HU-12): login federado + registro real; rol viene del token.
+    // Sign up mock es solo ciudadano.
+    const effectiveRole = isSignup ? "citizen" : role;
+    const groups = effectiveRole === "dispatcher" ? ["dispatcher"] : ["citizen"];
     const sub =
-      role === "dispatcher"
+      effectiveRole === "dispatcher"
         ? `DISP-${username.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "001"}`
         : `CIT-${username.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "001"}`;
 
     try {
-      // TODO(back): POST /auth/login IdP (HU-12)
+      // TODO(back): POST /auth/login o /auth/register IdP + Google OAuth (HU-12)
       const { user } = await loginDev({
         sub,
         preferred_username: username,
         groups,
-        hasAntipanicButton: role === "citizen" ? hasAntipanicButton : false,
+        hasAntipanicButton:
+          effectiveRole === "citizen" ? hasAntipanicButton : false,
         loginMethod: "sesion",
       });
       router.replace(getHomePathForUser(user));
@@ -53,15 +64,22 @@ export default function AccesoForm() {
         <div className="glass-card rounded-xl p-6 md:p-8 flex flex-col gap-8">
           <div className="text-center flex flex-col items-center gap-4">
             <span className="material-symbols-outlined text-primary text-5xl bg-surface-container rounded-full p-4">
-              security
+              {isSignup ? "person_add" : "security"}
             </span>
             <div>
               <h1 className="text-2xl md:text-[32px] font-bold text-primary leading-tight">
                 CityPass<span style={{ color: "rgb(210, 152, 63)" }}>+</span>
               </h1>
               <p className="text-base text-on-surface-variant mt-2">
-                Acceso seguro a los servicios de la ciudad.
+                {isSignup
+                  ? "Creá tu cuenta ciudadana para guardar datos y preferencias."
+                  : "Acceso seguro a los servicios de la ciudad."}
               </p>
+              {isSignup && (
+                <p className="text-xs text-on-surface-variant/80 max-w-sm">
+                  Demo local: no registra una cuenta real en el IdP; emite la misma sesión de desarrollo.
+                </p>
+              )}
             </div>
           </div>
 
@@ -79,45 +97,48 @@ export default function AccesoForm() {
                   name="email"
                   type="text"
                   placeholder="jperez"
-                  defaultValue="jperez"
+                  defaultValue={isSignup ? "" : "jperez"}
+                  key={mode}
                   required
                   className="h-12 px-4 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim outline-none transition-all"
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-semibold tracking-wide text-on-surface">
-                  Rol
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRole("citizen")}
-                    className={`h-12 rounded-lg border font-semibold text-sm transition-colors ${
-                      role === "citizen"
-                        ? "bg-primary text-on-primary border-primary"
-                        : "bg-surface-container border-outline-variant text-on-surface"
-                    }`}
-                  >
-                    Ciudadano
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("dispatcher")}
-                    className={`h-12 rounded-lg border font-semibold text-sm transition-colors ${
-                      role === "dispatcher"
-                        ? "bg-primary text-on-primary border-primary"
-                        : "bg-surface-container border-outline-variant text-on-surface"
-                    }`}
-                  >
-                    Dispatcher
-                  </button>
+              {!isSignup && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold tracking-wide text-on-surface">
+                    Rol
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRole("citizen")}
+                      className={`h-12 rounded-lg border font-semibold text-sm transition-colors ${
+                        role === "citizen"
+                          ? "bg-primary text-on-primary border-primary"
+                          : "bg-surface-container border-outline-variant text-on-surface"
+                      }`}
+                    >
+                      Ciudadano
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole("dispatcher")}
+                      className={`h-12 rounded-lg border font-semibold text-sm transition-colors ${
+                        role === "dispatcher"
+                          ? "bg-primary text-on-primary border-primary"
+                          : "bg-surface-container border-outline-variant text-on-surface"
+                      }`}
+                    >
+                      Dispatcher
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Toggle Botón Antipánico — solo visible en modo mock (ANTIPANIC_MODE="mock").
                   En modo "backend" este campo viene del endpoint GET /api/user. */}
-              {role === "citizen" && ANTIPANIC_MODE === "mock" && (
+              {(isSignup || role === "citizen") && ANTIPANIC_MODE === "mock" && (
                 <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-outline-variant bg-surface-container-lowest">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <MaterialIcon name="emergency" size={22} className="text-error shrink-0" />
@@ -158,43 +179,85 @@ export default function AccesoForm() {
                 disabled={loading}
                 className="min-h-[52px] py-3 px-4 w-full bg-primary text-on-primary font-semibold text-sm tracking-wide rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                {loading ? "Ingresando..." : "Iniciar sesión"}
-                <MaterialIcon name="arrow_forward" />
+                {loading
+                  ? isSignup
+                    ? "Creando cuenta..."
+                    : "Ingresando..."
+                  : isSignup
+                    ? "Registrarme"
+                    : "Iniciar sesión"}
+                <MaterialIcon name={isSignup ? "person_add" : "arrow_forward"} />
               </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={async () => {
-                  setRole("citizen");
-                  setLoading(true);
-                  setError("");
-                  try {
-                    const { user } = await loginDev({
-                      sub: "U000042",
-                      preferred_username: "ciudadano",
-                      groups: ["citizen"],
-                      hasAntipanicButton: false,
-                      loginMethod: "anonima",
-                    });
-                    router.replace(getHomePathForUser(user));
-                  } catch (err) {
-                    setError(
-                      err instanceof ApiError
-                        ? err.message
-                        : "No se pudo conectar con el backend."
-                    );
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="min-h-12 py-2.5 px-3 w-full bg-surface-container text-on-surface font-semibold text-xs sm:text-sm tracking-wide rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors flex items-center justify-center text-center gap-2"
-              >
-                <MaterialIcon name="account_balance" className="text-primary shrink-0" size={20} />
-                <span className="hidden sm:inline">Iniciar con cuenta ciudadana</span>
-                <span className="sm:hidden">Ciudadano</span>
-              </button>
+
+              {!isSignup && (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    setRole("citizen");
+                    setLoading(true);
+                    setError("");
+                    try {
+                      const { user } = await loginDev({
+                        sub: "U000042",
+                        preferred_username: "ciudadano",
+                        groups: ["citizen"],
+                        hasAntipanicButton: false,
+                        loginMethod: "anonima",
+                      });
+                      router.replace(getHomePathForUser(user));
+                    } catch (err) {
+                      setError(
+                        err instanceof ApiError
+                          ? err.message
+                          : "No se pudo conectar con el backend."
+                      );
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="min-h-12 py-2.5 px-3 w-full bg-surface-container text-on-surface font-semibold text-xs sm:text-sm tracking-wide rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors flex items-center justify-center text-center gap-2"
+                >
+                  <MaterialIcon name="account_balance" className="text-primary shrink-0" size={20} />
+                  <span className="hidden sm:inline">Iniciar con cuenta ciudadana</span>
+                  <span className="sm:hidden">Ciudadano</span>
+                </button>
+              )}
             </div>
           </form>
+
+          <p className="text-center text-sm text-on-surface-variant">
+            {isSignup ? (
+              <>
+                ¿Ya tenés cuenta?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("login");
+                    setError("");
+                  }}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Iniciar sesión
+                </button>
+              </>
+            ) : (
+              <>
+                ¿No tenés cuenta?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signup");
+                    setRole("citizen");
+                    setError("");
+                  }}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Registrate
+                </button>
+              </>
+            )}
+          </p>
         </div>
 
         <div className="mt-8 text-center">

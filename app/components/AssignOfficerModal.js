@@ -30,7 +30,7 @@ export default function AssignOfficerModal({
     if (opened && emergency) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingOfficers(true);
-      fetchOfficers()
+      fetchOfficers({ status: "disponible" })
         .then((data) => {
           setOfficers(data || []);
           setSelectedOfficerId(data && data.length > 0 ? data[0].id : "");
