@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /**
  * Modal simple (sin Mantine) para pedir motivo de descarte.
@@ -14,14 +14,22 @@ export default function DiscardReasonModal({
   onClose,
   onConfirm,
 }) {
-  const [reason, setReason] = useState("");
-
-  useEffect(() => {
-    if (open) setReason("");
-  }, [open]);
-
+  // Desmontar el formulario al cerrar resetea el motivo sin useEffect/setState.
   if (!open) return null;
 
+  return (
+    <DiscardReasonForm
+      title={title}
+      confirmLabel={confirmLabel}
+      busy={busy}
+      onClose={onClose}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
+function DiscardReasonForm({ title, confirmLabel, busy, onClose, onConfirm }) {
+  const [reason, setReason] = useState("");
   const trimmed = reason.trim();
 
   return (
