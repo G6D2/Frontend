@@ -169,12 +169,6 @@ export async function triggerPanicButton({
   });
 }
 
-export async function fetchEmergencyById(id) {
-  const res = await apiFetch(`/api/panic-button/${id}`);
-  return res.data;
-}
-
-/** Detalle completo con statusHistory (GET /api/emergencies/:id). */
 export async function fetchEmergencyDetail(id) {
   const res = await apiFetch(`/api/emergencies/${id}`);
   return res.data;

@@ -25,8 +25,10 @@ export default function AccesoForm() {
     setError("");
     const form = e.target;
     const username = (form.email.value || "ciudadano").trim();
-    // TODO(back): rol real viene del IdP — selector solo para AUTH_MODE=local
-    // Sign up es solo ciudadano (mock); el IdP real tendrá el flujo de registro.
+    // TODO(back): AUTH_MODE=local demo — el sub se inventa como CIT-<usuario> /
+    // DISP-<usuario>, así cualquiera entra como cualquiera. Reemplazar por IdP
+    // (Grupo 2 / HU-12): login federado + registro real; rol viene del token.
+    // Sign up mock es solo ciudadano.
     const effectiveRole = isSignup ? "citizen" : role;
     const groups = effectiveRole === "dispatcher" ? ["dispatcher"] : ["citizen"];
     const sub =
@@ -35,7 +37,7 @@ export default function AccesoForm() {
         : `CIT-${username.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "001"}`;
 
     try {
-      // TODO(back): POST /auth/login o /auth/register IdP (HU-12)
+      // TODO(back): POST /auth/login o /auth/register IdP + Google OAuth (HU-12)
       const { user } = await loginDev({
         sub,
         preferred_username: username,
