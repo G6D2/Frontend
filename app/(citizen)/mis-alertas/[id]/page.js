@@ -147,10 +147,6 @@ export default function AlertDetailPage() {
                 <MaterialIcon name="schedule" size={18} />
                 <span>{formatTime(emergency.createdAt)}</span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-on-surface-variant font-mono">
-                <MaterialIcon name="tag" size={18} />
-                <span className="truncate">{emergency.id}</span>
-              </div>
               <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                 <MaterialIcon name="priority_high" size={18} className="text-error" />
                 <span>Severidad: {emergency.severity || "critical"}</span>
