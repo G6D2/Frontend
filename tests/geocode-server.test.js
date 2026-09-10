@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { reverseGeocodeServer, buildLabel, cacheKey, _resetGeocodeState } from "../lib/geocode-server.js";
+import { reverseGeocodeServer, buildLabel, buildLabelBigDataCloud, cacheKey, _resetGeocodeState } from "../lib/geocode-server.js";
 
 function nominatimMock(responses = {}) {
   const calls = [];
   const fetchImpl = async (url) => {
     calls.push(url);
+    if (url.includes("bigdatacloud")) {
+      if (responses.bdcStatus === undefined) throw new Error("bdc down"); // fuerza el respaldo salvo que se pida
+      return { ok: responses.bdcStatus === 200, status: responses.bdcStatus, json: async () => responses.bdcBody ?? { locality: "San Nicolás", city: "Buenos Aires" } };
+    }
     const status = responses.status ?? 200;
     if (responses.throw) throw new Error("boom");
     return {
@@ -13,7 +17,7 @@ function nominatimMock(responses = {}) {
       json: async () => responses.body ?? { address: { road: "Av. Corrientes", house_number: "1000", city: "Buenos Aires" } },
     };
   };
-  return { fetchImpl, calls };
+  return { fetchImpl, calls: { all: calls, nominatim: () => calls.filter((u) => u.includes("nominatim")), bdc: () => calls.filter((u) => u.includes("bigdatacloud")) } };
 }
 
 const fastDeps = (extra) => ({ sleep: async () => {}, now: () => 1_000_000, ...extra });
@@ -42,7 +46,17 @@ describe("geocode-server", () => {
     expect(a).toBe("Av. Corrientes, 1000, Buenos Aires");
     expect(b).toBe(a);
     expect(c).toBe(a);
-    expect(calls).toHaveLength(1);
+    expect(calls.nominatim()).toHaveLength(1);
+  });
+
+  it("usa BigDataCloud primero y no toca Nominatim si responde", async () => {
+    const { fetchImpl, calls } = nominatimMock({ bdcStatus: 200 });
+    const label = await reverseGeocodeServer(-34.6037, -58.3816, fastDeps({ fetchImpl }));
+    expect(label).toBe("San Nicolás, Buenos Aires");
+    expect(calls.bdc()).toHaveLength(1);
+    expect(calls.nominatim()).toHaveLength(0);
+    expect(buildLabelBigDataCloud({ locality: "X", city: "X", principalSubdivision: "Y" })).toBe("X, Y");
+    expect(buildLabelBigDataCloud({})).toBeNull();
   });
 
   it("serializa las salidas a Nominatim respetando el intervalo mínimo", async () => {
@@ -55,7 +69,7 @@ describe("geocode-server", () => {
       reverseGeocodeServer(-34.7, -58.4, deps),
       reverseGeocodeServer(-34.8, -58.5, deps),
     ]);
-    expect(calls).toHaveLength(3);
+    expect(calls.nominatim()).toHaveLength(3);
     expect(waits.filter((w) => w > 0)).toHaveLength(2);
     expect(Math.min(...waits.filter((w) => w > 0))).toBeGreaterThanOrEqual(1100);
   });
@@ -67,6 +81,6 @@ describe("geocode-server", () => {
     expect(await reverseGeocodeServer(-34.6, -58.3, fastDeps({ fetchImpl: boom.fetchImpl }))).toBeNull();
     const ok = nominatimMock();
     expect(await reverseGeocodeServer(-34.6, -58.3, fastDeps({ fetchImpl: ok.fetchImpl }))).toBe("Av. Corrientes, 1000, Buenos Aires");
-    expect(ok.calls).toHaveLength(1);
+    expect(ok.calls.nominatim()).toHaveLength(1);
   });
 });
