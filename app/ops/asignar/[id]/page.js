@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import MaterialIcon from "../../../components/civic/MaterialIcon";
 import {
-  fetchEmergencyById,
+  fetchEmergencyDetail,
+  fetchOfficers,
+  assignOfficer,
   getStoredUser,
   fetchCurrentUser,
+  ApiError,
 } from "../../../lib/api";
 import { isDispatcher } from "../../../lib/auth";
 import {
@@ -15,19 +18,13 @@ import {
   locationLabel,
 } from "../../../lib/emergencies";
 
-const OFFICERS = [
-  // TODO(back): reemplazar por fetchOfficers() (HU-06) — cercanía y disponibilidad reales
-  { id: "u-14", name: "Unidad 14", status: "disponible", distance: "1.2 km", eta: "4 min" },
-  { id: "u-07", name: "Unidad 07", status: "disponible", distance: "2.8 km", eta: "8 min" },
-  { id: "u-22", name: "Unidad 22", status: "ocupado", distance: "—", eta: "—" },
-  { id: "u-03", name: "Unidad 03", status: "disponible", distance: "3.1 km", eta: "9 min" },
-];
-
 export default function AsignarOficialPage() {
   const params = useParams();
   const router = useRouter();
   const [emergency, setEmergency] = useState(null);
+  const [officers, setOfficers] = useState([]);
   const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,10 +35,18 @@ export default function AsignarOficialPage() {
           router.replace("/inicio");
           return;
         }
-        const data = await fetchEmergencyById(params.id);
-        if (!cancelled) setEmergency(data);
+        const [data, officerList] = await Promise.all([
+          fetchEmergencyDetail(params.id),
+          fetchOfficers(),
+        ]);
+        if (!cancelled) {
+          setEmergency(data);
+          setOfficers(officerList);
+        }
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : err.message);
+        }
       }
     })();
     return () => {
@@ -50,6 +55,20 @@ export default function AsignarOficialPage() {
   }, [params.id, router]);
 
   const priority = PRIORITY_CONFIG[emergency?.severity || "critical"];
+
+  async function handleAssign(officerId) {
+    if (!emergency || busyId) return;
+    setBusyId(officerId);
+    setError("");
+    try {
+      await assignOfficer(emergency.id, officerId);
+      router.push("/ops/lista");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo asignar");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <main className="p-4 max-w-2xl mx-auto">
@@ -92,50 +111,67 @@ export default function AsignarOficialPage() {
           <p className="text-xs text-on-surface-variant mt-2 italic">
             &quot;{emergency.description}&quot;
           </p>
-          <p className="text-[11px] text-on-surface-variant/70 mt-3">
-            {/* TODO(back): HU-06 assignOfficer(emergencyId, officerId) → DESPATCHED + notificar oficial */}
-            {/* TODO(back): si no hay oficiales, cola de espera + alerta al dispatcher */}
-            La asignación aún no está implementada en el backend (HU-06).
-          </p>
         </div>
       )}
 
       <h2 className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
-        Oficiales disponibles (mock UI)
+        Oficiales
       </h2>
 
       <div className="flex flex-col gap-2">
-        {OFFICERS.map((officer) => (
-          <div
-            key={officer.id}
-            className={`flex items-center justify-between p-4 border rounded transition-colors ${
-              officer.status === "disponible"
-                ? "border-outline-variant bg-surface-container-lowest"
-                : "border-outline-variant/50 bg-surface-container opacity-60"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs">
-                {officer.id.split("-")[1]}
-              </div>
-              <div>
-                <div className="text-sm font-bold text-on-surface">
-                  {officer.name}
+        {officers.length === 0 ? (
+          <p className="text-sm text-on-surface-variant">
+            No hay oficiales en el catálogo.
+          </p>
+        ) : (
+          officers.map((officer) => {
+            const available = officer.status === "disponible";
+            const initials = (officer.badgeNumber || officer.id || "?")
+              .toString()
+              .slice(-2);
+            return (
+              <div
+                key={officer.id}
+                className={`flex items-center justify-between p-4 border rounded transition-colors ${
+                  available
+                    ? "border-outline-variant bg-surface-container-lowest"
+                    : "border-outline-variant/50 bg-surface-container opacity-60"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs">
+                    {initials}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-on-surface">
+                      {officer.name}
+                    </div>
+                    <div className="text-xs text-on-surface-variant">
+                      {officer.location || "—"}
+                      {officer.distance ? ` · ${officer.distance}` : ""}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-on-surface-variant">
-                  {officer.distance} · ETA {officer.eta}
-                </div>
+                <button
+                  type="button"
+                  disabled={!available || Boolean(busyId)}
+                  onClick={() => handleAssign(officer.id)}
+                  className={`h-8 px-4 rounded text-[11px] font-bold uppercase tracking-widest ${
+                    available
+                      ? "bg-primary text-on-primary disabled:opacity-50"
+                      : "bg-primary/40 text-on-primary cursor-not-allowed"
+                  }`}
+                >
+                  {busyId === officer.id
+                    ? "Asignando…"
+                    : available
+                      ? "Asignar"
+                      : officer.status}
+                </button>
               </div>
-            </div>
-            <button
-              disabled
-              // TODO(back): onClick → assignOfficer(emergency.id, officer.id)
-              className="h-8 px-4 bg-primary/40 text-on-primary rounded text-[11px] font-bold uppercase tracking-widest cursor-not-allowed"
-            >
-              Próximamente
-            </button>
-          </div>
-        ))}
+            );
+          })
+        )}
       </div>
     </main>
   );

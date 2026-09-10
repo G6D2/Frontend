@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import MaterialIcon from "../../../components/civic/MaterialIcon";
 import {
-  fetchEmergencyById,
+  fetchEmergencyDetail,
   cancelEmergency,
   ApiError,
 } from "../../../lib/api";
@@ -14,6 +14,7 @@ import {
   getStatusConfig,
   isCancelable,
   formatTime,
+  formatTimeShort,
 } from "../../../lib/emergencies";
 import GeoLabel from "../../../components/civic/GeoLabel";
 
@@ -28,7 +29,7 @@ export default function AlertDetailPage() {
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchEmergencyById(params.id);
+        const data = await fetchEmergencyDetail(params.id);
         if (!cancelled) setEmergency(data);
       } catch (err) {
         if (!cancelled) {
@@ -47,11 +48,21 @@ export default function AlertDetailPage() {
     if (!emergency || !isCancelable(emergency.status)) return;
     setCancelling(true);
     try {
-      const updated = await cancelEmergency(
-        emergency.id,
-        "Ya no necesito asistencia"
-      );
-      setEmergency(updated);
+      const cancelReason = "Ya no necesito asistencia";
+      const updated = await cancelEmergency(emergency.id, cancelReason);
+      setEmergency((prev) => ({
+        ...prev,
+        ...updated,
+        statusHistory: [
+          ...(prev?.statusHistory || []),
+          {
+            previousStatus: prev?.status,
+            newStatus: updated.status,
+            reason: cancelReason,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }));
       notifications.show({
         title: "Emergencia cancelada",
         message: "Se avisó que ya no necesitás ayuda.",
@@ -69,6 +80,7 @@ export default function AlertDetailPage() {
   };
 
   const statusCfg = getStatusConfig(emergency?.status);
+  const history = emergency?.statusHistory || [];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -121,8 +133,6 @@ export default function AlertDetailPage() {
               <h3 className="text-sm font-semibold tracking-wide text-on-surface">
                 Detalles
               </h3>
-              {/* TODO(back): timeline real con fetchEmergencyHistory(id) — CREATED→…→RESOLVED */}
-              {/* TODO(back): actualizar en vivo cuando llegue EmergenciaEstadoActualizado */}
               <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                 <MaterialIcon
                   name="location_on"
@@ -145,6 +155,46 @@ export default function AlertDetailPage() {
                 <MaterialIcon name="priority_high" size={18} className="text-error" />
                 <span>Severidad: {emergency.severity || "critical"}</span>
               </div>
+            </section>
+
+            <section className="bg-surface rounded-xl p-4 border border-outline-variant flex flex-col gap-3">
+              <h3 className="text-sm font-semibold tracking-wide text-on-surface">
+                Historial de estados
+              </h3>
+              {history.length === 0 ? (
+                <p className="text-sm text-on-surface-variant">
+                  Sin cambios de estado todavía.
+                </p>
+              ) : (
+                <ol className="flex flex-col gap-3">
+                  {history.map((entry, index) => {
+                    const label = getStatusConfig(entry.newStatus).label;
+                    return (
+                      <li
+                        key={`${entry.id || index}-${entry.newStatus}`}
+                        className="flex gap-3 text-sm"
+                      >
+                        <div className="flex flex-col items-center">
+                          <span className="w-2.5 h-2.5 rounded-full bg-primary mt-1.5" />
+                          {index < history.length - 1 && (
+                            <span className="flex-1 w-px bg-outline-variant my-1" />
+                          )}
+                        </div>
+                        <div className="pb-1">
+                          <div className="font-semibold text-on-surface">
+                            {label}
+                          </div>
+                          <div className="text-xs text-on-surface-variant">
+                            {formatTimeShort(entry.createdAt) ||
+                              formatTime(entry.createdAt)}
+                            {entry.reason ? ` · ${entry.reason}` : ""}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
             </section>
 
             {isCancelable(emergency.status) && (

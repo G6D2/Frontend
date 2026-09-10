@@ -11,11 +11,14 @@ import {
 import {
   fetchEmergencies,
   assignOfficer,
+  validateEmergency,
+  discardEmergency,
   POLLING_INTERVAL_MS,
   STATUS_CONFIG,
 } from "../lib/api";
 import EmergencyCard from "./EmergencyCard";
 import AssignOfficerModal from "./AssignOfficerModal";
+import DiscardReasonModal from "./DiscardReasonModal";
 import classes from "../styles.module.css";
 
 /** Mapea estados del backend (CREATED, VALIDATED, …) a columnas del tablero por estado. */
@@ -26,6 +29,7 @@ const STATUS_TO_COLUMN = {
   DISPATCHED: "despachada",
   EN_ROUTE: "en_camino",
   ON_SITE: "en_lugar",
+  ON_SCENE: "en_lugar",
   RESOLVED: "resuelta",
   CLOSED: "cerrada",
   CANCELLED: "cerrada",
@@ -45,6 +49,8 @@ export default function DispatcherView() {
   // Estado para el modal de asignación de oficial (RF-05, RF-06)
   const [selectedEmergency, setSelectedEmergency] = useState(null);
   const [modalOpened, setModalOpened] = useState(false);
+  const [discardTarget, setDiscardTarget] = useState(null);
+  const [discardBusy, setDiscardBusy] = useState(false);
 
   // ── Modo celular: Índice del estado activo (tipo Tinder swipe) ──
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
@@ -148,6 +154,69 @@ export default function DispatcherView() {
     setModalOpened(true);
   };
 
+  const patchLocalEmergency = (emergencyId, patch) => {
+    setEmergencies((prevList) =>
+      prevList.map((em) =>
+        String(em.id) === String(emergencyId) ? { ...em, ...patch } : em
+      )
+    );
+  };
+
+  const handleValidate = async (emergency) => {
+    try {
+      const updated = await validateEmergency(emergency.id);
+      patchLocalEmergency(emergency.id, {
+        status: updated?.status || "VALIDATED",
+        ...updated,
+      });
+      notifications.show({
+        title: "Emergencia validada",
+        message: `${String(emergency.id).slice(0, 8)} pasó a VALIDATED.`,
+        color: "teal",
+        autoClose: 3000,
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Error al validar",
+        message: error.message || "No se pudo validar.",
+        color: "red",
+        autoClose: 4000,
+      });
+    }
+  };
+
+  const handleDiscard = (emergency) => {
+    setDiscardTarget(emergency);
+  };
+
+  const confirmDiscard = async (reason) => {
+    if (!discardTarget) return;
+    setDiscardBusy(true);
+    try {
+      const updated = await discardEmergency(discardTarget.id, reason);
+      patchLocalEmergency(discardTarget.id, {
+        status: updated?.status || "DISCARDED",
+        ...updated,
+      });
+      setDiscardTarget(null);
+      notifications.show({
+        title: "Emergencia descartada",
+        message: `${String(discardTarget.id).slice(0, 8)} pasó a DISCARDED.`,
+        color: "gray",
+        autoClose: 3000,
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Error al descartar",
+        message: error.message || "No se pudo descartar.",
+        color: "red",
+        autoClose: 4000,
+      });
+    } finally {
+      setDiscardBusy(false);
+    }
+  };
+
   // ── RF-07 & RF-08: Confirmar asignación vía PATCH y mover a DESPACHADA ──
   const handleAssignOfficer = async (emergencyId, officerId) => {
     try {
@@ -158,7 +227,7 @@ export default function DispatcherView() {
           String(em.id) === String(emergencyId)
             ? {
                 ...em,
-                status: "despachada",
+                status: result.status || "DISPATCHED",
                 assignedOfficer: result.assignedOfficer,
                 assignedOfficerId: officerId,
               }
@@ -243,6 +312,8 @@ export default function DispatcherView() {
                           emergency={em}
                           isNew={newEmergencyIds.has(String(em.id))}
                           onAssignOfficer={handleOpenAssignModal}
+                          onValidate={handleValidate}
+                          onDiscard={handleDiscard}
                         />
                       ))
                     )}
@@ -417,6 +488,8 @@ export default function DispatcherView() {
                             emergency={em}
                             isNew={newEmergencyIds.has(String(em.id))}
                             onAssignOfficer={handleOpenAssignModal}
+                            onValidate={handleValidate}
+                            onDiscard={handleDiscard}
                           />
                         ))
                       )}
@@ -435,6 +508,14 @@ export default function DispatcherView() {
         onClose={() => setModalOpened(false)}
         emergency={selectedEmergency}
         onAssign={handleAssignOfficer}
+      />
+      <DiscardReasonModal
+        open={Boolean(discardTarget)}
+        busy={discardBusy}
+        onClose={() => {
+          if (!discardBusy) setDiscardTarget(null);
+        }}
+        onConfirm={confirmDiscard}
       />
     </div>
   );

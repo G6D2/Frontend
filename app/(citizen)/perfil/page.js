@@ -101,7 +101,7 @@ export default function PerfilPage() {
             aria-disabled={!isAnon}
             onClick={async () => {
               await logout();
-              router.push("/acceso");
+              router.push("/acceso?signup=1");
             }}
             className={`shrink-0 h-10 px-4 rounded-lg font-semibold text-sm transition-all ${
               isAnon

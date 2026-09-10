@@ -20,14 +20,10 @@ function redirectToLogin() {
 // - body JSON máx 32kb; location.latitude/longitude deben ser number
 // - CORS_ORIGIN en prod; el front usa BFF same-origin (no llama al API directo)
 //
-// TODO(back): POST reportar incidente (HU-02)
-// TODO(back): PATCH validar / descartar (HU-05)
 // TODO(back): PATCH prioridad (HU-04)
-// TODO(back): oficiales / asignar (HU-06)
-// TODO(back): estados oficial / observaciones / refuerzos (HU-08/09/10)
-// TODO(back): historial timeline + live updates (HU-07/11)
+// TODO(back): estados oficial / observaciones / refuerzos (HU-08/09/10) — plataforma oficiales
+// TODO(back): live updates SSE/Kafka (HU-07/11)
 // TODO(back): Auth IdP real (HU-12)
-// TODO(back): Rol officer (HU-08+)
 // TODO(back): Consumir eventos externos (HU-13)
 
 export class ApiError extends Error {
@@ -178,6 +174,12 @@ export async function fetchEmergencyById(id) {
   return res.data;
 }
 
+/** Detalle completo con statusHistory (GET /api/emergencies/:id). */
+export async function fetchEmergencyDetail(id) {
+  const res = await apiFetch(`/api/emergencies/${id}`);
+  return res.data;
+}
+
 export async function fetchEmergencies() {
   const res = await apiFetch("/api/emergencies?limit=100&sortBy=createdAt&order=desc");
   if (Array.isArray(res?.data)) return res.data;
@@ -211,34 +213,6 @@ export const STATUS_CONFIG = [
   { key: "cerrada", label: "Cerrada", color: "gray" },
 ];
 
-// Mock officers hasta que el backend exponga GET /api/officers (HU-06)
-export const MOCK_OFFICERS = [
-  {
-    id: "of-001",
-    name: "Oficial Carlos Gómez",
-    badgeNumber: "CP-4021",
-    location: "Av. 9 de Julio y Corrientes",
-    distance: "350 m",
-    status: "disponible",
-  },
-  {
-    id: "of-002",
-    name: "Oficial Mariana López",
-    badgeNumber: "CP-3108",
-    location: "Plaza de Mayo",
-    distance: "800 m",
-    status: "disponible",
-  },
-  {
-    id: "of-003",
-    name: "Oficial Martín Rodríguez",
-    badgeNumber: "CP-5520",
-    location: "Av. Santa Fe y Callao",
-    distance: "1.2 km",
-    status: "disponible",
-  },
-];
-
 export async function reportIncident({
   category,
   latitude,
@@ -259,16 +233,20 @@ export async function reportIncident({
   });
 }
 
-export async function validateEmergency() {
-  throw new ApiError("TODO(back): PATCH validar emergencia (HU-05)", {
-    status: 501,
+export async function validateEmergency(id) {
+  const res = await apiFetch(`/api/emergencies/${id}/validate`, {
+    method: "PATCH",
+    body: {},
   });
+  return res.data;
 }
 
-export async function discardEmergency() {
-  throw new ApiError("TODO(back): PATCH descartar emergencia (HU-05)", {
-    status: 501,
+export async function discardEmergency(id, reason) {
+  const res = await apiFetch(`/api/emergencies/${id}/discard`, {
+    method: "PATCH",
+    body: { reason },
   });
+  return res.data;
 }
 
 export async function overridePriority() {
@@ -277,47 +255,27 @@ export async function overridePriority() {
   });
 }
 
-export async function fetchOfficers() {
-  try {
-    const res = await apiFetch("/api/officers");
-    if (Array.isArray(res?.data)) return res.data;
-    if (Array.isArray(res)) return res;
-  } catch {
-    // Backend officers endpoint not yet available
-  }
-  return MOCK_OFFICERS;
+export async function fetchOfficers({ status } = {}) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  const res = await apiFetch(`/api/officers${query}`);
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res)) return res;
+  return [];
 }
 
 export async function assignOfficer(emergencyId, officerId) {
-  const officer = MOCK_OFFICERS.find((o) => o.id === officerId) || {
-    id: officerId,
-    name: `Oficial ${officerId}`,
+  const res = await apiFetch(`/api/emergencies/${emergencyId}/assign`, {
+    method: "PATCH",
+    body: { officerId },
+  });
+  const data = res?.data || res;
+  return {
+    success: true,
+    status: data.status || "DISPATCHED",
+    assignedOfficer: data.assignedOfficer || null,
+    assignedOfficerId: data.assignedOfficerId || officerId,
+    ...data,
   };
-
-  try {
-    const res = await apiFetch(`/api/emergencies/${emergencyId}`, {
-      method: "PATCH",
-      body: {
-        officerId,
-        status: "despachada",
-        assignedOfficer: officer.name,
-      },
-    });
-    return (
-      res?.data || {
-        success: true,
-        status: "despachada",
-        assignedOfficer: officer.name,
-      }
-    );
-  } catch {
-    // Fallback local hasta HU-06 en backend
-    return {
-      success: true,
-      status: "despachada",
-      assignedOfficer: officer.name,
-    };
-  }
 }
 
 export async function updateEmergencyStatus() {
@@ -337,10 +295,9 @@ export async function requestReinforcements() {
   throw new ApiError("TODO(back): POST refuerzos (HU-10)", { status: 501 });
 }
 
-export async function fetchEmergencyHistory() {
-  throw new ApiError("TODO(back): GET historial de estados / timeline", {
-    status: 501,
-  });
+export async function fetchEmergencyHistory(id) {
+  const detail = await fetchEmergencyDetail(id);
+  return Array.isArray(detail?.statusHistory) ? detail.statusHistory : [];
 }
 
 export function getCurrentLocation() {

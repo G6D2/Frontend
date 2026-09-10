@@ -9,10 +9,16 @@ export default function EmergencyCard({
   emergency,
   isNew = false,
   onAssignOfficer,
+  onValidate,
+  onDiscard,
 }) {
   const sev = SEVERITY_CONFIG[emergency.severity] || SEVERITY_CONFIG.medium;
   const isValidated =
     emergency.status === "validada" || emergency.status === "VALIDATED";
+  const isPending =
+    emergency.status === "pendiente" ||
+    emergency.status === "PENDING" ||
+    emergency.status === "CREATED";
 
   return (
     <Card
@@ -56,6 +62,27 @@ export default function EmergencyCard({
           >
             {emergency.assignedOfficer}
           </Badge>
+        </Group>
+      )}
+
+      {isPending && (
+        <Group grow mt="sm">
+          <Button
+            variant="light"
+            color="teal"
+            size="xs"
+            onClick={() => onValidate?.(emergency)}
+          >
+            Validar
+          </Button>
+          <Button
+            variant="light"
+            color="gray"
+            size="xs"
+            onClick={() => onDiscard?.(emergency)}
+          >
+            Descartar
+          </Button>
         </Group>
       )}
 

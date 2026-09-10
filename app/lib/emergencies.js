@@ -6,8 +6,6 @@ export const PRIORITY_CONFIG = {
 };
 
 /** Estados del backend (CREATED, CANCELLED, VALIDATED, …) → UI */
-// TODO(back): alinear enum completo del roadmap:
-// PENDIENTE→VALIDADA→DESPACHADA→EN_CAMINO→EN_LUGAR→RESUELTA→CERRADA (+ DESCARTADA/CANCELADA)
 export const STATUS_CONFIG = {
   CREATED: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
   PENDING: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
@@ -16,6 +14,7 @@ export const STATUS_CONFIG = {
   DISPATCHED: { label: "DESPACHADA", color: "status-despachada", key: "despachada" },
   EN_ROUTE: { label: "EN_CAMINO", color: "status-despachada", key: "en_camino" },
   ON_SITE: { label: "EN_LUGAR", color: "status-validada", key: "en_lugar" },
+  ON_SCENE: { label: "EN_LUGAR", color: "status-validada", key: "en_lugar" },
   RESOLVED: { label: "RESUELTA", color: "status-validada", key: "resuelta" },
   CLOSED: { label: "CERRADA", color: "status-pendiente", key: "cerrada" },
   DISCARDED: { label: "DESCARTADA", color: "status-pendiente", key: "descartada" },
@@ -23,6 +22,7 @@ export const STATUS_CONFIG = {
   pendiente: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
   validada: { label: "VALIDADA", color: "status-validada", key: "validada" },
   en_camino: { label: "EN_CAMINO", color: "status-despachada", key: "en_camino" },
+  en_lugar: { label: "EN_LUGAR", color: "status-validada", key: "en_lugar" },
   despachada: { label: "DESPACHADA", color: "status-despachada", key: "despachada" },
   resuelta: { label: "RESUELTA", color: "status-validada", key: "resuelta" },
   cancelada: { label: "CANCELADA", color: "status-pendiente", key: "cancelada" },

@@ -7,6 +7,8 @@ import {
   fetchEmergencies,
   getStoredUser,
   fetchCurrentUser,
+  validateEmergency,
+  discardEmergency,
   POLLING_INTERVAL_MS,
   ApiError,
 } from "../../lib/api";
@@ -21,6 +23,7 @@ import {
   isActiveStatus,
 } from "../../lib/emergencies";
 import GeoLabel from "../../components/civic/GeoLabel";
+import DiscardReasonModal from "../../components/DiscardReasonModal";
 
 function PriorityBadge({ severity }) {
   const cfg = PRIORITY_CONFIG[severity] || PRIORITY_CONFIG.medium;
@@ -55,6 +58,9 @@ export default function OpsPage() {
   const [selected, setSelected] = useState(null);
   const [alertAcked, setAlertAcked] = useState(false);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -105,6 +111,41 @@ export default function OpsPage() {
       isPendingStatus(e.status)
   );
   const showCriticalBanner = critical.length > 0 && !alertAcked;
+
+  async function handleValidate() {
+    if (!selected || actionBusy) return;
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const updated = await validateEmergency(selected.id);
+      setSelected(updated);
+      await load();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : "No se pudo validar"
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleDiscard(reason) {
+    if (!selected || actionBusy) return;
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const updated = await discardEmergency(selected.id, reason);
+      setSelected(updated);
+      setDiscardOpen(false);
+      await load();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : "No se pudo descartar"
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   return (
     <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
@@ -375,11 +416,57 @@ export default function OpsPage() {
                 >
                   Cerrar detalle
                 </button>
+                {actionError && (
+                  <div className="p-2 rounded bg-error-container text-on-error-container text-xs">
+                    {actionError}
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  {isPendingStatus(selected.status) && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={handleValidate}
+                        className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-secondary text-on-secondary disabled:opacity-50"
+                      >
+                        Validar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={() => setDiscardOpen(true)}
+                        className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest border border-outline-variant text-on-surface disabled:opacity-50"
+                      >
+                        Descartar
+                      </button>
+                    </>
+                  )}
+                  {(selected.status === "VALIDATED" ||
+                    selected.status === "validada") && (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/ops/asignar/${selected.id}`)}
+                      className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-primary text-on-primary"
+                    >
+                      Asignar oficial
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      <DiscardReasonModal
+        open={discardOpen}
+        busy={actionBusy}
+        onClose={() => {
+          if (!actionBusy) setDiscardOpen(false);
+        }}
+        onConfirm={handleDiscard}
+      />
     </main>
   );
 }
