@@ -4,8 +4,9 @@ on:
   pull_request:
     branches: [main]
     types: [opened, edited, synchronize, reopened]
+  # Tambien en main: asi cada merge deja un run verde visible y un push
+  # directo a main no queda sin validar.
   push:
-    branches-ignore: [main]
 
 permissions:
   contents: read
