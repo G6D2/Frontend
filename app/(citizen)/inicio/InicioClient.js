@@ -95,7 +95,7 @@ export default function InicioClient() {
       <CitizenTopBar title="Emergencias" />
 
       <CitizenPageContainer className="items-center pb-10">
-        <div className="flex flex-col items-center justify-center mt-6 sm:mt-12 w-full max-w-sm">
+        <div className="flex flex-col items-center justify-center mt-6 sm:mt-12 w-full">
           {canUseAntipanicButton ? (
             // ── Botón Antipánico (visible solo para usuarios con el permiso habilitado) ──
             <>
@@ -140,7 +140,7 @@ export default function InicioClient() {
           )}
         </div>
 
-        <div className="mt-12 w-full max-w-sm">
+        <div className="mt-12 w-full">
           <button
             type="button"
             onClick={() => router.push("/reportar")}
