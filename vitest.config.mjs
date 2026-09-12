@@ -4,6 +4,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.js"],
+    // Los tests de integración del BFF viven en tests/integration/ y corren
+    // aparte con su propio config (vitest.integration.config.mjs): no deben
+    // duplicarse acá ni contar para el umbral de cobertura de unit de abajo.
+    exclude: ["tests/integration/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html"],
