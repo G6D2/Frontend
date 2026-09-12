@@ -50,9 +50,12 @@
   --color-outline: #74777f;
   --color-outline-variant: #c4c6cf;
 
-  /* Ops colors */
-  --color-priority-high: #b91c1c;
-  --color-priority-med: #f97316;
+  /* Ops colors: crítica (roja) y alta (naranja) distintas — antes
+     compartían --color-priority-high y el banner/pill mostraba "ALTA"
+     para ambas severidades. */
+  --color-priority-critical: #b91c1c;
+  --color-priority-high: #f97316;
+  --color-priority-med: #ca8a04;
   --color-priority-low: #3b82f6;
   /* Tonos oscuros (AA, ≥ 4.5:1 sobre blanco y sobre su propio tinte claro) */
   --color-status-pendiente: #78350f;

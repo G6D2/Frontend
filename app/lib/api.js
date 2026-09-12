@@ -4,6 +4,7 @@ import {
   setStoredUser,
   getHomePathForUser,
 } from "./auth";
+import { SEVERITY_CONFIG } from "./emergencies";
 
 export const POLLING_INTERVAL_MS = 5000;
 
@@ -190,12 +191,9 @@ export async function cancelEmergency(id, reason = null) {
 }
 
 // ── Kanban legacy (DispatcherView Mantine) ───────────────────────────
-export const SEVERITY_CONFIG = {
-  low: { key: "low", color: "blue", label: "Baja" },
-  medium: { key: "medium", color: "yellow", label: "Media" },
-  high: { key: "high", color: "orange", label: "Alta" },
-  critical: { key: "critical", color: "red", label: "Crítica" },
-};
+// SEVERITY_CONFIG vive en ./emergencies (fuente única compartida con
+// PRIORITY_CONFIG de la lista); se re-exporta acá por compatibilidad.
+export { SEVERITY_CONFIG };
 
 export const STATUS_CONFIG = [
   { key: "pendiente", label: "Pendientes", color: "red" },
