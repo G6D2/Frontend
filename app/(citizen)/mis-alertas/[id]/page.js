@@ -13,6 +13,7 @@ import {
 import {
   getStatusConfig,
   isCancelable,
+  isActiveStatus,
   formatTime,
   formatTimeShort,
 } from "../../../lib/emergencies";
@@ -81,6 +82,7 @@ export default function AlertDetailPage() {
 
   const statusCfg = getStatusConfig(emergency?.status);
   const history = emergency?.statusHistory || [];
+  const isEmergencyActive = Boolean(emergency && isActiveStatus(emergency.status));
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -97,7 +99,7 @@ export default function AlertDetailPage() {
         </h1>
       </header>
 
-      <main className="p-4 md:p-12 max-w-md w-full mx-auto flex-1 flex flex-col gap-6 pb-8">
+      <main className="max-w-3xl w-full mx-auto p-4 md:p-8 pb-24 lg:pb-8 flex-1 flex flex-col gap-6">
         {loading && (
           <p className="text-on-surface-variant text-center py-12">Cargando…</p>
         )}
@@ -110,9 +112,12 @@ export default function AlertDetailPage() {
 
         {emergency && (
           <>
-            <section className="bg-surface-container-high rounded-xl p-6 shadow-sm border border-surface-container relative overflow-hidden flex flex-col items-center text-center">
-              <div className="absolute inset-0 bg-primary opacity-5 animate-pulse rounded-xl pointer-events-none" />
-              <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-on-primary mb-4 relative z-10 shadow-md">
+            <section
+              className={`bg-surface-container-high rounded-xl p-6 shadow-sm border border-surface-container flex flex-col items-center text-center ${
+                isEmergencyActive ? "emergency-pulse-ring" : ""
+              }`}
+            >
+              <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-on-primary mb-4 shadow-md">
                 <MaterialIcon
                   name={
                     emergency.status === "CANCELLED" ? "cancel" : "emergency"
@@ -121,10 +126,10 @@ export default function AlertDetailPage() {
                   size={32}
                 />
               </div>
-              <h2 className="text-2xl font-bold text-on-surface relative z-10">
+              <h2 className="text-2xl font-bold text-on-surface">
                 {statusCfg.label}
               </h2>
-              <p className="text-base text-on-surface-variant mt-2 max-w-[250px] relative z-10">
+              <p className="text-base text-on-surface-variant mt-2 max-w-[250px]">
                 {emergency.description}
               </p>
             </section>

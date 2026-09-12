@@ -46,6 +46,42 @@ describe("getStatusConfig", () => {
   it("falls back to CREATED config for unknown status", () => {
     expect(getStatusConfig("UNKNOWN_XYZ")).toMatchObject({ label: "PENDIENTE" });
   });
+
+  it("shows EN_ROUTE / ON_SITE labels without underscores", () => {
+    expect(getStatusConfig("EN_ROUTE")).toMatchObject({ label: "EN CAMINO" });
+    expect(getStatusConfig("en_camino")).toMatchObject({ label: "EN CAMINO" });
+    expect(getStatusConfig("ON_SITE")).toMatchObject({ label: "EN LUGAR" });
+    expect(getStatusConfig("ON_SCENE")).toMatchObject({ label: "EN LUGAR" });
+    expect(getStatusConfig("en_lugar")).toMatchObject({ label: "EN LUGAR" });
+  });
+
+  it("keeps the underscored key/value untouched (only the label changes)", () => {
+    expect(getStatusConfig("EN_ROUTE").key).toBe("en_camino");
+    expect(getStatusConfig("ON_SITE").key).toBe("en_lugar");
+  });
+
+  it("gives each status family a badgeClass with solid tenue bg + dark text", () => {
+    expect(getStatusConfig("PENDING").badgeClass).toBe("bg-amber-100 text-amber-900");
+    expect(getStatusConfig("VALIDATED").badgeClass).toBe("bg-green-100 text-green-800");
+    expect(getStatusConfig("DISPATCHED").badgeClass).toBe("bg-blue-100 text-blue-800");
+    expect(getStatusConfig("EN_ROUTE").badgeClass).toBe("bg-blue-100 text-blue-800");
+    expect(getStatusConfig("ON_SITE").badgeClass).toBe("bg-green-100 text-green-800");
+  });
+
+  it("groups terminal statuses (cancelada/cerrada/descartada) under the gray badge", () => {
+    for (const status of ["CANCELLED", "CLOSED", "DISCARDED", "cancelada"]) {
+      expect(getStatusConfig(status)).toMatchObject({
+        color: "status-terminal",
+        badgeClass: "bg-gray-100 text-gray-700",
+      });
+    }
+  });
+
+  it("never reuses the pendiente (amber) color for terminal statuses", () => {
+    for (const status of ["CANCELLED", "CLOSED", "DISCARDED"]) {
+      expect(getStatusConfig(status).color).not.toBe("status-pendiente");
+    }
+  });
 });
 
 describe("isPendingStatus", () => {
