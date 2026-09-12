@@ -67,14 +67,6 @@ const DESKTOP_COLUMNS = [
   "Motivo",
 ];
 
-function ExampleTag() {
-  return (
-    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900">
-      Ejemplo
-    </span>
-  );
-}
-
 export default function HistorialPage() {
   return (
     <>
@@ -106,12 +98,7 @@ export default function HistorialPage() {
             <tbody className={TABLE_BODY}>
               {HISTORY.map((row) => (
                 <tr key={row.id} className={TABLE_ROW}>
-                  <td className={TABLE_CELL_MONO}>
-                    <span className="inline-flex items-center gap-1.5">
-                      {row.id}
-                      <ExampleTag />
-                    </span>
-                  </td>
+                  <td className={TABLE_CELL_MONO}>{row.id}</td>
                   <td className={`${TABLE_CELL} font-bold`}>{row.type}</td>
                   <td className={TABLE_CELL}>
                     <PriorityBadge severity={row.severity} />
@@ -120,7 +107,9 @@ export default function HistorialPage() {
                   <td className={TABLE_CELL}>
                     <StatusBadge status={row.status} />
                   </td>
-                  <td className={TABLE_CELL_MONO}>{formatTimeShort(row.time)}</td>
+                  <td className={TABLE_CELL_MONO}>
+                    {formatTimeShort(row.time)}
+                  </td>
                   <td className={TABLE_CELL}>{row.assignedOfficer || "—"}</td>
                   <td className={`${TABLE_CELL} max-w-[260px]`}>
                     {row.resolution || "—"}
@@ -153,18 +142,25 @@ export default function HistorialPage() {
                 extraRows={[
                   { icon: "category", label: "Tipo", value: row.type },
                   ...(row.assignedOfficer
-                    ? [{ icon: "badge", label: "Oficial interviniente", value: row.assignedOfficer }]
+                    ? [
+                        {
+                          icon: "badge",
+                          label: "Oficial interviniente",
+                          value: row.assignedOfficer,
+                        },
+                      ]
                     : []),
                   ...(row.resolution
-                    ? [{ icon: "description", label: "Motivo / resolución", value: row.resolution }]
+                    ? [
+                        {
+                          icon: "description",
+                          label: "Motivo / resolución",
+                          value: row.resolution,
+                        },
+                      ]
                     : []),
                 ]}
-                idLabel={
-                  <>
-                    #{row.id}
-                    <ExampleTag />
-                  </>
-                }
+                idLabel={`#${row.id}`}
                 timeLabel={formatTimeShort(row.time)}
               />
             </div>
