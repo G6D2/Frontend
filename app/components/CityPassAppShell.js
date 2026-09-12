@@ -8,7 +8,7 @@ import classes from "../styles.module.css";
 const CITIZEN_ROUTES = {
   Inicio: "/inicio",
   "Mis alertas": "/mis-alertas",
-  Reclamos: "/reportar",
+  Reportar: "/reportar",
   "Mi Cuenta": "/perfil",
 };
 
@@ -32,7 +32,7 @@ function resolveActive(pathname, role) {
   }
 
   if (pathname.startsWith("/mis-alertas")) return "Mis alertas";
-  if (pathname.startsWith("/reportar")) return "Reclamos";
+  if (pathname.startsWith("/reportar")) return "Reportar";
   if (pathname.startsWith("/perfil")) return "Mi Cuenta";
   return "Inicio";
 }

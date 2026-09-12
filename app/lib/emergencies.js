@@ -1,9 +1,47 @@
-export const PRIORITY_CONFIG = {
-  critical: { label: "ALTA", color: "priority-high", bg: "bg-priority-high/20" },
-  high: { label: "ALTA", color: "priority-high", bg: "bg-priority-high/20" },
-  medium: { label: "MEDIA", color: "priority-med", bg: "bg-priority-med/20" },
-  low: { label: "BAJA", color: "priority-low", bg: "bg-priority-low/20" },
+/**
+ * Config de severidad: fuente única de verdad para label + color semántico.
+ * La usa el kanban (Mantine `color`, ver EmergencyCard/DispatcherView) y
+ * PRIORITY_CONFIG (abajo) deriva de ella las pills de la lista/mapa/asignar,
+ * para que "high" y "critical" nunca vuelvan a compartir el mismo label.
+ */
+export const SEVERITY_CONFIG = {
+  low: { key: "low", color: "blue", label: "Baja" },
+  medium: { key: "medium", color: "yellow", label: "Media" },
+  high: { key: "high", color: "orange", label: "Alta" },
+  critical: { key: "critical", color: "red", label: "Crítica" },
 };
+
+/** Nombre de variable CSS (--color-priority-*) por color semántico. */
+const PRIORITY_CSS_COLOR = {
+  blue: "priority-low",
+  yellow: "priority-med",
+  orange: "priority-high",
+  red: "priority-critical",
+};
+
+/** Clases Tailwind del pill (fondo -100 + texto -800/900, contraste ≥ 4.5:1). */
+const PRIORITY_BADGE_CLASS = {
+  blue: "bg-blue-100 text-blue-800",
+  yellow: "bg-yellow-100 text-yellow-900",
+  orange: "bg-orange-100 text-orange-800",
+  red: "bg-red-100 text-red-800",
+};
+
+/**
+ * Pills de prioridad de /ops/lista, /ops/mapa y /ops/asignar. Derivada de
+ * SEVERITY_CONFIG: "critical" → CRÍTICA (roja), "high" → ALTA (naranja).
+ */
+export const PRIORITY_CONFIG = Object.fromEntries(
+  Object.entries(SEVERITY_CONFIG).map(([key, cfg]) => [
+    key,
+    {
+      key: cfg.key,
+      label: cfg.label.toUpperCase(),
+      color: PRIORITY_CSS_COLOR[cfg.color],
+      badgeClass: PRIORITY_BADGE_CLASS[cfg.color],
+    },
+  ])
+);
 
 /**
  * Clases Tailwind para el badge de cada estado: fondo sólido tenue + texto
@@ -120,18 +158,30 @@ export function elapsedMinutes(iso) {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
+/**
+ * true solo si latitude/longitude son números reales presentes. OJO:
+ * Number(null) === 0 y Number.isFinite(0) === true, así que antes una
+ * emergencia sin ubicación (latitude/longitude null) pasaba como "válida"
+ * con coords (0,0) y se geocodificaba como "océano Atlántico". Por eso acá
+ * se descartan explícitamente null/undefined antes de convertir a Number.
+ */
 export function hasValidCoords(emergency) {
-  if (!emergency || emergency.locationAnonymized) return false;
-  return (
-    Number.isFinite(Number(emergency.latitude)) &&
-    Number.isFinite(Number(emergency.longitude))
-  );
+  if (!emergency || emergency.locationAnonymized || emergency.locationUnavailable) {
+    return false;
+  }
+  const { latitude, longitude } = emergency;
+  if (latitude === null || latitude === undefined) return false;
+  if (longitude === null || longitude === undefined) return false;
+  return Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude));
 }
 
 export function locationLabel(emergency) {
   if (!emergency) return "Sin ubicación";
   if (emergency.locationAnonymized) {
     return "Ubicación anonimizada (retención)";
+  }
+  if (emergency.locationUnavailable) {
+    return "Sin ubicación";
   }
   if (emergency.locationLabel) return emergency.locationLabel;
   if (hasValidCoords(emergency)) {

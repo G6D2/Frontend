@@ -95,11 +95,7 @@ export default function AsignarOficialPage() {
               Asignar Oficial
             </h1>
             <span
-              className="px-2 py-0.5 rounded text-[10px] font-bold"
-              style={{
-                backgroundColor: `color-mix(in srgb, var(--color-${priority.color}) 20%, transparent)`,
-                color: `var(--color-${priority.color})`,
-              }}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold ${priority.badgeClass}`}
             >
               {priority.label}
             </span>

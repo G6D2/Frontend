@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 import SosConfirmationModal from "../../components/civic/SosConfirmationModal";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
@@ -91,9 +92,9 @@ export default function InicioClient() {
 
   return (
     <>
-      <CitizenTopBar showMenu />
+      <CitizenTopBar title="Emergencias" />
 
-      <main className="flex-grow pb-24 lg:pb-8 px-4 md:px-12 max-w-[1280px] mx-auto w-full flex flex-col items-center justify-center relative min-h-[calc(100vh-3.5rem)]">
+      <CitizenPageContainer className="items-center">
         <div className="flex flex-col items-center justify-center mt-6 sm:mt-12 w-full max-w-sm">
           {canUseAntipanicButton ? (
             // ── Botón Antipánico (visible solo para usuarios con el permiso habilitado) ──
@@ -132,7 +133,7 @@ export default function InicioClient() {
                 </p>
                 <p className="text-sm text-on-surface-variant mt-1">
                   Tu cuenta no tiene acceso al Botón Antipánico. Podés
-                  reportar incidentes desde la sección Reclamos.
+                  reportar incidentes desde la sección Reportar.
                 </p>
               </div>
             </div>
@@ -148,7 +149,7 @@ export default function InicioClient() {
             <span>Reportar un incidente</span>
           </button>
         </div>
-      </main>
+      </CitizenPageContainer>
 
       <SosConfirmationModal
         open={modalOpen}

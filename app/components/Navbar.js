@@ -4,7 +4,7 @@ import Image from "next/image";
 import { ActionIcon, Group, Tooltip } from "@mantine/core";
 import {
   IconHome,
-  IconMessageReport,
+  IconBellPlus,
   IconShieldExclamation,
   IconLayoutKanban,
   IconList,
@@ -17,10 +17,13 @@ import {
 } from "@tabler/icons-react";
 import classes from "../styles.module.css";
 
+// "Reportar" (antes "Reclamos", que es otro módulo de CityPass+) lleva a
+// /reportar; el ícono coincide con el "add_alert" del bottom nav del
+// ciudadano (IconBellPlus es el equivalente Tabler más cercano).
 const CITIZEN_NAV = [
   { label: "Inicio", icon: IconHome },
   { label: "Mis alertas", icon: IconShieldExclamation },
-  { label: "Reclamos", icon: IconMessageReport },
+  { label: "Reportar", icon: IconBellPlus },
   { label: "Mi Cuenta", icon: IconUser },
 ];
 

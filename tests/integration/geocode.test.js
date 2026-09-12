@@ -38,6 +38,32 @@ describe("GET /api/geocode", () => {
     expect(res.status).toBe(400);
   });
 
+  it("sin parámetros: 400 (y no llama a ningún proveedor externo)", async () => {
+    // Regresión: Number(null) === 0 y Number.isFinite(0) === true, así que
+    // sin este chequeo explícito de presencia, una request sin lat/lng
+    // pasaba la validación y geocodificaba (0,0) → "océano Atlántico".
+    const { calls } = mockBackend({});
+    const req = makeRequest("http://localhost/api/geocode");
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("con lat pero sin lng: 400", async () => {
+    mockBackend({});
+    const req = makeRequest("http://localhost/api/geocode?lat=-34.6");
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+  });
+
+  it("lat/lng vacíos (string vacío): 400", async () => {
+    const { calls } = mockBackend({});
+    const req = makeRequest("http://localhost/api/geocode?lat=&lng=");
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
   it("lat/lng válidos con el proveedor externo mockeado: devuelve { label }", async () => {
     mockBackend({
       "GET /data/reverse-geocode-client": {

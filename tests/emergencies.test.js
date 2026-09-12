@@ -10,6 +10,8 @@ import {
   elapsedMinutes,
   hasValidCoords,
   locationLabel,
+  PRIORITY_CONFIG,
+  SEVERITY_CONFIG,
 } from "../app/lib/emergencies";
 
 describe("emergencyTitle", () => {
@@ -200,6 +202,27 @@ describe("hasValidCoords", () => {
   it("returns false for undefined coords", () => {
     expect(hasValidCoords({ latitude: undefined, longitude: undefined })).toBe(false);
   });
+
+  // Regresión: Number(null) === 0 y Number.isFinite(0) === true, así que sin
+  // el chequeo explícito de null/undefined una emergencia sin ubicación
+  // (latitude/longitude null, como manda el backend) pasaba como "coords
+  // válidas" (0,0) y se geocodificaba como "océano Atlántico".
+  it("returns false for null lat/lng (no confunde null con 0,0)", () => {
+    expect(hasValidCoords({ latitude: null, longitude: null })).toBe(false);
+    expect(hasValidCoords({ latitude: null, longitude: -58.3816 })).toBe(false);
+    expect(hasValidCoords({ latitude: -34.6037, longitude: null })).toBe(false);
+  });
+
+  it("returns false when locationUnavailable is true, aunque haya lat/lng", () => {
+    expect(
+      hasValidCoords({ locationUnavailable: true, latitude: -34.6037, longitude: -58.3816 })
+    ).toBe(false);
+  });
+
+  it("distingue (0,0) real (numérico) de la ausencia de coords (null)", () => {
+    expect(hasValidCoords({ latitude: 0, longitude: 0 })).toBe(true);
+    expect(hasValidCoords({ latitude: null, longitude: null })).toBe(false);
+  });
 });
 
 describe("locationLabel", () => {
@@ -225,5 +248,38 @@ describe("locationLabel", () => {
 
   it("returns 'Sin ubicación' when no coords available", () => {
     expect(locationLabel({})).toBe("Sin ubicación");
+  });
+
+  it("returns 'Sin ubicación' for null lat/lng instead of geocoding (0,0)", () => {
+    expect(locationLabel({ latitude: null, longitude: null })).toBe("Sin ubicación");
+  });
+
+  it("returns 'Sin ubicación' when locationUnavailable is true", () => {
+    expect(locationLabel({ locationUnavailable: true })).toBe("Sin ubicación");
+  });
+});
+
+describe("PRIORITY_CONFIG (deriva de SEVERITY_CONFIG)", () => {
+  it("da labels distintos a critical y high (antes ambos eran 'ALTA')", () => {
+    expect(PRIORITY_CONFIG.critical.label).toBe("CRÍTICA");
+    expect(PRIORITY_CONFIG.high.label).toBe("ALTA");
+    expect(PRIORITY_CONFIG.critical.label).not.toBe(PRIORITY_CONFIG.high.label);
+  });
+
+  it("da colores/badgeClass distintos a critical (rojo) y high (naranja)", () => {
+    expect(PRIORITY_CONFIG.critical.badgeClass).toBe("bg-red-100 text-red-800");
+    expect(PRIORITY_CONFIG.high.badgeClass).toBe("bg-orange-100 text-orange-800");
+    expect(PRIORITY_CONFIG.critical.color).not.toBe(PRIORITY_CONFIG.high.color);
+  });
+
+  it("mantiene medium (MEDIA) y low (BAJA) distintos de high/critical", () => {
+    expect(PRIORITY_CONFIG.medium.label).toBe("MEDIA");
+    expect(PRIORITY_CONFIG.low.label).toBe("BAJA");
+  });
+
+  it("es consistente con SEVERITY_CONFIG (misma severidad, mismo color semántico)", () => {
+    for (const key of Object.keys(SEVERITY_CONFIG)) {
+      expect(PRIORITY_CONFIG[key].label.toLowerCase()).toBe(SEVERITY_CONFIG[key].label.toLowerCase());
+    }
   });
 });

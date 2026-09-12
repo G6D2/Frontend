@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../../components/civic/CitizenPageContainer";
 import {
   getPersonalData,
   savePersonalData,
@@ -45,7 +46,7 @@ export default function DatosPersonalesPage() {
     <>
       <CitizenTopBar showBack backHref="/perfil" title="Datos personales" />
 
-      <main className="mx-auto w-full max-w-3xl p-4 md:p-8 flex flex-col gap-6">
+      <CitizenPageContainer>
         <p className="text-sm text-on-surface-variant">
           Estos datos ayudan a que, si activás el botón de pánico o reportás
           una emergencia, quien te asista tenga más contexto sobre vos.
@@ -165,7 +166,7 @@ export default function DatosPersonalesPage() {
             {saving ? "Guardando..." : "Guardar"}
           </button>
         </form>
-      </main>
+      </CitizenPageContainer>
     </>
   );
 }

@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PRIORITY_CONFIG, getStatusConfig } from "../../lib/emergencies";
+import {
+  PRIORITY_CONFIG,
+  getStatusConfig,
+  hasValidCoords,
+} from "../../lib/emergencies";
 
 const CABA = [-34.6037, -58.3816];
 const PRIORITY_HEX = {
-  "priority-high": "#b91c1c",
-  "priority-med": "#f97316",
+  "priority-critical": "#b91c1c",
+  "priority-high": "#f97316",
+  "priority-med": "#ca8a04",
   "priority-low": "#3b82f6",
 };
 
@@ -16,11 +21,7 @@ function markerColor(severity) {
 }
 
 function hasCoords(em) {
-  return (
-    !em?.locationAnonymized &&
-    Number.isFinite(Number(em?.latitude)) &&
-    Number.isFinite(Number(em?.longitude))
-  );
+  return hasValidCoords(em);
 }
 
 function escapeHtml(text) {
