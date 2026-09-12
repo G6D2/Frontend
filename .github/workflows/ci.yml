@@ -73,6 +73,9 @@ jobs:
       - name: Unit tests with coverage
         run: npm run test:coverage
 
+      - name: Integration tests
+        run: npm run test:integration
+
       # Resumen de cobertura: en la pagina del run (Summary) y como comentario
       # unico en el PR (se edita en cada corrida, no se acumulan).
       - name: Coverage summary

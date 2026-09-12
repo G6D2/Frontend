@@ -238,3 +238,44 @@ Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
 - **Puerto:** `npm run dev -- -p 4001` si el 3000 está ocupado.
 - **`allowedDevOrigins` es obligatorio para acceso por IP:** el dev server de Next 16 responde **403 en `/_next/*`** (los chunks de JS) cuando el host de la request no es `localhost`. El síntoma es traicionero: la página carga el HTML y se ve bien, pero React nunca hidrata — botones muertos, sin toasts, sin errores en pantalla; solo se ve en la consola del browser (`net::ERR_ABORTED 403` en los chunks y el websocket de HMR caído). La IP desde la que accedés tiene que estar en `allowedDevOrigins` en `next.config.mjs`.
 - Los cambios en `next.config.mjs` requieren reiniciar el dev server (no los toma el hot reload).
+
+## Tests
+
+Hay dos suites de Vitest, separadas porque miden cosas distintas:
+
+| | Unit (`tests/*.test.js`) | Integración (`tests/integration/*.test.js`) |
+|---|---|---|
+| Qué prueban | Funciones puras de `lib/**` y `app/lib/**` (JWT, sesión, fetch con reintentos, geocoding) | Los Route Handlers del BFF completos (`app/api/**/route.js`), invocados como funciones con un `Request` real |
+| Config | `vitest.config.mjs` | `vitest.integration.config.mjs` |
+| Cobertura | Sí, con umbral 80% sobre `lib/**` y `app/lib/**` (no bajar el umbral) | No corren con `--coverage`; no cuentan para el umbral de unit |
+| Comando | `npm run test:coverage` (o `npm test` sin cobertura) | `npm run test:integration` |
+
+Ambas corren en CI (`.github/workflows/ci.yml`, job `lint-and-test`): primero las unit con cobertura, después las de integración.
+
+### Cómo agregar un caso de integración nuevo
+
+Los tests de integración importan el handler directo desde su `route.js` y lo invocan con un `Request` de la Web API — no hay servidor HTTP levantado. Los helpers están en `tests/integration/helpers.js`:
+
+- **`mockNextCookies(cookiesFn, initial?)`**: hay que declarar `vi.mock("next/headers", () => ({ cookies: vi.fn() }))` al principio del test (se hoistea, así que va antes de los imports) e importar `cookies` desde `next/headers`; después, en cada test, `mockNextCookies(cookies, { citypass_session: token })` deja un jar en memoria listo para leer/escribir/borrar esa cookie. Sin esto, `cookies()` de `next/headers` explota fuera de un request real de Next.
+- **`mockBackend(routes)`**: reemplaza `global.fetch` por una tabla `"METODO /path": respuesta`. `respuesta` puede ser `{ status, body }` o un array de respuestas para simular una secuencia (por ejemplo `[502, 502, 200]` para probar los reintentos de `lib/backend-fetch.js`). Devuelve `{ calls }` para assertar sobre lo que el BFF le mandó al backend (headers, body, URL con query string incluida).
+- **`makeRequest(url, { method, body, headers })`**: arma el `Request` que recibe el handler.
+
+Un test típico:
+
+```js
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+import { cookies } from "next/headers";
+import { POST } from "../../app/api/auth/login/route.js";
+import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
+
+it("caso nuevo", async () => {
+  mockNextCookies(cookies);
+  mockBackend({ "POST /auth/dev/login": { status: 200, body: { access_token: "..." } } });
+  const res = await POST(makeRequest("http://localhost/api/auth/login", { method: "POST", body: {} }));
+  expect(res.status).toBe(200);
+});
+```
+
+Si una ruta nueva importa con el alias `@/...`, no hace falta nada extra: `vitest.integration.config.mjs` ya resuelve `@` a la raíz del proyecto (necesario porque `jsconfig.json` solo le sirve al editor, no a Vitest).
+
+La suite de integración de hoy cubre login, session, el proxy `/api/backend/[...path]` y geocode como ejemplos — no es cobertura exhaustiva del BFF. Queda como deuda técnica agregar tests para `logout` y `warmup`, y tests end-to-end (Playwright) del flujo ciudadano completo y del dispatcher.
