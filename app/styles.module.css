@@ -308,6 +308,14 @@
   .shellMain,
   .shellMainCollapsed {
     padding-left: 0 !important;
+  }
+
+  /* El padding-bottom que compensa la barra fija solo hace falta cuando esa
+     barra existe en el DOM (dispatcher/oficial). Para el ciudadano
+     (Navbar.js no la renderiza con role="usuario") no debe reservarse este
+     espacio extra: CitizenBottomNav ya ocupa su propio lugar en el flujo. */
+  .bottomNavbar ~ .shellMain,
+  .bottomNavbar ~ .shellMainCollapsed {
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
   }
 

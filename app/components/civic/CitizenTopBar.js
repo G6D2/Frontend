@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import MaterialIcon from "./MaterialIcon";
+
+/**
+ * Páginas de primer nivel del ciudadano: viven en el bottom nav / drawer, no
+ * son subpáginas de nada, así que nunca deben mostrar flecha atrás aunque el
+ * caller la pida por error.
+ */
+const TOP_LEVEL_PATHS = ["/inicio", "/reportar", "/mis-alertas", "/perfil"];
 
 /**
  * Header único para todas las páginas del ciudadano (Inicio, Reportar, Mis
@@ -15,10 +23,14 @@ import MaterialIcon from "./MaterialIcon";
  * elementos (pin que no hacía nada, X redundante con la flecha atrás, etc.).
  */
 export default function CitizenTopBar({ title, showBack = false, backHref = "/inicio" }) {
+  const pathname = usePathname();
+  const isTopLevel = TOP_LEVEL_PATHS.includes(pathname);
+  const shouldShowBack = showBack && !isTopLevel;
+
   return (
     <header className="sticky top-0 z-40 flex items-center px-4 h-14 bg-surface border-b border-outline-variant pt-safe">
       <div className="flex items-center min-w-[40px]">
-        {showBack && (
+        {shouldShowBack && (
           <Link
             href={backHref}
             aria-label="Volver"

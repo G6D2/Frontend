@@ -36,6 +36,61 @@ export class ApiError extends Error {
   }
 }
 
+// ── Store "esperando al backend" ──────────────────────────────────────
+// El backend en Render (plan free) tarda 10 a 60 s en despertar y
+// lib/backend-fetch.js (usado por el proxy /api/backend/*) reintenta hasta
+// ~24 s antes de devolver un error. Mientras tanto, apiFetch queda colgado
+// desde la vista del cliente. Este store marca "esperando" cuando una
+// llamada supera WAITING_THRESHOLD_MS sin resolverse, para que
+// BackendWaitingIndicator (civic/BackendWaitingIndicator.js) muestre un
+// aviso discreto fuera del login. Expuesto como un mini event emitter
+// compatible con useSyncExternalStore (subscribe + getSnapshot).
+const WAITING_THRESHOLD_MS = 3000;
+let pendingCalls = 0;
+let waiting = false;
+let waitTimer = null;
+const waitingListeners = new Set();
+
+function setWaiting(value) {
+  if (waiting === value) return;
+  waiting = value;
+  waitingListeners.forEach((listener) => listener());
+}
+
+function beginBackendCall() {
+  pendingCalls += 1;
+  if (!waitTimer && !waiting) {
+    waitTimer = setTimeout(() => {
+      waitTimer = null;
+      if (pendingCalls > 0) setWaiting(true);
+    }, WAITING_THRESHOLD_MS);
+  }
+}
+
+function endBackendCall() {
+  pendingCalls = Math.max(0, pendingCalls - 1);
+  if (pendingCalls === 0) {
+    if (waitTimer) {
+      clearTimeout(waitTimer);
+      waitTimer = null;
+    }
+    setWaiting(false);
+  }
+}
+
+export const backendWaitingStore = {
+  subscribe(listener) {
+    waitingListeners.add(listener);
+    return () => waitingListeners.delete(listener);
+  },
+  getSnapshot() {
+    return waiting;
+  },
+  getServerSnapshot() {
+    return false;
+  },
+};
+
 async function parseJsonSafe(res) {
   try {
     return await res.json();
@@ -51,12 +106,19 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
   }
 
   const url = auth ? `/api/backend${path}` : path;
-  const res = await fetch(url, {
-    method,
-    headers,
-    credentials: "same-origin",
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+
+  let res;
+  beginBackendCall();
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      credentials: "same-origin",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } finally {
+    endBackendCall();
+  }
 
   const data = await parseJsonSafe(res);
 
@@ -241,6 +303,11 @@ export async function discardEmergency(id, reason) {
   return res.data;
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone prioridad manual
+ * (HU-04). Ver Task Tracker issue #25. No debe invocarse ni mostrarse ninguna
+ * acción que dependa de esto en pantallas del ciudadano.
+ */
 export async function overridePriority() {
   throw new ApiError("TODO(back): PATCH prioridad manual (HU-04)", {
     status: 501,
@@ -270,6 +337,12 @@ export async function assignOfficer(emergencyId, officerId) {
   };
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone estados de oficial
+ * EN_ROUTE/ON_SITE/RESOLVED (HU-08). Ver Task Tracker issue #21. No debe
+ * invocarse ni mostrarse ninguna acción que dependa de esto en pantallas del
+ * ciudadano.
+ */
 export async function updateEmergencyStatus() {
   throw new ApiError(
     "TODO(back): PATCH estado EN_ROUTE/ON_SITE/RESOLVED (HU-08)",
@@ -277,12 +350,22 @@ export async function updateEmergencyStatus() {
   );
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone observaciones/evidencias
+ * (HU-09). Ver Task Tracker issue #23. No debe invocarse ni mostrarse ninguna
+ * acción que dependa de esto en pantallas del ciudadano.
+ */
 export async function addObservation() {
   throw new ApiError("TODO(back): POST observaciones/evidencias (HU-09)", {
     status: 501,
   });
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone pedido de refuerzos
+ * (HU-10). Ver Task Tracker issue #29. No debe invocarse ni mostrarse ninguna
+ * acción que dependa de esto en pantallas del ciudadano.
+ */
 export async function requestReinforcements() {
   throw new ApiError("TODO(back): POST refuerzos (HU-10)", { status: 501 });
 }

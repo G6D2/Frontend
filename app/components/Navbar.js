@@ -195,10 +195,15 @@ export default function Navbar({
         )}
       </nav>
 
-      {/* Mobile Bottom Navbar */}
-      <nav className={classes.bottomNavbar} aria-label="Navegación móvil">
-        {bottomLinks}
-      </nav>
+      {/* Mobile Bottom Navbar: solo para dispatcher/oficial. El ciudadano usa
+          CitizenBottomNav (app/components/civic/CitizenBottomNav.js), montado
+          una sola vez desde app/(citizen)/layout.js; si también se mostrara
+          esta barra quedarían dos navs inferiores superpuestas en celular. */}
+      {role !== "usuario" && (
+        <nav className={classes.bottomNavbar} aria-label="Navegación móvil">
+          {bottomLinks}
+        </nav>
+      )}
     </>
   );
 }
