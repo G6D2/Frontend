@@ -6,7 +6,6 @@ import {
   IconHome,
   IconBellPlus,
   IconShieldExclamation,
-  IconLayoutKanban,
   IconList,
   IconMap,
   IconUsers,
@@ -28,7 +27,6 @@ const CITIZEN_NAV = [
 ];
 
 const DISPATCHER_NAV = [
-  { label: "Estados", icon: IconLayoutKanban },
   { label: "Lista", icon: IconList },
   { label: "Mapa", icon: IconMap },
   { label: "Oficiales", icon: IconUsers },
