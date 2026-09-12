@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
   reportIncident,
@@ -86,15 +87,9 @@ export default function ReportarClient() {
 
   return (
     <>
-      <CitizenTopBar
-        showBack
-        backHref="/inicio"
-        showClose
-        onClose={() => router.push("/inicio")}
-        showNotifications={false}
-      />
+      <CitizenTopBar showBack backHref="/inicio" title="Reportar incidente" />
 
-      <main className="flex-1 px-4 md:px-12 md:max-w-[1280px] md:mx-auto w-full pt-6 pb-8">
+      <CitizenPageContainer className="pt-6">
         <div className="mb-8">
           <h2 className="text-2xl md:text-[32px] font-bold text-on-surface mb-2">
             ¿Qué está pasando?
@@ -181,7 +176,7 @@ export default function ReportarClient() {
             el botón de SOS o llame al 911 inmediatamente.
           </p>
         </div>
-      </main>
+      </CitizenPageContainer>
 
       <footer className="sticky bottom-0 z-40 bg-surface border-t border-outline-variant px-4 py-4 pb-safe flex justify-end items-center shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)]">
         <div className="w-full flex justify-end">

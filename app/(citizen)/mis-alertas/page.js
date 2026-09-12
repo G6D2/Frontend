@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import CitizenTopBar from "../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
   fetchEmergencies,
@@ -110,9 +111,9 @@ export default function MisAlertasPage() {
 
   return (
     <>
-      <CitizenTopBar showMenu hasNotificationDot={activeAlerts.length > 0} />
+      <CitizenTopBar title="Mis alertas" />
 
-      <main className="flex-grow max-w-3xl w-full mx-auto pt-4 px-4 md:pt-8 md:px-8 pb-24 lg:pb-8 flex flex-col gap-6 md:gap-8">
+      <CitizenPageContainer className="gap-6 md:gap-8">
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl md:text-[32px] font-bold text-primary">
             Mis alertas
@@ -174,7 +175,7 @@ export default function MisAlertasPage() {
             </p>
           </section>
         )}
-      </main>
+      </CitizenPageContainer>
     </>
   );
 }

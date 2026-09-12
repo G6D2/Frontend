@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import CitizenTopBar from "../../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../../components/civic/MaterialIcon";
 
 const FAQ_ITEMS = [
@@ -56,7 +57,7 @@ export default function AyudaPage() {
     <>
       <CitizenTopBar showBack backHref="/perfil" title="Ayuda" />
 
-      <main className="mx-auto w-full max-w-3xl p-4 md:p-8 flex flex-col gap-6">
+      <CitizenPageContainer>
         <p className="text-sm text-on-surface-variant">
           Estas son las dudas más comunes sobre CityPass+ Emergencias. Tocá
           una pregunta para ver la respuesta.
@@ -106,7 +107,7 @@ export default function AyudaPage() {
             );
           })}
         </section>
-      </main>
+      </CitizenPageContainer>
     </>
   );
 }

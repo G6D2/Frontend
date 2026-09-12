@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../../components/civic/MaterialIcon";
 import {
   getSavedLocations,
@@ -136,7 +137,7 @@ export default function UbicacionesGuardadasPage() {
     <>
       <CitizenTopBar showBack backHref="/perfil" title="Ubicaciones guardadas" />
 
-      <main className="mx-auto w-full max-w-3xl p-4 md:p-8 flex flex-col gap-6">
+      <CitizenPageContainer>
         <p className="text-sm text-on-surface-variant">
           Guardá lugares frecuentes (como tu casa o tu trabajo) para
           encontrarlos rápido más adelante.
@@ -340,7 +341,7 @@ export default function UbicacionesGuardadasPage() {
             Guardar ubicación
           </button>
         </form>
-      </main>
+      </CitizenPageContainer>
     </>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { notifications } from "@mantine/notifications";
+import CitizenTopBar from "../../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../../components/civic/MaterialIcon";
 import {
   fetchEmergencyDetail,
@@ -85,21 +86,10 @@ export default function AlertDetailPage() {
   const isEmergencyActive = Boolean(emergency && isActiveStatus(emergency.status));
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-40 flex items-center px-4 h-14 bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-        <Link
-          href="/mis-alertas"
-          aria-label="Volver"
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-primary"
-        >
-          <MaterialIcon name="arrow_back" size={28} />
-        </Link>
-        <h1 className="text-xl font-semibold text-primary ml-2 flex-1 truncate">
-          Estado de emergencia
-        </h1>
-      </header>
+    <>
+      <CitizenTopBar showBack backHref="/mis-alertas" title="Detalle de la alerta" />
 
-      <main className="max-w-3xl w-full mx-auto p-4 md:p-8 pb-24 lg:pb-8 flex-1 flex flex-col gap-6">
+      <CitizenPageContainer>
         {loading && (
           <p className="text-on-surface-variant text-center py-12">Cargando…</p>
         )}
@@ -215,7 +205,7 @@ export default function AlertDetailPage() {
             </button>
           </>
         )}
-      </main>
-    </div>
+      </CitizenPageContainer>
+    </>
   );
 }
