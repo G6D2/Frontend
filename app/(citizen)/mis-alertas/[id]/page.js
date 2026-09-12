@@ -6,6 +6,7 @@ import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../../components/civic/CitizenTopBar";
 import CitizenPageContainer from "../../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../../components/civic/MaterialIcon";
+import ConfirmCancelModal from "../../../components/civic/ConfirmCancelModal";
 import {
   fetchEmergencyDetail,
   cancelEmergency,
@@ -26,6 +27,7 @@ export default function AlertDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,11 +48,11 @@ export default function AlertDetailPage() {
     };
   }, [params.id]);
 
-  const handleCancel = async () => {
+  const handleCancel = async (reason) => {
     if (!emergency || !isCancelable(emergency.status)) return;
     setCancelling(true);
     try {
-      const cancelReason = "Ya no necesito asistencia";
+      const cancelReason = reason || "Ya no necesito asistencia";
       const updated = await cancelEmergency(emergency.id, cancelReason);
       setEmergency((prev) => ({
         ...prev,
@@ -70,6 +72,7 @@ export default function AlertDetailPage() {
         message: "Se avisó que ya no necesitás ayuda.",
         color: "teal",
       });
+      setCancelModalOpen(false);
     } catch (err) {
       notifications.show({
         title: "No se pudo cancelar",
@@ -190,22 +193,34 @@ export default function AlertDetailPage() {
 
             {isCancelable(emergency.status) && (
               <button
-                onClick={handleCancel}
+                type="button"
+                onClick={() => setCancelModalOpen(true)}
                 disabled={cancelling}
-                className="w-full bg-surface text-secondary font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-secondary/40 hover:bg-error-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                aria-busy={cancelling}
+                className="w-full bg-surface text-secondary font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-secondary/40 cursor-pointer hover:bg-error-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <MaterialIcon name="cancel" />
                 {cancelling ? "Cancelando…" : "Cancelar asistencia"}
               </button>
             )}
 
-            <button className="w-full bg-surface text-error font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-error/30 hover:bg-error-container transition-colors flex items-center justify-center gap-2">
+            <a
+              href="tel:911"
+              className="w-full bg-surface text-error font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-error/30 cursor-pointer hover:bg-error-container transition-colors flex items-center justify-center gap-2"
+            >
               <MaterialIcon name="call" />
               Llamar al 911
-            </button>
+            </a>
           </>
         )}
       </CitizenPageContainer>
+
+      <ConfirmCancelModal
+        open={cancelModalOpen}
+        onClose={() => (cancelling ? null : setCancelModalOpen(false))}
+        onConfirm={handleCancel}
+        loading={cancelling}
+      />
     </>
   );
 }

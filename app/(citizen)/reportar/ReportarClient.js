@@ -87,7 +87,7 @@ export default function ReportarClient() {
 
   return (
     <>
-      <CitizenTopBar showBack backHref="/inicio" title="Reportar incidente" />
+      <CitizenTopBar title="Reportar incidente" />
 
       <CitizenPageContainer className="pt-6">
         <div className="mb-8">

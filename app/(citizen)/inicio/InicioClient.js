@@ -94,7 +94,7 @@ export default function InicioClient() {
     <>
       <CitizenTopBar title="Emergencias" />
 
-      <CitizenPageContainer className="items-center">
+      <CitizenPageContainer className="items-center pb-10">
         <div className="flex flex-col items-center justify-center mt-6 sm:mt-12 w-full max-w-sm">
           {canUseAntipanicButton ? (
             // ── Botón Antipánico (visible solo para usuarios con el permiso habilitado) ──
@@ -142,8 +142,9 @@ export default function InicioClient() {
 
         <div className="mt-12 w-full max-w-sm">
           <button
+            type="button"
             onClick={() => router.push("/reportar")}
-            className="w-full flex items-center justify-center gap-2 bg-surface text-primary border border-outline px-6 py-4 rounded-xl font-semibold text-sm tracking-wide shadow-sm hover:bg-surface-container active:bg-surface-container-high transition-colors min-h-[56px]"
+            className="w-full flex items-center justify-center gap-2 bg-surface text-primary border border-outline px-6 py-4 rounded-xl font-semibold text-sm tracking-wide shadow-sm cursor-pointer hover:bg-surface-container hover:border-primary active:bg-surface-container-high transition-colors min-h-[56px]"
           >
             <MaterialIcon name="shield" size={20} />
             <span>Reportar un incidente</span>
