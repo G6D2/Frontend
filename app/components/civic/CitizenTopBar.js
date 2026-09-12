@@ -12,8 +12,6 @@ export default function CitizenTopBar({
   showClose = false,
   onClose,
   showMenu = false,
-  showNotifications = true,
-  hasNotificationDot = false,
 }) {
   // Navegación principal vive en CityPassAppShell (Navbar OfficerView).
   const isDefaultBrand =
@@ -173,18 +171,6 @@ export default function CitizenTopBar({
             className="min-w-touch min-h-touch flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition-colors"
           >
             <MaterialIcon name="close" />
-          </button>
-        ) : showNotifications ? (
-          <button
-            type="button"
-            aria-label="Notificaciones"
-            // TODO(back): panel de notificaciones / alertas del ciudadano (push o polling)
-            className="min-w-touch min-h-touch flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition-colors relative"
-          >
-            <MaterialIcon name="notifications" />
-            {hasNotificationDot && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full" />
-            )}
           </button>
         ) : (
           <span className="w-11" />
