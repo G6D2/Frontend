@@ -140,7 +140,7 @@ export default function InicioClient() {
           )}
         </div>
 
-        <div className="mt-12 w-full">
+        <div className="mt-6 w-full">
           <button
             type="button"
             onClick={() => router.push("/reportar")}
