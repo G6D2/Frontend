@@ -5,27 +5,39 @@ export const PRIORITY_CONFIG = {
   low: { label: "BAJA", color: "priority-low", bg: "bg-priority-low/20" },
 };
 
+/**
+ * Clases Tailwind para el badge de cada estado: fondo sólido tenue + texto
+ * oscuro del mismo tono (contraste ≥ 4.5:1). "terminal" agrupa los estados
+ * que ya no tienen actividad (cancelada/cerrada/descartada).
+ */
+const BADGE_CLASS = {
+  pendiente: "bg-amber-100 text-amber-900",
+  validada: "bg-green-100 text-green-800",
+  despachada: "bg-blue-100 text-blue-800",
+  terminal: "bg-gray-100 text-gray-700",
+};
+
 /** Estados del backend (CREATED, CANCELLED, VALIDATED, …) → UI */
 export const STATUS_CONFIG = {
-  CREATED: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
-  PENDING: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
-  VALIDATED: { label: "VALIDADA", color: "status-validada", key: "validada" },
-  CANCELLED: { label: "CANCELADA", color: "status-pendiente", key: "cancelada" },
-  DISPATCHED: { label: "DESPACHADA", color: "status-despachada", key: "despachada" },
-  EN_ROUTE: { label: "EN_CAMINO", color: "status-despachada", key: "en_camino" },
-  ON_SITE: { label: "EN_LUGAR", color: "status-validada", key: "en_lugar" },
-  ON_SCENE: { label: "EN_LUGAR", color: "status-validada", key: "en_lugar" },
-  RESOLVED: { label: "RESUELTA", color: "status-validada", key: "resuelta" },
-  CLOSED: { label: "CERRADA", color: "status-pendiente", key: "cerrada" },
-  DISCARDED: { label: "DESCARTADA", color: "status-pendiente", key: "descartada" },
+  CREATED: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente", badgeClass: BADGE_CLASS.pendiente },
+  PENDING: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente", badgeClass: BADGE_CLASS.pendiente },
+  VALIDATED: { label: "VALIDADA", color: "status-validada", key: "validada", badgeClass: BADGE_CLASS.validada },
+  CANCELLED: { label: "CANCELADA", color: "status-terminal", key: "cancelada", badgeClass: BADGE_CLASS.terminal },
+  DISPATCHED: { label: "DESPACHADA", color: "status-despachada", key: "despachada", badgeClass: BADGE_CLASS.despachada },
+  EN_ROUTE: { label: "EN CAMINO", color: "status-despachada", key: "en_camino", badgeClass: BADGE_CLASS.despachada },
+  ON_SITE: { label: "EN LUGAR", color: "status-validada", key: "en_lugar", badgeClass: BADGE_CLASS.validada },
+  ON_SCENE: { label: "EN LUGAR", color: "status-validada", key: "en_lugar", badgeClass: BADGE_CLASS.validada },
+  RESOLVED: { label: "RESUELTA", color: "status-validada", key: "resuelta", badgeClass: BADGE_CLASS.validada },
+  CLOSED: { label: "CERRADA", color: "status-terminal", key: "cerrada", badgeClass: BADGE_CLASS.terminal },
+  DISCARDED: { label: "DESCARTADA", color: "status-terminal", key: "descartada", badgeClass: BADGE_CLASS.terminal },
   // aliases legacy UI
-  pendiente: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente" },
-  validada: { label: "VALIDADA", color: "status-validada", key: "validada" },
-  en_camino: { label: "EN_CAMINO", color: "status-despachada", key: "en_camino" },
-  en_lugar: { label: "EN_LUGAR", color: "status-validada", key: "en_lugar" },
-  despachada: { label: "DESPACHADA", color: "status-despachada", key: "despachada" },
-  resuelta: { label: "RESUELTA", color: "status-validada", key: "resuelta" },
-  cancelada: { label: "CANCELADA", color: "status-pendiente", key: "cancelada" },
+  pendiente: { label: "PENDIENTE", color: "status-pendiente", key: "pendiente", badgeClass: BADGE_CLASS.pendiente },
+  validada: { label: "VALIDADA", color: "status-validada", key: "validada", badgeClass: BADGE_CLASS.validada },
+  en_camino: { label: "EN CAMINO", color: "status-despachada", key: "en_camino", badgeClass: BADGE_CLASS.despachada },
+  en_lugar: { label: "EN LUGAR", color: "status-validada", key: "en_lugar", badgeClass: BADGE_CLASS.validada },
+  despachada: { label: "DESPACHADA", color: "status-despachada", key: "despachada", badgeClass: BADGE_CLASS.despachada },
+  resuelta: { label: "RESUELTA", color: "status-validada", key: "resuelta", badgeClass: BADGE_CLASS.validada },
+  cancelada: { label: "CANCELADA", color: "status-terminal", key: "cancelada", badgeClass: BADGE_CLASS.terminal },
 };
 
 export const TYPE_LABELS = {

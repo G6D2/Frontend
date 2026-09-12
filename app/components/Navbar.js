@@ -33,6 +33,11 @@ const DISPATCHER_NAV = [
   { label: "Mi Cuenta", icon: IconUser },
 ];
 
+/** Texto visible del ítem de navegación (sin el rol entre paréntesis). */
+function navLabel(label) {
+  return label === "Mi Cuenta" ? "Mi cuenta" : label;
+}
+
 export default function Navbar({
   active,
   role,
@@ -42,25 +47,46 @@ export default function Navbar({
 }) {
   const items = role === "dispatcher" ? DISPATCHER_NAV : CITIZEN_NAV;
 
-  const links = items.map((item) => (
-    <a
-      className={classes.link}
-      data-active={item.label === active || undefined}
-      href="#"
-      key={item.label}
-      onClick={(event) => {
-        event.preventDefault();
-        onNavClick(item.label);
-      }}
-    >
-      <item.icon className={classes.linkIcon} stroke={1.5} />
-      <span>
-        {item.label === "Mi Cuenta"
-          ? `Mi Cuenta (${role === "usuario" ? "Usuario" : "Dispatcher"})`
-          : item.label}
-      </span>
-    </a>
-  ));
+  const links = items.map((item) => {
+    const isActive = item.label === active;
+    const label = navLabel(item.label);
+
+    if (!opened) {
+      // Modo contraído: sólo ícono, con title/tooltip nativo para el label.
+      return (
+        <a
+          className={`${classes.link} ${classes.linkCollapsed}`}
+          data-active={isActive || undefined}
+          href="#"
+          key={item.label}
+          title={label}
+          aria-label={label}
+          onClick={(event) => {
+            event.preventDefault();
+            onNavClick(item.label);
+          }}
+        >
+          <item.icon className={classes.linkIcon} stroke={1.5} />
+        </a>
+      );
+    }
+
+    return (
+      <a
+        className={classes.link}
+        data-active={isActive || undefined}
+        href="#"
+        key={item.label}
+        onClick={(event) => {
+          event.preventDefault();
+          onNavClick(item.label);
+        }}
+      >
+        <item.icon className={classes.linkIcon} stroke={1.5} />
+        <span>{label}</span>
+      </a>
+    );
+  });
 
   const bottomLinks = items.map((item) => {
     const isActive = item.label === active;
@@ -87,69 +113,83 @@ export default function Navbar({
 
   return (
     <>
-      {!opened && onToggle && (
-        <Tooltip label="Expandir menú" position="right" withArrow>
-          <ActionIcon
-            variant="filled"
-            size="lg"
-            radius="xl"
-            onClick={onToggle}
-            className={classes.navbarExpandFloatingBtn}
-            aria-label="Expandir menú"
-          >
-            <IconChevronRight size={20} />
-          </ActionIcon>
-        </Tooltip>
-      )}
-
       {/* Desktop Sidebar Navbar */}
       <nav
         className={`${classes.navbar} ${!opened ? classes.navbarCollapsed : ""}`}
       >
         <div className={classes.navbarMain}>
-          <Group className={classes.header} justify="space-between" align="center">
-            <Group gap="sm" align="center" style={{ flex: 1 }}>
+          {opened ? (
+            <Group className={classes.header} justify="space-between" align="center">
+              <Group gap="sm" align="center" style={{ flex: 1 }}>
+                <Image
+                  src="/Images/CityPass_logo.png"
+                  alt="CityPass+ Logo"
+                  width={45}
+                  height={45}
+                  style={{ objectFit: "contain" }}
+                />
+                <span className={classes.brandName}>
+                  CityPass<span className={classes.brandPlus}>+</span>
+                </span>
+              </Group>
+
+              {onToggle && (
+                <Tooltip label="Ocultar menú" position="bottom" withArrow>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="md"
+                    radius="md"
+                    onClick={onToggle}
+                    aria-label="Ocultar menú"
+                  >
+                    <IconChevronLeft size={20} color="rgba(255,255,255,0.7)" />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
+          ) : (
+            <div className={`${classes.header} ${classes.headerCollapsed}`}>
               <Image
                 src="/Images/CityPass_logo.png"
                 alt="CityPass+ Logo"
-                width={45}
-                height={45}
+                width={28}
+                height={28}
                 style={{ objectFit: "contain" }}
               />
-              <span className={classes.brandName}>
-                CityPass<span className={classes.brandPlus}>+</span>
-              </span>
-            </Group>
 
-            {onToggle && (
-              <Tooltip label="Ocultar menú" position="bottom" withArrow>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="md"
-                  radius="md"
-                  onClick={onToggle}
-                  aria-label="Ocultar menú"
-                >
-                  <IconChevronLeft size={20} color="rgba(255,255,255,0.7)" />
-                </ActionIcon>
-              </Tooltip>
-            )}
-          </Group>
+              {onToggle && (
+                <Tooltip label="Expandir menú" position="right" withArrow>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="md"
+                    radius="md"
+                    onClick={onToggle}
+                    aria-label="Expandir menú"
+                  >
+                    <IconChevronRight size={20} color="rgba(255,255,255,0.7)" />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </div>
+          )}
 
-          <div className={classes.sectionTitle}>Navegación</div>
+          {opened && <div className={classes.sectionTitle}>Navegación</div>}
           {links}
         </div>
 
-        <div className={classes.navbarFooterImage}>
-          <Image
-            src="/Images/CityPass_footer_navbar_image.png"
-            alt="CityPass+"
-            width={225}
-            height={105}
-            style={{ objectFit: "contain" }}
-          />
-        </div>
+        {opened && (
+          <div className={classes.navbarFooterImage}>
+            <Image
+              src="/Images/CityPass_footer_navbar_image.png"
+              alt="CityPass+"
+              width={225}
+              height={105}
+              style={{ objectFit: "contain" }}
+            />
+          </div>
+        )}
       </nav>
 
       {/* Mobile Bottom Navbar */}

@@ -20,7 +20,6 @@ import GeoLabel from "../../components/civic/GeoLabel";
 function AlertCard({ emergency }) {
   const statusCfg = getStatusConfig(emergency.status);
   const active = isActiveStatus(emergency.status);
-  const isCreated = emergency.status === "CREATED" || emergency.status === "PENDING";
   const typeLabel =
     TYPE_LABELS[emergency.emergencyType] ||
     TYPE_LABELS[String(emergency.emergencyType || "").toLowerCase()];
@@ -55,13 +54,8 @@ function AlertCard({ emergency }) {
           </div>
         </div>
         <div
-          className={`px-3 py-1 rounded-full flex items-center gap-1 text-xs font-bold ${
-            isCreated
-              ? "bg-surface-variant text-on-surface-variant"
-              : emergency.status === "CANCELLED"
-                ? "bg-error-container/50 text-on-error-container"
-                : "bg-tertiary-container text-on-tertiary-container"
-          }`}
+          className={`px-3 py-1 rounded-full flex items-center gap-1 text-xs font-bold ${statusCfg.badgeClass}`}
+          title={statusCfg.label}
         >
           {statusCfg.label}
         </div>
@@ -118,7 +112,7 @@ export default function MisAlertasPage() {
     <>
       <CitizenTopBar showMenu hasNotificationDot={activeAlerts.length > 0} />
 
-      <main className="flex-grow pb-24 lg:pb-8 px-4 md:px-12 max-w-[1280px] mx-auto w-full flex flex-col gap-6 md:gap-8">
+      <main className="flex-grow max-w-3xl w-full mx-auto pt-4 px-4 md:pt-8 md:px-8 pb-24 lg:pb-8 flex flex-col gap-6 md:gap-8">
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl md:text-[32px] font-bold text-primary">
             Mis alertas
