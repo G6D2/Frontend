@@ -12,6 +12,8 @@ import {
   locationLabel,
   PRIORITY_CONFIG,
   SEVERITY_CONFIG,
+  priorityDotClass,
+  priorityTextClass,
 } from "../app/lib/emergencies";
 
 describe("emergencyTitle", () => {
@@ -281,5 +283,40 @@ describe("PRIORITY_CONFIG (deriva de SEVERITY_CONFIG)", () => {
     for (const key of Object.keys(SEVERITY_CONFIG)) {
       expect(PRIORITY_CONFIG[key].label.toLowerCase()).toBe(SEVERITY_CONFIG[key].label.toLowerCase());
     }
+  });
+});
+
+// Regresión: el punto de color de /ops/mapa y el texto resaltado de
+// /ops/lista armaban `var(--color-${cfg.color})` en runtime. Tailwind v4
+// solo emite a :root las variables de @theme usadas como clase Tailwind
+// literal en el código, así que --color-priority-high/-med/-low quedaban
+// afuera del CSS compilado y el color no se veía (bug real: "prueba
+// severidad derivada", severity "high"). priorityDotClass/priorityTextClass
+// devuelven clases Tailwind estáticas para evitar que vuelva a pasar.
+describe("priorityDotClass / priorityTextClass (clases estáticas, no armadas en runtime)", () => {
+  it("da una clase distinta y no vacía a cada severidad conocida", () => {
+    const severities = ["critical", "high", "medium", "low"];
+    const dotClasses = severities.map(priorityDotClass);
+    const textClasses = severities.map(priorityTextClass);
+    for (const cls of [...dotClasses, ...textClasses]) {
+      expect(cls).toBeTruthy();
+      expect(cls).not.toMatch(/\$\{/);
+    }
+    expect(new Set(dotClasses).size).toBe(severities.length);
+    expect(new Set(textClasses).size).toBe(severities.length);
+  });
+
+  it("nunca devuelve una clase vacía para severidades desconocidas (fallback gris)", () => {
+    expect(priorityDotClass("no-existe")).toContain("bg-gray");
+    expect(priorityDotClass(undefined)).toContain("bg-gray");
+    expect(priorityTextClass("no-existe")).toContain("text-gray");
+    expect(priorityTextClass(undefined)).toContain("text-gray");
+  });
+
+  it("pinta 'high' en naranja, distinto de 'critical' (rojo)", () => {
+    expect(priorityDotClass("high")).toMatch(/orange/);
+    expect(priorityDotClass("critical")).toMatch(/red/);
+    expect(priorityTextClass("high")).toMatch(/orange/);
+    expect(priorityTextClass("critical")).toMatch(/red/);
   });
 });

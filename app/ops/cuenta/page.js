@@ -2,15 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import MaterialIcon from "../../components/civic/MaterialIcon";
-import {
-  getStoredUser,
-  fetchCurrentUser,
-  logout,
-} from "../../lib/api";
+import { getStoredUser, fetchCurrentUser } from "../../lib/api";
 import { isDispatcher } from "../../lib/auth";
 import PageHeader from "../../components/PageHeader";
-import { BTN_BASE, BTN_DANGER } from "../../components/ops/buttonStyles";
+import AccountView from "../../components/AccountView";
+import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 
 export default function OpsCuentaPage() {
   const router = useRouter();
@@ -39,40 +35,11 @@ export default function OpsCuentaPage() {
   return (
     <>
       <PageHeader title="Mi cuenta" />
-      <main className="p-4 md:p-8 max-w-xl mx-auto w-full flex flex-col gap-6">
-        <p className="text-sm text-on-surface-variant text-center">
-          Sesión del operador de emergencias.
-        </p>
-
-        <div className="flex flex-col items-center gap-4 py-4">
-          <div className="w-20 h-20 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-2xl font-bold">
-            {(user?.username || "OP").slice(0, 2).toUpperCase()}
-          </div>
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-primary">
-              {user?.username || "Dispatcher"}
-            </h2>
-            <p className="text-sm text-on-surface-variant font-mono">
-              {user?.sub || "—"}
-            </p>
-            <p className="text-xs text-on-surface-variant mt-1">
-              {(user?.groups || []).join(", ") || "dispatcher"}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={async () => {
-            await logout();
-            router.push("/acceso");
-          }}
-          className={`${BTN_BASE} ${BTN_DANGER} w-full gap-2 py-4 text-sm normal-case font-semibold tracking-wide`}
-        >
-          <MaterialIcon name="logout" />
-          Cerrar sesión
-        </button>
-      </main>
+      <CitizenPageContainer>
+        {/* El dispatcher no tiene accesos propios en Mi cuenta todavía
+            (accessItems queda vacío: AccountView no renderiza esa sección). */}
+        <AccountView user={user} roleFallback="Dispatcher" />
+      </CitizenPageContainer>
     </>
   );
 }

@@ -28,6 +28,37 @@ const PRIORITY_BADGE_CLASS = {
 };
 
 /**
+ * Clases Tailwind ESTÁTICAS (nunca armadas en runtime tipo `bg-${color}`)
+ * para el punto/dot de severidad de las tarjetas y el popup del mapa
+ * (/ops/mapa) y para resaltar texto (ej. "Transcurrido" en /ops/lista).
+ *
+ * Antes ambos usos armaban `var(--color-${cfg.color})` con el nombre de la
+ * variable CSS en runtime. Tailwind v4 solo emite a `:root` las variables de
+ * `@theme` que puede ver referenciadas como clase literal en el código
+ * fuente; `--color-priority-critical` se salvaba porque en otro lado se usa
+ * como clase literal (`border-priority-critical`, `bg-priority-critical` en
+ * /ops/lista), pero `--color-priority-high/-med/-low` nunca se usaban como
+ * clase y quedaban afuera del CSS compilado (confirmado con
+ * `npm run build`: solo `--color-priority-critical` aparece en el bundle).
+ * Resultado: el punto/texto de severidad "high" (bug real: emergencia
+ * "prueba severidad derivada") quedaba sin color, transparente sobre blanco.
+ */
+const PRIORITY_DOT_CLASS = {
+  blue: "bg-blue-500 border border-blue-700",
+  yellow: "bg-amber-500 border border-amber-700",
+  orange: "bg-orange-500 border border-orange-700",
+  red: "bg-red-600 border border-red-800",
+};
+const PRIORITY_TEXT_CLASS = {
+  blue: "text-blue-700",
+  yellow: "text-amber-700",
+  orange: "text-orange-700",
+  red: "text-red-700",
+};
+const PRIORITY_DOT_FALLBACK = "bg-gray-400 border border-gray-600";
+const PRIORITY_TEXT_FALLBACK = "text-gray-600";
+
+/**
  * Pills de prioridad de /ops/lista, /ops/mapa y /ops/asignar. Derivada de
  * SEVERITY_CONFIG: "critical" → CRÍTICA (roja), "high" → ALTA (naranja).
  */
@@ -39,9 +70,22 @@ export const PRIORITY_CONFIG = Object.fromEntries(
       label: cfg.label.toUpperCase(),
       color: PRIORITY_CSS_COLOR[cfg.color],
       badgeClass: PRIORITY_BADGE_CLASS[cfg.color],
+      dotClass: PRIORITY_DOT_CLASS[cfg.color] || PRIORITY_DOT_FALLBACK,
+      textClass: PRIORITY_TEXT_CLASS[cfg.color] || PRIORITY_TEXT_FALLBACK,
     },
   ])
 );
+
+/** Clase Tailwind estática del punto de color de severidad (fallback gris
+ * para severidades desconocidas: nunca invisible). */
+export function priorityDotClass(severity) {
+  return PRIORITY_CONFIG[severity]?.dotClass || PRIORITY_DOT_FALLBACK;
+}
+
+/** Clase Tailwind estática de texto de severidad (mismo criterio que arriba). */
+export function priorityTextClass(severity) {
+  return PRIORITY_CONFIG[severity]?.textClass || PRIORITY_TEXT_FALLBACK;
+}
 
 /**
  * Clases Tailwind para el badge de cada estado: fondo sólido tenue + texto

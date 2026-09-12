@@ -8,7 +8,7 @@ import {
   POLLING_INTERVAL_MS,
 } from "../../lib/api";
 import {
-  PRIORITY_CONFIG,
+  priorityDotClass,
   locationLabel,
   getStatusConfig,
 } from "../../lib/emergencies";
@@ -109,17 +109,6 @@ export default function MapaOperativoPage() {
     <div className="h-screen flex flex-col">
       <PageHeader title="Mapa" />
       <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
-        <div className="flex items-center justify-end shrink-0">
-          <button
-            type="button"
-            title="Mi ubicación"
-            onClick={handleMyLocation}
-            className="p-2 rounded border border-outline-variant hover:bg-surface-container-high transition-colors cursor-pointer"
-          >
-            <MaterialIcon name="my_location" size={20} />
-          </button>
-        </div>
-
         {error && (
           <div className="shrink-0 p-3 rounded bg-error-container text-on-error-container text-sm">
             {error}
@@ -136,6 +125,21 @@ export default function MapaOperativoPage() {
               setSelectedId(em.id);
             }}
           />
+
+          {/* Control flotante dentro del mapa (antes era un botón suelto
+              arriba, fuera del mapa): mismo lugar/estilo que un control de
+              Leaflet — blanco, sombra, esquina inferior derecha, por encima
+              de los tiles y de los controles de zoom nativos (z-index
+              mayor al de los panes de Leaflet). */}
+          <button
+            type="button"
+            title="Mi ubicación"
+            aria-label="Mi ubicación"
+            onClick={handleMyLocation}
+            className="absolute bottom-3 right-3 z-[1000] w-10 h-10 flex items-center justify-center rounded-lg bg-white text-on-surface shadow-md border border-outline-variant/60 hover:bg-surface-container-high transition-colors cursor-pointer"
+          >
+            <MaterialIcon name="my_location" size={20} />
+          </button>
         </div>
 
         <div className="shrink-0 flex gap-4 overflow-x-auto pb-2">
@@ -145,7 +149,6 @@ export default function MapaOperativoPage() {
             </p>
           )}
           {emergencies.map((em) => {
-            const priority = PRIORITY_CONFIG[em.severity || "critical"];
             const active = selectedId === em.id;
             return (
               <button
@@ -163,10 +166,7 @@ export default function MapaOperativoPage() {
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: `var(--color-${priority.color})`,
-                    }}
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDotClass(em.severity)}`}
                   />
                   <div className="text-xs font-bold text-on-surface truncate">
                     {em.description}

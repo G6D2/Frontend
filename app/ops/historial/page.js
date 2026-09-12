@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import { formatTimeShort } from "../../lib/emergencies";
 import PageHeader from "../../components/PageHeader";
-import { StatusBadge } from "../../components/ops/OpsBadges";
+import { PriorityBadge, StatusBadge } from "../../components/ops/OpsBadges";
+import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
+import {
+  TABLE_CONTAINER,
+  TABLE_HEAD,
+  TABLE_TH,
+  TABLE_BODY,
+  TABLE_ROW,
+  TABLE_CELL,
+  TABLE_CELL_MONO,
+} from "../../components/ops/tableStyles";
 
 // TODO(back): HU-07 — GET emergencias CERRADA/CANCELLED/DISCARDED (no mock)
+// Único array de datos para las dos variantes (tabla desktop y tarjetas
+// mobile): antes cada una mostraba un subconjunto de campos distinto
+// (desktop no tenía severidad/oficial/motivo, mobile los escondía detrás de
+// un acordeón). Ahora las dos muestran exactamente los mismos campos.
 // Estados en el formato canónico del backend (RESOLVED/DISCARDED) para que
 // StatusBadge (app/components/ops/OpsBadges.js, mismo componente que usan
 // /ops/lista y /ops/oficiales) resuelva el label y color correctos.
@@ -14,7 +27,7 @@ const HISTORY = [
   {
     id: "em-h01",
     type: "Médica",
-    icon: "medical_services",
+    severity: "high",
     location: "Villa Crespo",
     status: "RESOLVED",
     time: "2026-08-28T18:00:00-03:00",
@@ -24,7 +37,7 @@ const HISTORY = [
   {
     id: "em-h02",
     type: "Incendio",
-    icon: "local_fire_department",
+    severity: "critical",
     location: "San Telmo",
     status: "RESOLVED",
     time: "2026-08-27T09:30:00-03:00",
@@ -34,7 +47,7 @@ const HISTORY = [
   {
     id: "em-h03",
     type: "Disturbio",
-    icon: "groups",
+    severity: "low",
     location: "La Boca",
     status: "DISCARDED",
     time: "2026-08-26T22:15:00-03:00",
@@ -43,186 +56,120 @@ const HISTORY = [
   },
 ];
 
+const DESKTOP_COLUMNS = [
+  "ID",
+  "Tipo",
+  "Prioridad",
+  "Ubicación",
+  "Estado",
+  "Hora",
+  "Oficial",
+  "Motivo",
+];
+
+function ExampleTag() {
+  return (
+    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900">
+      Ejemplo
+    </span>
+  );
+}
+
 export default function HistorialPage() {
-  const [expandedId, setExpandedId] = useState(null);
-
-  const toggleExpand = (id) => {
-    setExpandedId((prev) => (prev === id ? null : id));
-  };
-
   return (
     <>
       <PageHeader title="Historial" />
-      <main className="p-4 sm:p-6 w-full">
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900">
-        <MaterialIcon name="info" size={18} className="shrink-0 mt-0.5" />
-        <p className="text-xs sm:text-sm font-medium">
-          Datos de ejemplo: el historial real se conecta en la próxima
-          iteración.
-        </p>
-      </div>
+      <main className="p-3 sm:p-4 w-full flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900">
+          <MaterialIcon name="info" size={18} className="shrink-0 mt-0.5" />
+          <p className="text-xs sm:text-sm font-medium">
+            Datos de ejemplo: el historial real se conecta en la próxima
+            iteración.
+          </p>
+        </div>
 
-      {/* ── Vista Escritorio / Tablet (Tabla original a pantalla completa) ── */}
-      <div className="hidden sm:block w-full">
-        <table className="w-full text-left border-collapse bg-surface-container-lowest border border-dashed border-outline-variant rounded overflow-hidden">
-          <thead className="bg-surface-container">
-            <tr>
-              {["ID", "Tipo", "Ubicación", "Estado", "Hora"].map((h) => (
-                <th
-                  key={h}
-                  className="p-3 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="text-xs">
-            {HISTORY.map((row) => (
-              <tr
-                key={row.id}
-                className="border-b border-outline-variant/50 hover:bg-surface-container-low"
-              >
-                <td className="p-3 font-mono">
-                  <span className="inline-flex items-center gap-1.5">
-                    {row.id}
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900">
-                      Ejemplo
-                    </span>
-                  </span>
-                </td>
-                <td className="p-3 font-bold">{row.type}</td>
-                <td className="p-3">{row.location}</td>
-                <td className="p-3">
-                  <StatusBadge status={row.status} />
-                </td>
-                <td className="p-3 font-mono">{formatTimeShort(row.time)}</td>
+        {/* Desktop / Tablet: misma tabla que /ops/lista (header en
+            mayúsculas con tracking sobre surface-container, alto de fila,
+            bordes, hover y tipografía mono para id/hora), con todas las
+            columnas que hoy muestran las tarjetas mobile. */}
+        <div className={`hidden sm:block ${TABLE_CONTAINER}`}>
+          <table className="w-full text-left border-collapse">
+            <thead className={TABLE_HEAD}>
+              <tr>
+                {DESKTOP_COLUMNS.map((h) => (
+                  <th key={h} className={TABLE_TH}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className={TABLE_BODY}>
+              {HISTORY.map((row) => (
+                <tr key={row.id} className={TABLE_ROW}>
+                  <td className={TABLE_CELL_MONO}>
+                    <span className="inline-flex items-center gap-1.5">
+                      {row.id}
+                      <ExampleTag />
+                    </span>
+                  </td>
+                  <td className={`${TABLE_CELL} font-bold`}>{row.type}</td>
+                  <td className={TABLE_CELL}>
+                    <PriorityBadge severity={row.severity} />
+                  </td>
+                  <td className={TABLE_CELL}>{row.location}</td>
+                  <td className={TABLE_CELL}>
+                    <StatusBadge status={row.status} />
+                  </td>
+                  <td className={TABLE_CELL_MONO}>{formatTimeShort(row.time)}</td>
+                  <td className={TABLE_CELL}>{row.assignedOfficer || "—"}</td>
+                  <td className={`${TABLE_CELL} max-w-[260px]`}>
+                    {row.resolution || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      {/* ── Vista Móvil (Celular: Tarjetas interactivas sin scroll lateral, toque para detalles) ── */}
-      <div className="sm:hidden flex flex-col gap-2.5 w-full">
-        {HISTORY.map((row) => {
-          const isExpanded = expandedId === row.id;
-
-          return (
+        {/* Mobile: mismo componente de tarjeta que /ops/lista
+            (EmergencyMobileCard, con las mismas pills PriorityBadge/
+            StatusBadge), con filas extra para tipo/oficial/motivo — sin
+            acordeón, para mostrar exactamente los mismos datos que la
+            tabla de escritorio. */}
+        <div className="sm:hidden flex flex-col gap-2.5 w-full">
+          {HISTORY.map((row) => (
             <div
               key={row.id}
-              onClick={() => toggleExpand(row.id)}
-              className={`w-full bg-surface-container-lowest border border-dashed rounded-xl transition-all cursor-pointer overflow-hidden ${
-                isExpanded
-                  ? "border-primary/40 shadow-md ring-1 ring-primary/20"
-                  : "border-outline-variant hover:border-outline active:bg-surface-container-low"
-              }`}
+              className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden"
             >
-              {/* Fila principal compacta */}
-              <div className="p-3.5 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
-                    <MaterialIcon name={row.icon || "history"} size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-on-surface truncate">
-                        {row.type}
-                      </span>
-                      <span className="font-mono text-[11px] text-on-surface-variant shrink-0">
-                        #{row.id}
-                      </span>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 shrink-0">
-                        Ejemplo
-                      </span>
-                    </div>
-                    <span className="text-xs text-on-surface-variant truncate block">
-                      {row.location}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <StatusBadge status={row.status} />
-                  <div
-                    className={`text-on-surface-variant transition-transform duration-200 ${
-                      isExpanded ? "rotate-180 text-primary" : ""
-                    }`}
-                  >
-                    <MaterialIcon name="expand_more" size={20} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Detalle desplegable al tocar */}
-              {isExpanded && (
-                <div className="px-3.5 pb-3.5 pt-1 border-t border-outline-variant/40 bg-surface-container-low/40 flex flex-col gap-2.5 text-xs animate-in fade-in duration-150">
-                  <div className="flex flex-col gap-2 pt-2">
-                    <div className="flex items-start gap-1.5">
-                      <MaterialIcon
-                        name="location_on"
-                        size={16}
-                        className="text-primary mt-0.5 shrink-0"
-                      />
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider block">
-                          Ubicación
-                        </span>
-                        <span className="font-medium text-on-surface">
-                          {row.location}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-1.5">
-                      <MaterialIcon
-                        name="schedule"
-                        size={16}
-                        className="text-primary mt-0.5 shrink-0"
-                      />
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider block">
-                          Hora registrada
-                        </span>
-                        <span className="font-medium font-mono text-on-surface">
-                          {formatTimeShort(row.time)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {row.assignedOfficer && (
-                      <div className="flex items-start gap-1.5">
-                        <MaterialIcon
-                          name="badge"
-                          size={16}
-                          className="text-primary mt-0.5 shrink-0"
-                        />
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider block">
-                            Oficial interviniente
-                          </span>
-                          <span className="font-medium text-on-surface">
-                            {row.assignedOfficer}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {row.resolution && (
-                      <div className="p-2.5 rounded-lg bg-surface-container-lowest border border-outline-variant/60 text-on-surface">
-                        <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider block mb-0.5">
-                          Resolución
-                        </span>
-                        <p className="leading-relaxed">{row.resolution}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              <EmergencyMobileCard
+                badges={
+                  <>
+                    <PriorityBadge severity={row.severity} />
+                    <StatusBadge status={row.status} />
+                  </>
+                }
+                location={row.location}
+                extraRows={[
+                  { icon: "category", label: "Tipo", value: row.type },
+                  ...(row.assignedOfficer
+                    ? [{ icon: "badge", label: "Oficial interviniente", value: row.assignedOfficer }]
+                    : []),
+                  ...(row.resolution
+                    ? [{ icon: "description", label: "Motivo / resolución", value: row.resolution }]
+                    : []),
+                ]}
+                idLabel={
+                  <>
+                    #{row.id}
+                    <ExampleTag />
+                  </>
+                }
+                timeLabel={formatTimeShort(row.time)}
+              />
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
       </main>
     </>
   );
