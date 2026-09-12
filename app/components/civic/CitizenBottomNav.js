@@ -32,7 +32,7 @@ export default function CitizenBottomNav() {
   if (sosOpen) return null;
 
   return (
-    <nav className="sticky bottom-0 mt-auto z-50 flex justify-around items-center px-2 pb-safe h-20 bg-surface shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] rounded-t-xl lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 flex justify-around items-center px-2 pb-safe h-20 bg-surface shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] rounded-t-xl lg:hidden">
       {tabs.map((tab) => {
         const isActive =
           pathname === tab.href || pathname.startsWith(tab.href + "/");
@@ -42,12 +42,14 @@ export default function CitizenBottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 min-w-touch min-h-touch relative"
+              className="relative flex flex-col items-center px-4 pt-8 pb-1 min-w-touch min-h-touch cursor-pointer group"
             >
-              <div className="absolute -top-6 bg-secondary text-on-secondary rounded-full p-3 shadow-lg flex items-center justify-center border-4 border-surface">
-                <MaterialIcon name={tab.icon} filled size={20} />
-              </div>
-              <span className="text-xs font-medium mt-7">{tab.label}</span>
+              <span className="absolute -top-6 w-14 h-14 bg-secondary text-on-secondary rounded-full shadow-lg flex items-center justify-center border-4 border-surface transition-transform duration-200 group-hover:scale-105 group-active:scale-95">
+                <MaterialIcon name={tab.icon} filled size={24} />
+              </span>
+              <span className="text-xs font-medium text-on-surface-variant group-hover:text-on-surface transition-colors">
+                {tab.label}
+              </span>
             </Link>
           );
         }
