@@ -11,8 +11,14 @@ import {
   Badge,
   Card,
   Loader,
+  Alert,
 } from "@mantine/core";
-import { IconMapPin, IconShieldCheck, IconUserCheck } from "@tabler/icons-react";
+import {
+  IconMapPin,
+  IconShieldCheck,
+  IconUserCheck,
+  IconAlertCircle,
+} from "@tabler/icons-react";
 import { fetchOfficers } from "../lib/api";
 
 export default function AssignOfficerModal({
@@ -25,17 +31,22 @@ export default function AssignOfficerModal({
   const [selectedOfficerId, setSelectedOfficerId] = useState("");
   const [loadingOfficers, setLoadingOfficers] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (opened && emergency) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingOfficers(true);
+      setError("");
       fetchOfficers({ status: "disponible" })
         .then((data) => {
           setOfficers(data || []);
           setSelectedOfficerId(data && data.length > 0 ? data[0].id : "");
         })
-        .catch((err) => console.error("Error fetching officers:", err))
+        .catch((err) => {
+          console.error("Error fetching officers:", err);
+          setError(err.message || "No se pudieron cargar los oficiales disponibles.");
+        })
         .finally(() => setLoadingOfficers(false));
     }
   }, [opened, emergency]);
@@ -43,11 +54,13 @@ export default function AssignOfficerModal({
   const handleConfirm = async () => {
     if (!selectedOfficerId || !emergency) return;
     setSubmitting(true);
+    setError("");
     try {
       await onAssign(emergency.id, selectedOfficerId);
       onClose();
     } catch (err) {
       console.error("Error assigning officer:", err);
+      setError(err.message || "No se pudo asignar el oficial. Probá de nuevo.");
     } finally {
       setSubmitting(false);
     }
@@ -145,6 +158,17 @@ export default function AssignOfficerModal({
               ))}
             </Stack>
           </Radio.Group>
+        )}
+
+        {error && (
+          <Alert
+            color="red"
+            variant="light"
+            icon={<IconAlertCircle size={16} />}
+            title="No se pudo completar"
+          >
+            {error}
+          </Alert>
         )}
 
         <Group justify="flex-end" mt="md">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
@@ -23,28 +23,15 @@ import {
 } from "../../lib/emergencies";
 import GeoLabel from "../../components/civic/GeoLabel";
 import DiscardReasonModal from "../../components/DiscardReasonModal";
+import PageHeader from "../../components/PageHeader";
+import { PriorityBadge, StatusBadge } from "../../components/ops/OpsBadges";
+import { BTN_BASE, BTN_PRIMARY, BTN_SECONDARY } from "../../components/ops/buttonStyles";
 
-// Pills con clases Tailwind (fondo -100 + texto -800/900, contraste ≥ 4.5:1)
-// en vez de color-mix() sobre variables CSS: ese enfoque dejaba el pill de
-// los estados terminales (CERRADA/CANCELADA/DESCARTADA) casi invisible
-// (fondo gris al 20% de opacidad, apenas distinguible del blanco) y salía
-// como texto negro en negrita sin pill visible.
-function PriorityBadge({ severity }) {
-  const cfg = PRIORITY_CONFIG[severity] || PRIORITY_CONFIG.medium;
-  return (
-    <div className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${cfg.badgeClass}`}>
-      {cfg.label}
-    </div>
-  );
-}
-
-function StatusBadge({ status }) {
-  const cfg = getStatusConfig(status);
-  return (
-    <div className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${cfg.badgeClass}`}>
-      {cfg.label}
-    </div>
-  );
+function formatUpdatedAgo(lastUpdated, nowTick) {
+  if (!lastUpdated) return "";
+  const secs = Math.max(0, Math.round((nowTick - lastUpdated) / 1000));
+  if (secs < 1) return "Actualizado ahora";
+  return `Actualizado hace ${secs}s`;
 }
 
 export default function OpsPage() {
@@ -56,13 +43,30 @@ export default function OpsPage() {
   const [actionError, setActionError] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  // requestSeq + AbortController: al retomar el polling (visibilitychange)
+  // o disparar una carga manual mientras otra sigue en vuelo, se descarta la
+  // respuesta vieja si llega después de una más nueva. fetchEmergencies()
+  // (app/lib/api.js) todavía no acepta un AbortSignal, así que el abort()
+  // no corta el fetch en la red, pero sí sirve como guarda para no pisar
+  // estado con una respuesta obsoleta.
+  const requestSeqRef = useRef(0);
+  const controllerRef = useRef(null);
 
   const load = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const seq = ++requestSeqRef.current;
     try {
       // TODO(back): reemplazar polling por webhook/Kafka consumer o SSE (HU-07)
       const data = await fetchEmergencies();
+      if (controller.signal.aborted || seq !== requestSeqRef.current) return;
       setEmergencies(data);
       setError("");
+      setLastUpdated(Date.now());
       setSelected((prev) => {
         if (prev) {
           return data.find((e) => e.id === prev.id) || null;
@@ -70,6 +74,7 @@ export default function OpsPage() {
         return null;
       });
     } catch (err) {
+      if (controller.signal.aborted || seq !== requestSeqRef.current) return;
       setError(
         err instanceof ApiError
           ? err.message
@@ -78,8 +83,33 @@ export default function OpsPage() {
     }
   }, []);
 
+  // Guard de sesión + polling. Se pausa cuando la pestaña no está visible
+  // (document.visibilityState !== "visible") y se reanuda —con una carga
+  // inmediata— al volver, en vez de seguir pegándole al backend en segundo
+  // plano.
   useEffect(() => {
     let cancelled = false;
+    let interval = null;
+
+    const startPolling = () => {
+      if (interval) return;
+      interval = setInterval(load, POLLING_INTERVAL_MS);
+    };
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        load();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
     (async () => {
       try {
         const user = getStoredUser() || (await fetchCurrentUser());
@@ -90,14 +120,46 @@ export default function OpsPage() {
         if (!cancelled) await load();
       } catch {
         router.replace("/acceso");
+        return;
+      }
+      if (!cancelled && document.visibilityState === "visible") {
+        startPolling();
       }
     })();
-    const interval = setInterval(load, POLLING_INTERVAL_MS);
+
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibility);
+      controllerRef.current?.abort();
     };
   }, [load, router]);
+
+  // Tick de 1s para el indicador "actualizado hace Xs" del header, también
+  // pausado mientras la pestaña está oculta.
+  useEffect(() => {
+    let tick = null;
+    const start = () => {
+      if (!tick) tick = setInterval(() => setNowTick(Date.now()), 1000);
+    };
+    const stop = () => {
+      if (tick) {
+        clearInterval(tick);
+        tick = null;
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") start();
+      else stop();
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
 
   const pending = emergencies.filter((e) => isPendingStatus(e.status));
   // Antes contaba "critical" y "high" juntas (ambas mapeaban al label
@@ -164,7 +226,7 @@ export default function OpsPage() {
             type="button"
             aria-label="Cerrar detalle"
             onClick={() => setSelected(null)}
-            className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer"
           >
             <MaterialIcon name="close" size={20} />
           </button>
@@ -217,7 +279,7 @@ export default function OpsPage() {
           <button
             type="button"
             onClick={() => setSelected(null)}
-            className="mt-2 w-full py-2 bg-surface-container text-on-surface text-xs font-semibold rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors"
+            className={`${BTN_BASE} ${BTN_SECONDARY} w-full py-2 normal-case font-semibold text-xs`}
           >
             Cerrar detalle
           </button>
@@ -233,7 +295,7 @@ export default function OpsPage() {
                   type="button"
                   disabled={actionBusy}
                   onClick={handleValidate}
-                  className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-secondary text-on-secondary disabled:opacity-50"
+                  className={`${BTN_BASE} ${BTN_PRIMARY} w-full py-2`}
                 >
                   Validar
                 </button>
@@ -241,7 +303,7 @@ export default function OpsPage() {
                   type="button"
                   disabled={actionBusy}
                   onClick={() => setDiscardOpen(true)}
-                  className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest border border-outline-variant text-on-surface disabled:opacity-50"
+                  className={`${BTN_BASE} ${BTN_SECONDARY} w-full py-2`}
                 >
                   Descartar
                 </button>
@@ -252,7 +314,7 @@ export default function OpsPage() {
               <button
                 type="button"
                 onClick={() => router.push(`/ops/asignar/${selected.id}`)}
-                className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-primary text-on-primary"
+                className={`${BTN_BASE} ${BTN_PRIMARY} w-full py-2`}
               >
                 Asignar oficial
               </button>
@@ -264,239 +326,251 @@ export default function OpsPage() {
   }
 
   return (
-    <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 shrink-0">
-        {[
-          { label: "Pendientes", value: pending.length },
-          {
-            label: "Total activas",
-            value: emergencies.filter(
-              (e) => isActiveStatus(e.status) && e.status !== "CANCELLED"
-            ).length,
-          },
-          {
-            label: "Críticas",
-            value: critical.length,
-            critical: true,
-          },
-          {
-            label: "Canceladas",
-            value: emergencies.filter((e) => e.status === "CANCELLED").length,
-          },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className={`bg-surface-container-lowest border rounded-lg p-3 flex flex-col ${
-              s.critical
-                ? "border-2 border-priority-critical bg-error-container/20"
-                : "border-outline-variant"
-            }`}
-          >
-            <span
-              className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant"
-              style={
-                s.critical ? { color: "var(--color-priority-critical)" } : undefined
-              }
-            >
-              {s.label}
+    <>
+      <PageHeader
+        title="Lista"
+        right={
+          lastUpdated ? (
+            <span className="text-[10px] font-medium text-on-surface-variant whitespace-nowrap">
+              {formatUpdatedAgo(lastUpdated, nowTick)}
             </span>
-            <span
-              className="text-xl sm:text-[28px] font-bold mt-1 text-on-surface"
-              style={
-                s.critical ? { color: "var(--color-priority-critical)" } : undefined
-              }
-            >
-              {s.value}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {error && (
-        <div className="p-3 rounded bg-error-container text-on-error-container text-sm shrink-0">
-          {error}
-        </div>
-      )}
-
-      <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0 relative">
-        <div className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden min-h-0 w-full">
-          {showCriticalBanner && (
-            <div className="bg-priority-critical text-on-primary px-3 sm:px-4 py-2 flex items-center justify-between gap-2 animate-pulse shrink-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <MaterialIcon name="warning" filled size={16} />
-                <span className="text-xs sm:text-sm font-bold truncate">
-                  {critical.length} EMERGENCIA{critical.length === 1 ? "" : "S"} CRÍTICA{critical.length === 1 ? "" : "S"}
-                </span>
-              </div>
-              <button
-                onClick={() => setAlertAcked(true)}
-                className="text-[11px] font-bold uppercase tracking-widest bg-on-primary/20 px-2 py-1 rounded hover:bg-on-primary/30"
-              >
-                ACK
-              </button>
-            </div>
-          )}
-
-          {/* Desktop & Tablet Table (Sin descripción para que entre en el contenedor) */}
-          <div className="hidden sm:block flex-1 overflow-auto w-full">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-surface-container z-10">
-                <tr>
-                  {[
-                    "Prioridad",
-                    "Estado",
-                    "Ubicación",
-                    "Hora",
-                    "Transcurrido",
-                    "Usuario",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="p-2.5 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="text-xs bg-surface-container-lowest">
-                {emergencies.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="p-8 text-center text-on-surface-variant"
-                    >
-                      No hay emergencias. Esperando botón de pánico…
-                    </td>
-                  </tr>
-                ) : (
-                  emergencies.map((em) => (
-                    <tr
-                      key={em.id}
-                      onClick={() => {
-                        setSelected((prev) => (prev?.id === em.id ? null : em));
-                        if (isPendingStatus(em.status)) setAlertAcked(false);
-                      }}
-                      className={`h-10 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors cursor-pointer ${
-                        selected?.id === em.id
-                          ? "bg-surface-container-low border-l-4 border-l-secondary"
-                          : ""
-                      }`}
-                    >
-                      <td className="p-2.5">
-                        <PriorityBadge severity={em.severity || "critical"} />
-                      </td>
-                      <td className="p-2.5">
-                        <StatusBadge status={em.status} />
-                      </td>
-                      <td className="p-2.5 max-w-[200px] truncate">
-                        <GeoLabel emergency={em} fallback="…" />
-                      </td>
-                      <td className="p-2.5 font-mono text-[13px]">
-                        {formatTimeShort(em.createdAt)}
-                      </td>
-                      <td
-                        className="p-2.5 font-mono text-[13px] font-bold"
-                        style={{
-                          color:
-                            em.severity === "critical" || em.severity === "high"
-                              ? `var(--color-${PRIORITY_CONFIG[em.severity].color})`
-                              : undefined,
-                        }}
-                      >
-                        {elapsedMinutes(em.createdAt)}
-                      </td>
-                      <td className="p-2.5 font-mono text-on-surface-variant">{em.userId}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Card List (Ajustado al contenedor móvil, detalle al tocar) */}
-          <div className="sm:hidden flex-1 overflow-auto divide-y divide-outline-variant/40">
-            {emergencies.length === 0 ? (
-              <div className="p-8 text-center text-on-surface-variant text-xs">
-                No hay emergencias. Esperando botón de pánico…
-              </div>
-            ) : (
-              emergencies.map((em) => (
-                <div
-                  key={em.id}
-                  onClick={() => {
-                    setSelected(em);
-                    if (isPendingStatus(em.status)) setAlertAcked(false);
-                  }}
-                  className={`p-3 flex flex-col gap-2 active:bg-surface-container-low transition-colors cursor-pointer ${
-                    selected?.id === em.id ? "bg-surface-container-low border-l-4 border-l-secondary" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <PriorityBadge severity={em.severity || "critical"} />
-                      <StatusBadge status={em.status} />
-                    </div>
-                    <span className="font-mono text-xs font-bold text-on-surface-variant">
-                      {elapsedMinutes(em.createdAt)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-on-surface">
-                    <MaterialIcon name="location_on" size={16} className="text-on-surface-variant shrink-0" />
-                    <span className="truncate">
-                      <GeoLabel emergency={em} fallback="Obteniendo ubicación…" />
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
-                    <span className="font-mono">#{em.id?.slice(0, 8)}</span>
-                    <span className="font-mono">{formatTimeShort(em.createdAt)}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Detalle de la emergencia seleccionada: bottom sheet modal con
-            overlay en mobile/tablet (<lg), panel lateral fijo sin overlay en
-            desktop (lg+). Antes era un único elemento que pasaba de
-            `fixed inset-0` a `lg:static` en el breakpoint lg — en desktop
-            terminaba con `position: static` y un `max-h-full` sin altura de
-            referencia (contenedor sin alto definido), así que el panel
-            crecía fuera de la vista en vez de quedar docked junto a la
-            tabla. Separarlos en dos elementos independientes evita esa
-            combinación frágil. */}
-        {selected && (
-          <>
-            {/* Mobile / tablet: bottom sheet modal con overlay */}
+          ) : null
+        }
+      />
+      <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 shrink-0">
+          {[
+            { label: "Pendientes", value: pending.length },
+            {
+              label: "Total activas",
+              value: emergencies.filter(
+                (e) => isActiveStatus(e.status) && e.status !== "CANCELLED"
+              ).length,
+            },
+            {
+              label: "Críticas",
+              value: critical.length,
+              critical: true,
+            },
+            {
+              label: "Canceladas",
+              value: emergencies.filter((e) => e.status === "CANCELLED").length,
+            },
+          ].map((s) => (
             <div
-              className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center lg:hidden"
-              onClick={() => setSelected(null)}
+              key={s.label}
+              className={`bg-surface-container-lowest border rounded-lg p-3 flex flex-col ${
+                s.critical
+                  ? "border-2 border-priority-critical bg-error-container/20"
+                  : "border-outline-variant"
+              }`}
             >
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant rounded-t-2xl sm:rounded-xl flex flex-col shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200"
+              <span
+                className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant"
+                style={
+                  s.critical ? { color: "var(--color-priority-critical)" } : undefined
+                }
               >
+                {s.label}
+              </span>
+              <span
+                className="text-xl sm:text-[28px] font-bold mt-1 text-on-surface"
+                style={
+                  s.critical ? { color: "var(--color-priority-critical)" } : undefined
+                }
+              >
+                {s.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {error && (
+          <div className="p-3 rounded bg-error-container text-on-error-container text-sm shrink-0">
+            {error}
+          </div>
+        )}
+
+        <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0 relative">
+          <div className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden min-h-0 w-full">
+            {showCriticalBanner && (
+              <div className="bg-priority-critical text-on-primary px-3 sm:px-4 py-2 flex items-center justify-between gap-2 animate-pulse shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <MaterialIcon name="warning" filled size={16} />
+                  <span className="text-xs sm:text-sm font-bold truncate">
+                    {critical.length} EMERGENCIA{critical.length === 1 ? "" : "S"} CRÍTICA{critical.length === 1 ? "" : "S"}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setAlertAcked(true)}
+                  className="text-[11px] font-bold uppercase tracking-widest bg-on-primary/20 px-2 py-1 rounded hover:bg-on-primary/30 cursor-pointer transition-colors"
+                >
+                  ACK
+                </button>
+              </div>
+            )}
+
+            {/* Desktop & Tablet Table (Sin descripción para que entre en el contenedor) */}
+            <div className="hidden sm:block flex-1 overflow-auto w-full">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-surface-container z-10">
+                  <tr>
+                    {[
+                      "Prioridad",
+                      "Estado",
+                      "Ubicación",
+                      "Hora",
+                      "Transcurrido",
+                      "Usuario",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="p-2.5 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="text-xs bg-surface-container-lowest">
+                  {emergencies.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="p-8 text-center text-on-surface-variant"
+                      >
+                        No hay emergencias. Esperando botón de pánico…
+                      </td>
+                    </tr>
+                  ) : (
+                    emergencies.map((em) => (
+                      <tr
+                        key={em.id}
+                        onClick={() => {
+                          setSelected((prev) => (prev?.id === em.id ? null : em));
+                          if (isPendingStatus(em.status)) setAlertAcked(false);
+                        }}
+                        className={`h-10 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors cursor-pointer ${
+                          selected?.id === em.id
+                            ? "bg-surface-container-low border-l-4 border-l-secondary"
+                            : ""
+                        }`}
+                      >
+                        <td className="p-2.5">
+                          <PriorityBadge severity={em.severity || "critical"} />
+                        </td>
+                        <td className="p-2.5">
+                          <StatusBadge status={em.status} />
+                        </td>
+                        <td className="p-2.5 max-w-[200px] truncate">
+                          <GeoLabel emergency={em} fallback="…" />
+                        </td>
+                        <td className="p-2.5 font-mono text-[13px]">
+                          {formatTimeShort(em.createdAt)}
+                        </td>
+                        <td
+                          className="p-2.5 font-mono text-[13px] font-bold"
+                          style={{
+                            color:
+                              em.severity === "critical" || em.severity === "high"
+                                ? `var(--color-${PRIORITY_CONFIG[em.severity].color})`
+                                : undefined,
+                          }}
+                        >
+                          {elapsedMinutes(em.createdAt)}
+                        </td>
+                        <td className="p-2.5 font-mono text-on-surface-variant">{em.userId}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List (Ajustado al contenedor móvil, detalle al tocar) */}
+            <div className="sm:hidden flex-1 overflow-auto divide-y divide-outline-variant/40">
+              {emergencies.length === 0 ? (
+                <div className="p-8 text-center text-on-surface-variant text-xs">
+                  No hay emergencias. Esperando botón de pánico…
+                </div>
+              ) : (
+                emergencies.map((em) => (
+                  <div
+                    key={em.id}
+                    onClick={() => {
+                      setSelected(em);
+                      if (isPendingStatus(em.status)) setAlertAcked(false);
+                    }}
+                    className={`p-3 flex flex-col gap-2 active:bg-surface-container-low transition-colors cursor-pointer ${
+                      selected?.id === em.id ? "bg-surface-container-low border-l-4 border-l-secondary" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <PriorityBadge severity={em.severity || "critical"} />
+                        <StatusBadge status={em.status} />
+                      </div>
+                      <span className="font-mono text-xs font-bold text-on-surface-variant">
+                        {elapsedMinutes(em.createdAt)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-on-surface">
+                      <MaterialIcon name="location_on" size={16} className="text-on-surface-variant shrink-0" />
+                      <span className="truncate">
+                        <GeoLabel emergency={em} fallback="Obteniendo ubicación…" />
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
+                      <span className="font-mono">#{em.id?.slice(0, 8)}</span>
+                      <span className="font-mono">{formatTimeShort(em.createdAt)}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Detalle de la emergencia seleccionada: bottom sheet modal con
+              overlay en mobile/tablet (<lg), panel lateral fijo sin overlay en
+              desktop (lg+). Antes era un único elemento que pasaba de
+              `fixed inset-0` a `lg:static` en el breakpoint lg — en desktop
+              terminaba con `position: static` y un `max-h-full` sin altura de
+              referencia (contenedor sin alto definido), así que el panel
+              crecía fuera de la vista en vez de quedar docked junto a la
+              tabla. Separarlos en dos elementos independientes evita esa
+              combinación frágil. */}
+          {selected && (
+            <>
+              {/* Mobile / tablet: bottom sheet modal con overlay */}
+              <div
+                className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center lg:hidden"
+                onClick={() => setSelected(null)}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant rounded-t-2xl sm:rounded-xl flex flex-col shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200"
+                >
+                  {renderDetailPanelBody()}
+                </div>
+              </div>
+
+              {/* Desktop: panel lateral derecho de 360px, dentro del layout, sin overlay */}
+              <div className="hidden lg:flex lg:w-[360px] lg:shrink-0 lg:self-stretch bg-surface-container-lowest border border-outline-variant rounded-lg flex-col shadow-sm overflow-hidden">
                 {renderDetailPanelBody()}
               </div>
-            </div>
+            </>
+          )}
+        </div>
 
-            {/* Desktop: panel lateral derecho de 360px, dentro del layout, sin overlay */}
-            <div className="hidden lg:flex lg:w-[360px] lg:shrink-0 lg:self-stretch bg-surface-container-lowest border border-outline-variant rounded-lg flex-col shadow-sm overflow-hidden">
-              {renderDetailPanelBody()}
-            </div>
-          </>
-        )}
-      </div>
-
-      <DiscardReasonModal
-        open={discardOpen}
-        busy={actionBusy}
-        onClose={() => {
-          if (!actionBusy) setDiscardOpen(false);
-        }}
-        onConfirm={handleDiscard}
-      />
-    </main>
+        <DiscardReasonModal
+          open={discardOpen}
+          busy={actionBusy}
+          onClose={() => {
+            if (!actionBusy) setDiscardOpen(false);
+          }}
+          onConfirm={handleDiscard}
+        />
+      </main>
+    </>
   );
 }
