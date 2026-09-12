@@ -30,10 +30,15 @@ export default function GeoLabel({
   const lng = Number(emergency?.longitude);
   const hasCoordsFlag = hasValidCoords(emergency);
   const anonymized = emergency?.locationAnonymized;
+  const unavailable = emergency?.locationUnavailable;
 
-  // Si el backend ya provee un label o la ubicación está anonimizada, no geocodificamos
+  // Si el backend ya provee un label, la ubicación está anonimizada/no
+  // disponible, o no hay coords válidas (lat/lng null ⇒ hasCoordsFlag
+  // false), no geocodificamos. Antes acá se colaba (0,0) porque
+  // Number(null) === 0 pasaba como "coords válidas".
   const backendLabel = emergency?.locationLabel;
-  const skipGeocode = Boolean(backendLabel) || anonymized || !hasCoordsFlag;
+  const skipGeocode =
+    Boolean(backendLabel) || anonymized || unavailable || !hasCoordsFlag;
 
   useEffect(() => {
     if (skipGeocode) return;
@@ -63,6 +68,8 @@ export default function GeoLabel({
   let displayText;
   if (anonymized) {
     displayText = "Ubicación anonimizada";
+  } else if (unavailable) {
+    displayText = "Sin ubicación";
   } else if (backendLabel) {
     displayText = backendLabel;
   } else if (address) {
