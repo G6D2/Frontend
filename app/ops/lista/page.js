@@ -20,12 +20,22 @@ import {
   elapsedMinutes,
   isPendingStatus,
   isActiveStatus,
+  priorityTextClass,
 } from "../../lib/emergencies";
 import GeoLabel from "../../components/civic/GeoLabel";
 import DiscardReasonModal from "../../components/DiscardReasonModal";
 import PageHeader from "../../components/PageHeader";
 import { PriorityBadge, StatusBadge } from "../../components/ops/OpsBadges";
 import { BTN_BASE, BTN_PRIMARY, BTN_SECONDARY } from "../../components/ops/buttonStyles";
+import {
+  TABLE_HEAD,
+  TABLE_TH,
+  TABLE_BODY,
+  TABLE_ROW,
+  TABLE_CELL,
+  TABLE_CELL_MONO,
+} from "../../components/ops/tableStyles";
+import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
 
 function formatUpdatedAgo(lastUpdated, nowTick) {
   if (!lastUpdated) return "";
@@ -366,18 +376,16 @@ export default function OpsPage() {
               }`}
             >
               <span
-                className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant"
-                style={
-                  s.critical ? { color: "var(--color-priority-critical)" } : undefined
-                }
+                className={`text-[11px] font-bold uppercase tracking-widest ${
+                  s.critical ? "text-priority-critical" : "text-on-surface-variant"
+                }`}
               >
                 {s.label}
               </span>
               <span
-                className="text-xl sm:text-[28px] font-bold mt-1 text-on-surface"
-                style={
-                  s.critical ? { color: "var(--color-priority-critical)" } : undefined
-                }
+                className={`text-xl sm:text-[28px] font-bold mt-1 ${
+                  s.critical ? "text-priority-critical" : "text-on-surface"
+                }`}
               >
                 {s.value}
               </span>
@@ -413,7 +421,7 @@ export default function OpsPage() {
             {/* Desktop & Tablet Table (Sin descripción para que entre en el contenedor) */}
             <div className="hidden sm:block flex-1 overflow-auto w-full">
               <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-surface-container z-10">
+                <thead className={`sticky top-0 z-10 ${TABLE_HEAD}`}>
                   <tr>
                     {[
                       "Prioridad",
@@ -423,16 +431,13 @@ export default function OpsPage() {
                       "Transcurrido",
                       "Usuario",
                     ].map((h) => (
-                      <th
-                        key={h}
-                        className="p-2.5 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant"
-                      >
+                      <th key={h} className={TABLE_TH}>
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="text-xs bg-surface-container-lowest">
+                <tbody className={TABLE_BODY}>
                   {emergencies.length === 0 ? (
                     <tr>
                       <td
@@ -450,36 +455,36 @@ export default function OpsPage() {
                           setSelected((prev) => (prev?.id === em.id ? null : em));
                           if (isPendingStatus(em.status)) setAlertAcked(false);
                         }}
-                        className={`h-10 border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors cursor-pointer ${
+                        className={`${TABLE_ROW} cursor-pointer ${
                           selected?.id === em.id
                             ? "bg-surface-container-low border-l-4 border-l-secondary"
                             : ""
                         }`}
                       >
-                        <td className="p-2.5">
+                        <td className={TABLE_CELL}>
                           <PriorityBadge severity={em.severity || "critical"} />
                         </td>
-                        <td className="p-2.5">
+                        <td className={TABLE_CELL}>
                           <StatusBadge status={em.status} />
                         </td>
-                        <td className="p-2.5 max-w-[200px] truncate">
+                        <td className={`${TABLE_CELL} max-w-[200px] truncate`}>
                           <GeoLabel emergency={em} fallback="…" />
                         </td>
-                        <td className="p-2.5 font-mono text-[13px]">
+                        <td className={TABLE_CELL_MONO}>
                           {formatTimeShort(em.createdAt)}
                         </td>
                         <td
-                          className="p-2.5 font-mono text-[13px] font-bold"
-                          style={{
-                            color:
-                              em.severity === "critical" || em.severity === "high"
-                                ? `var(--color-${PRIORITY_CONFIG[em.severity].color})`
-                                : undefined,
-                          }}
+                          className={`${TABLE_CELL_MONO} font-bold ${
+                            em.severity === "critical" || em.severity === "high"
+                              ? priorityTextClass(em.severity)
+                              : ""
+                          }`}
                         >
                           {elapsedMinutes(em.createdAt)}
                         </td>
-                        <td className="p-2.5 font-mono text-on-surface-variant">{em.userId}</td>
+                        <td className={`${TABLE_CELL_MONO} text-on-surface-variant`}>
+                          {em.userId}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -495,36 +500,24 @@ export default function OpsPage() {
                 </div>
               ) : (
                 emergencies.map((em) => (
-                  <div
+                  <EmergencyMobileCard
                     key={em.id}
+                    badges={
+                      <>
+                        <PriorityBadge severity={em.severity || "critical"} />
+                        <StatusBadge status={em.status} />
+                      </>
+                    }
+                    headline={elapsedMinutes(em.createdAt)}
+                    location={<GeoLabel emergency={em} fallback="Obteniendo ubicación…" />}
+                    idLabel={`#${em.id?.slice(0, 8)}`}
+                    timeLabel={formatTimeShort(em.createdAt)}
+                    selected={selected?.id === em.id}
                     onClick={() => {
                       setSelected(em);
                       if (isPendingStatus(em.status)) setAlertAcked(false);
                     }}
-                    className={`p-3 flex flex-col gap-2 active:bg-surface-container-low transition-colors cursor-pointer ${
-                      selected?.id === em.id ? "bg-surface-container-low border-l-4 border-l-secondary" : ""
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <PriorityBadge severity={em.severity || "critical"} />
-                        <StatusBadge status={em.status} />
-                      </div>
-                      <span className="font-mono text-xs font-bold text-on-surface-variant">
-                        {elapsedMinutes(em.createdAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-on-surface">
-                      <MaterialIcon name="location_on" size={16} className="text-on-surface-variant shrink-0" />
-                      <span className="truncate">
-                        <GeoLabel emergency={em} fallback="Obteniendo ubicación…" />
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
-                      <span className="font-mono">#{em.id?.slice(0, 8)}</span>
-                      <span className="font-mono">{formatTimeShort(em.createdAt)}</span>
-                    </div>
-                  </div>
+                  />
                 ))
               )}
             </div>
