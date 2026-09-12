@@ -278,7 +278,14 @@
   flex: 1;
   min-width: 0;
   min-height: 100vh;
-  overflow: auto;
+  /* overflow-x: clip (y no overflow: auto): un overflow scrollable convertía a
+     shellMain en el contenedor de referencia de todo `position: sticky` de
+     adentro (CitizenTopBar, PageHeader, footer de /reportar), pero como
+     shellMain crece con su contenido nunca scrollea, y el que scrollea es la
+     ventana. Resultado: los sticky no se pegaban a nada y el footer de envío
+     quedaba al final del contenido, recortado en ventanas chicas. Con clip se
+     sigue recortando el desborde horizontal sin crear un scroll container. */
+  overflow-x: clip;
   position: relative;
   padding-left: 0;
   transition: padding 220ms ease;
