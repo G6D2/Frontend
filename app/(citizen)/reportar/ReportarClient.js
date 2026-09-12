@@ -190,10 +190,12 @@ export default function ReportarClient() {
         </div>
       </CitizenPageContainer>
 
-      {/* fixed (no sticky) en mobile para no depender del scroll interno de
-          shellMain, y bottom-20 para dejar el alto de CitizenBottomNav
-          libre y no tapar el botón de enviar. */}
-      <footer className="fixed inset-x-0 bottom-20 z-40 bg-surface border-t border-outline-variant px-4 py-4 pb-safe flex justify-end items-center shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] lg:sticky lg:inset-x-auto lg:bottom-0">
+      {/* En mobile es fixed justo encima de CitizenBottomNav (ver
+          .footer-above-nav en globals.css: 4rem + safe-area, sin hueco); en
+          desktop es sticky al piso. El padding inferior vive en esa misma
+          clase para que el safe-area no lo pise a 0 y el botón no quede
+          pegado al borde. */}
+      <footer className="footer-above-nav fixed inset-x-0 z-40 bg-surface border-t border-outline-variant px-4 pt-4 flex justify-end items-center shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] lg:sticky lg:inset-x-auto">
         <div className="w-full flex justify-end">
           <button
             type="submit"

@@ -92,6 +92,19 @@
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0px);
   }
+  /* Footer de acción del ciudadano: en mobile va pegado justo encima de
+     CitizenBottomNav (4rem + safe-area), en desktop es sticky al piso y
+     absorbe el safe-area en su propio padding. */
+  .footer-above-nav {
+    bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 1rem;
+  }
+  @media (min-width: 1024px) {
+    .footer-above-nav {
+      bottom: 0;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
   .min-h-touch {
     min-height: 44px;
   }
