@@ -73,7 +73,11 @@ jobs:
           path: coverage/
           retention-days: 7
 
+      # Analisis externo: no bloquea el pipeline. Corre solo si el repo tiene
+      # SONAR_TOKEN (SonarCloud gratis exige repo publico; el nuestro es privado).
       - name: SonarCloud analysis
+        if: ${{ env.SONAR_TOKEN != '' }}
+        continue-on-error: true
         uses: SonarSource/sonarcloud-github-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
