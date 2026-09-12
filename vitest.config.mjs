@@ -6,7 +6,7 @@ export default defineConfig({
     include: ["tests/**/*.test.js"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "lcov", "html"],
+      reporter: ["text", "lcov", "html", "json-summary"],
       include: ["lib/**/*.js", "app/lib/**/*.js"],
       exclude: [
         // Browser-only (sessionStorage / window) — not unit-testable in node
