@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { BTN_BASE, BTN_PRIMARY, BTN_SECONDARY } from "./ops/buttonStyles";
 
 /**
  * Modal simple (sin Mantine) para pedir motivo de descarte.
@@ -31,6 +32,16 @@ export default function DiscardReasonModal({
 function DiscardReasonForm({ title, confirmLabel, busy, onClose, onConfirm }) {
   const [reason, setReason] = useState("");
   const trimmed = reason.trim();
+
+  // Cerrar con Escape (mismo esqueleto de modal que AssignOfficerModal, que
+  // ya lo soporta out-of-the-box vía Mantine).
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === "Escape" && !busy) onClose?.();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [busy, onClose]);
 
   return (
     <div
@@ -66,7 +77,7 @@ function DiscardReasonForm({ title, confirmLabel, busy, onClose, onConfirm }) {
             type="button"
             disabled={busy}
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border border-outline-variant text-on-surface disabled:opacity-50"
+            className={`${BTN_BASE} ${BTN_SECONDARY} px-4 py-2`}
           >
             Cancelar
           </button>
@@ -74,7 +85,7 @@ function DiscardReasonForm({ title, confirmLabel, busy, onClose, onConfirm }) {
             type="button"
             disabled={busy || !trimmed}
             onClick={() => onConfirm?.(trimmed)}
-            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest bg-primary text-on-primary disabled:opacity-50"
+            className={`${BTN_BASE} ${BTN_PRIMARY} px-4 py-2`}
           >
             {busy ? "Descartando…" : confirmLabel}
           </button>

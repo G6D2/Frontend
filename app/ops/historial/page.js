@@ -3,15 +3,20 @@
 import { useState } from "react";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import { formatTimeShort } from "../../lib/emergencies";
+import PageHeader from "../../components/PageHeader";
+import { StatusBadge } from "../../components/ops/OpsBadges";
 
 // TODO(back): HU-07 — GET emergencias CERRADA/CANCELLED/DISCARDED (no mock)
+// Estados en el formato canónico del backend (RESOLVED/DISCARDED) para que
+// StatusBadge (app/components/ops/OpsBadges.js, mismo componente que usan
+// /ops/lista y /ops/oficiales) resuelva el label y color correctos.
 const HISTORY = [
   {
     id: "em-h01",
     type: "Médica",
     icon: "medical_services",
     location: "Villa Crespo",
-    status: "resuelta",
+    status: "RESOLVED",
     time: "2026-08-28T18:00:00-03:00",
     resolution: "Atendido por SAME Móvil 12. Paciente trasladado estable.",
     assignedOfficer: "Oficial García (Placa 4402)",
@@ -21,7 +26,7 @@ const HISTORY = [
     type: "Incendio",
     icon: "local_fire_department",
     location: "San Telmo",
-    status: "resuelta",
+    status: "RESOLVED",
     time: "2026-08-27T09:30:00-03:00",
     resolution: "Principio de incendio controlado por Bomberos de la Ciudad.",
     assignedOfficer: "Bomberos Cuartel Central",
@@ -31,7 +36,7 @@ const HISTORY = [
     type: "Disturbio",
     icon: "groups",
     location: "La Boca",
-    status: "descartada",
+    status: "DISCARDED",
     time: "2026-08-26T22:15:00-03:00",
     resolution: "Falsa alarma o resuelto previo al arribo policial.",
     assignedOfficer: "Comisaría Vecinal 4C",
@@ -46,12 +51,20 @@ export default function HistorialPage() {
   };
 
   return (
-    <main className="p-4 sm:p-6 w-full">
-      <h1 className="text-xl sm:text-2xl font-bold text-primary mb-6">Historial</h1>
+    <>
+      <PageHeader title="Historial" />
+      <main className="p-4 sm:p-6 w-full">
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900">
+        <MaterialIcon name="info" size={18} className="shrink-0 mt-0.5" />
+        <p className="text-xs sm:text-sm font-medium">
+          Datos de ejemplo: el historial real se conecta en la próxima
+          iteración.
+        </p>
+      </div>
 
       {/* ── Vista Escritorio / Tablet (Tabla original a pantalla completa) ── */}
       <div className="hidden sm:block w-full">
-        <table className="w-full text-left border-collapse bg-surface-container-lowest border border-outline-variant rounded overflow-hidden">
+        <table className="w-full text-left border-collapse bg-surface-container-lowest border border-dashed border-outline-variant rounded overflow-hidden">
           <thead className="bg-surface-container">
             <tr>
               {["ID", "Tipo", "Ubicación", "Estado", "Hora"].map((h) => (
@@ -70,25 +83,18 @@ export default function HistorialPage() {
                 key={row.id}
                 className="border-b border-outline-variant/50 hover:bg-surface-container-low"
               >
-                <td className="p-3 font-mono">{row.id}</td>
+                <td className="p-3 font-mono">
+                  <span className="inline-flex items-center gap-1.5">
+                    {row.id}
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900">
+                      Ejemplo
+                    </span>
+                  </span>
+                </td>
                 <td className="p-3 font-bold">{row.type}</td>
                 <td className="p-3">{row.location}</td>
                 <td className="p-3">
-                  <span
-                    className="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
-                    style={{
-                      backgroundColor:
-                        row.status === "resuelta"
-                          ? "color-mix(in srgb, var(--color-status-validada) 20%, transparent)"
-                          : "color-mix(in srgb, var(--color-status-pendiente) 20%, transparent)",
-                      color:
-                        row.status === "resuelta"
-                          ? "var(--color-status-validada)"
-                          : "var(--color-status-pendiente)",
-                    }}
-                  >
-                    {row.status}
-                  </span>
+                  <StatusBadge status={row.status} />
                 </td>
                 <td className="p-3 font-mono">{formatTimeShort(row.time)}</td>
               </tr>
@@ -101,13 +107,12 @@ export default function HistorialPage() {
       <div className="sm:hidden flex flex-col gap-2.5 w-full">
         {HISTORY.map((row) => {
           const isExpanded = expandedId === row.id;
-          const isResuelta = row.status === "resuelta";
 
           return (
             <div
               key={row.id}
               onClick={() => toggleExpand(row.id)}
-              className={`w-full bg-surface-container-lowest border rounded-xl transition-all cursor-pointer overflow-hidden ${
+              className={`w-full bg-surface-container-lowest border border-dashed rounded-xl transition-all cursor-pointer overflow-hidden ${
                 isExpanded
                   ? "border-primary/40 shadow-md ring-1 ring-primary/20"
                   : "border-outline-variant hover:border-outline active:bg-surface-container-low"
@@ -127,6 +132,9 @@ export default function HistorialPage() {
                       <span className="font-mono text-[11px] text-on-surface-variant shrink-0">
                         #{row.id}
                       </span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 shrink-0">
+                        Ejemplo
+                      </span>
                     </div>
                     <span className="text-xs text-on-surface-variant truncate block">
                       {row.location}
@@ -135,19 +143,7 @@ export default function HistorialPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span
-                    className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
-                    style={{
-                      backgroundColor: isResuelta
-                        ? "color-mix(in srgb, var(--color-status-validada) 18%, transparent)"
-                        : "color-mix(in srgb, var(--color-status-pendiente) 18%, transparent)",
-                      color: isResuelta
-                        ? "var(--color-status-validada)"
-                        : "var(--color-status-pendiente)",
-                    }}
-                  >
-                    {row.status}
-                  </span>
+                  <StatusBadge status={row.status} />
                   <div
                     className={`text-on-surface-variant transition-transform duration-200 ${
                       isExpanded ? "rotate-180 text-primary" : ""
@@ -227,6 +223,7 @@ export default function HistorialPage() {
           );
         })}
       </div>
-    </main>
+      </main>
+    </>
   );
 }

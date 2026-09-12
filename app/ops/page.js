@@ -1,31 +1,12 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import DispatcherView from "../components/DispatcherView";
-import { fetchCurrentUser, getStoredUser } from "../lib/api";
-import { isDispatcher } from "../lib/auth";
-
-/** Dashboard dispatcher = kanban (DispatcherView) + Navbar del layout. */
+/**
+ * El kanban Mantine (DispatcherView, antes montado acá) y /ops/lista son dos
+ * tableros duplicados con estilos distintos. Por ahora /ops redirige a
+ * /ops/lista; DispatcherView.js no se borra todavía (deuda técnica, ver PR).
+ * El ítem "Estados" del drawer (Navbar.js/CityPassAppShell.js, no son
+ * archivos de este PR) sigue apuntando a /ops: esta redirección lo resuelve.
+ */
 export default function OpsPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const user = getStoredUser() || (await fetchCurrentUser());
-        if (!cancelled && !isDispatcher(user)) {
-          router.replace("/inicio");
-        }
-      } catch {
-        if (!cancelled) router.replace("/acceso");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
-
-  return <DispatcherView />;
+  redirect("/ops/lista");
 }
