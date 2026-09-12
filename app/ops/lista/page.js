@@ -18,20 +18,21 @@ import {
   getStatusConfig,
   formatTimeShort,
   elapsedMinutes,
-  hasValidCoords,
   isPendingStatus,
   isActiveStatus,
 } from "../../lib/emergencies";
 import GeoLabel from "../../components/civic/GeoLabel";
 import DiscardReasonModal from "../../components/DiscardReasonModal";
 
+// Pills con clases Tailwind (fondo -100 + texto -800/900, contraste ≥ 4.5:1)
+// en vez de color-mix() sobre variables CSS: ese enfoque dejaba el pill de
+// los estados terminales (CERRADA/CANCELADA/DESCARTADA) casi invisible
+// (fondo gris al 20% de opacidad, apenas distinguible del blanco) y salía
+// como texto negro en negrita sin pill visible.
 function PriorityBadge({ severity }) {
   const cfg = PRIORITY_CONFIG[severity] || PRIORITY_CONFIG.medium;
   return (
-    <div
-      className={`px-2 py-0.5 rounded text-[10px] font-bold ${cfg.bg} inline-block`}
-      style={{ color: `var(--color-${cfg.color})` }}
-    >
+    <div className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${cfg.badgeClass}`}>
       {cfg.label}
     </div>
   );
@@ -40,13 +41,7 @@ function PriorityBadge({ severity }) {
 function StatusBadge({ status }) {
   const cfg = getStatusConfig(status);
   return (
-    <div
-      className="px-2 py-0.5 rounded text-[10px] font-bold inline-block"
-      style={{
-        backgroundColor: `color-mix(in srgb, var(--color-${cfg.color}) 20%, transparent)`,
-        color: `var(--color-${cfg.color})`,
-      }}
-    >
+    <div className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${cfg.badgeClass}`}>
       {cfg.label}
     </div>
   );
@@ -105,10 +100,12 @@ export default function OpsPage() {
   }, [load, router]);
 
   const pending = emergencies.filter((e) => isPendingStatus(e.status));
+  // Antes contaba "critical" y "high" juntas (ambas mapeaban al label
+  // "ALTA"): el banner y la tarjeta "Críticas" mostraban 67 emergencias
+  // "alta prioridad" cuando en realidad ninguna era crítica. Ahora cuenta
+  // solo severity === "critical".
   const critical = emergencies.filter(
-    (e) =>
-      (e.severity === "critical" || e.severity === "high") &&
-      isPendingStatus(e.status)
+    (e) => e.severity === "critical" && isPendingStatus(e.status)
   );
   const showCriticalBanner = critical.length > 0 && !alertAcked;
 
@@ -147,6 +144,125 @@ export default function OpsPage() {
     }
   }
 
+  // Header + body del panel de detalle, compartido entre el bottom sheet
+  // mobile y el panel lateral desktop (ver JSX más abajo).
+  function renderDetailPanelBody() {
+    if (!selected) return null;
+    return (
+      <>
+        <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start">
+          <div>
+            <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
+              #{selected.id.slice(0, 8)}
+            </h2>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+              {getStatusConfig(selected.status).label} ·{" "}
+              {PRIORITY_CONFIG[selected.severity || "critical"]?.label}
+            </span>
+          </div>
+          <button
+            type="button"
+            aria-label="Cerrar detalle"
+            onClick={() => setSelected(null)}
+            className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors"
+          >
+            <MaterialIcon name="close" size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+          <div className="flex items-start gap-2">
+            <MaterialIcon
+              name="location_on"
+              className="text-on-surface-variant mt-0.5 shrink-0"
+            />
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block">
+                Ubicación
+              </span>
+              <div className="text-sm font-bold text-on-surface">
+                <GeoLabel
+                  emergency={selected}
+                  fallback="Obteniendo dirección…"
+                  showCoords
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
+              Descripción del Incidente
+            </span>
+            <div className="bg-surface-container-low p-3 rounded-lg border border-outline-variant/50 text-xs text-on-surface leading-relaxed">
+              &quot;{selected.description}&quot;
+            </div>
+          </div>
+
+          <div className="text-xs text-on-surface-variant flex flex-col gap-1 border-t border-outline-variant/40 pt-3">
+            <div className="flex justify-between">
+              <span>Usuario:</span>
+              <span className="font-mono font-medium text-on-surface">{selected.userId}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Hora de reporte:</span>
+              <span className="font-mono font-medium text-on-surface">{formatTimeShort(selected.createdAt)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Tiempo transcurrido:</span>
+              <span className="font-mono font-bold text-on-surface">{elapsedMinutes(selected.createdAt)}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSelected(null)}
+            className="mt-2 w-full py-2 bg-surface-container text-on-surface text-xs font-semibold rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors"
+          >
+            Cerrar detalle
+          </button>
+          {actionError && (
+            <div className="p-2 rounded bg-error-container text-on-error-container text-xs">
+              {actionError}
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            {isPendingStatus(selected.status) && (
+              <>
+                <button
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={handleValidate}
+                  className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-secondary text-on-secondary disabled:opacity-50"
+                >
+                  Validar
+                </button>
+                <button
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={() => setDiscardOpen(true)}
+                  className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest border border-outline-variant text-on-surface disabled:opacity-50"
+                >
+                  Descartar
+                </button>
+              </>
+            )}
+            {(selected.status === "VALIDATED" ||
+              selected.status === "validada") && (
+              <button
+                type="button"
+                onClick={() => router.push(`/ops/asignar/${selected.id}`)}
+                className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-primary text-on-primary"
+              >
+                Asignar oficial
+              </button>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 shrink-0">
@@ -172,14 +288,14 @@ export default function OpsPage() {
             key={s.label}
             className={`bg-surface-container-lowest border rounded-lg p-3 flex flex-col ${
               s.critical
-                ? "border-2 border-priority-high bg-error-container/20"
+                ? "border-2 border-priority-critical bg-error-container/20"
                 : "border-outline-variant"
             }`}
           >
             <span
               className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant"
               style={
-                s.critical ? { color: "var(--color-priority-high)" } : undefined
+                s.critical ? { color: "var(--color-priority-critical)" } : undefined
               }
             >
               {s.label}
@@ -187,7 +303,7 @@ export default function OpsPage() {
             <span
               className="text-xl sm:text-[28px] font-bold mt-1 text-on-surface"
               style={
-                s.critical ? { color: "var(--color-priority-high)" } : undefined
+                s.critical ? { color: "var(--color-priority-critical)" } : undefined
               }
             >
               {s.value}
@@ -205,11 +321,11 @@ export default function OpsPage() {
       <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0 relative">
         <div className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden min-h-0 w-full">
           {showCriticalBanner && (
-            <div className="bg-priority-high text-on-primary px-3 sm:px-4 py-2 flex items-center justify-between gap-2 animate-pulse shrink-0">
+            <div className="bg-priority-critical text-on-primary px-3 sm:px-4 py-2 flex items-center justify-between gap-2 animate-pulse shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 <MaterialIcon name="warning" filled size={16} />
                 <span className="text-xs sm:text-sm font-bold truncate">
-                  {critical.length} EMERGENCIA(S) ALTA PRIORIDAD
+                  {critical.length} EMERGENCIA{critical.length === 1 ? "" : "S"} CRÍTICA{critical.length === 1 ? "" : "S"}
                 </span>
               </div>
               <button
@@ -284,7 +400,7 @@ export default function OpsPage() {
                         style={{
                           color:
                             em.severity === "critical" || em.severity === "high"
-                              ? "var(--color-priority-high)"
+                              ? `var(--color-${PRIORITY_CONFIG[em.severity].color})`
                               : undefined,
                         }}
                       >
@@ -341,121 +457,35 @@ export default function OpsPage() {
           </div>
         </div>
 
-        {/* Modal / Drawer de Detalle (Aparece cuando se toca una emergencia) */}
+        {/* Detalle de la emergencia seleccionada: bottom sheet modal con
+            overlay en mobile/tablet (<lg), panel lateral fijo sin overlay en
+            desktop (lg+). Antes era un único elemento que pasaba de
+            `fixed inset-0` a `lg:static` en el breakpoint lg — en desktop
+            terminaba con `position: static` y un `max-h-full` sin altura de
+            referencia (contenedor sin alto definido), así que el panel
+            crecía fuera de la vista en vez de quedar docked junto a la
+            tabla. Separarlos en dos elementos independientes evita esa
+            combinación frágil. */}
         {selected && (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4 lg:static lg:inset-auto lg:z-auto lg:bg-transparent lg:p-0">
-            <div className="w-full sm:max-w-md lg:w-[320px] bg-surface-container-lowest border border-outline-variant rounded-t-2xl sm:rounded-xl lg:rounded-lg flex flex-col shadow-2xl max-h-[85vh] lg:max-h-full overflow-hidden shrink-0 animate-in fade-in slide-in-from-bottom-4 duration-200">
-              <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start">
-                <div>
-                  <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
-                    #{selected.id.slice(0, 8)}
-                  </h2>
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    {getStatusConfig(selected.status).label} ·{" "}
-                    {PRIORITY_CONFIG[selected.severity || "critical"]?.label}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Cerrar detalle"
-                  onClick={() => setSelected(null)}
-                  className="p-1 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors"
-                >
-                  <MaterialIcon name="close" size={20} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-                <div className="flex items-start gap-2">
-                  <MaterialIcon
-                    name="location_on"
-                    className="text-on-surface-variant mt-0.5 shrink-0"
-                  />
-                  <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block">
-                      Ubicación
-                    </span>
-                    <div className="text-sm font-bold text-on-surface">
-                      <GeoLabel
-                        emergency={selected}
-                        fallback="Obteniendo dirección…"
-                        showCoords
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                    Descripción del Incidente
-                  </span>
-                  <div className="bg-surface-container-low p-3 rounded-lg border border-outline-variant/50 text-xs text-on-surface leading-relaxed">
-                    &quot;{selected.description}&quot;
-                  </div>
-                </div>
-
-                <div className="text-xs text-on-surface-variant flex flex-col gap-1 border-t border-outline-variant/40 pt-3">
-                  <div className="flex justify-between">
-                    <span>Usuario:</span>
-                    <span className="font-mono font-medium text-on-surface">{selected.userId}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Hora de reporte:</span>
-                    <span className="font-mono font-medium text-on-surface">{formatTimeShort(selected.createdAt)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tiempo transcurrido:</span>
-                    <span className="font-mono font-bold text-on-surface">{elapsedMinutes(selected.createdAt)}</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="mt-2 w-full py-2 bg-surface-container text-on-surface text-xs font-semibold rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors"
-                >
-                  Cerrar detalle
-                </button>
-                {actionError && (
-                  <div className="p-2 rounded bg-error-container text-on-error-container text-xs">
-                    {actionError}
-                  </div>
-                )}
-                <div className="flex flex-col gap-2">
-                  {isPendingStatus(selected.status) && (
-                    <>
-                      <button
-                        type="button"
-                        disabled={actionBusy}
-                        onClick={handleValidate}
-                        className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-secondary text-on-secondary disabled:opacity-50"
-                      >
-                        Validar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={actionBusy}
-                        onClick={() => setDiscardOpen(true)}
-                        className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest border border-outline-variant text-on-surface disabled:opacity-50"
-                      >
-                        Descartar
-                      </button>
-                    </>
-                  )}
-                  {(selected.status === "VALIDATED" ||
-                    selected.status === "validada") && (
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/ops/asignar/${selected.id}`)}
-                      className="w-full py-2 rounded text-xs font-bold uppercase tracking-widest bg-primary text-on-primary"
-                    >
-                      Asignar oficial
-                    </button>
-                  )}
-                </div>
+          <>
+            {/* Mobile / tablet: bottom sheet modal con overlay */}
+            <div
+              className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center lg:hidden"
+              onClick={() => setSelected(null)}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant rounded-t-2xl sm:rounded-xl flex flex-col shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200"
+              >
+                {renderDetailPanelBody()}
               </div>
             </div>
-          </div>
+
+            {/* Desktop: panel lateral derecho de 360px, dentro del layout, sin overlay */}
+            <div className="hidden lg:flex lg:w-[360px] lg:shrink-0 lg:self-stretch bg-surface-container-lowest border border-outline-variant rounded-lg flex-col shadow-sm overflow-hidden">
+              {renderDetailPanelBody()}
+            </div>
+          </>
         )}
       </div>
 
