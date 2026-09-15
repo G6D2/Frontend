@@ -5,9 +5,9 @@ import { createPortal } from "react-dom";
 import MaterialIcon from "./MaterialIcon";
 
 /**
- * Confirmación antes de cancelar la asistencia solicitada (ver SosConfirmationModal
- * para el mismo lenguaje visual: bottom sheet en mobile, modal centrado en
- * desktop). El motivo es opcional: cancelar no debería trabarse por eso.
+ * Confirmación antes de cancelar la asistencia solicitada (bottom sheet en
+ * mobile, modal centrado en desktop). El motivo es opcional: cancelar no
+ * debería trabarse por eso.
  */
 export default function ConfirmCancelModal({ open, onClose, onConfirm, loading }) {
   const [reason, setReason] = useState("");
