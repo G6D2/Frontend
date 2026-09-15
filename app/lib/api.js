@@ -203,12 +203,17 @@ export async function hasValidSession() {
   }
 }
 
+// Tope del backend para el campo opcional `address` (string ≤ 200, ver
+// POST /api/panic-button en emergencies-backend).
+const ADDRESS_MAX_LENGTH = 200;
+
 export async function triggerPanicButton({
   latitude,
   longitude,
   description,
   severity = "critical",
   emergencyType = "panic",
+  address,
 }) {
   // Backend exige numbers (AES location crypto + ValidationError si NaN/string)
   const lat = Number(latitude);
@@ -225,6 +230,9 @@ export async function triggerPanicButton({
     emergencyType,
   };
   if (description) body.description = description;
+  if (typeof address === "string" && address.trim()) {
+    body.address = address.trim().slice(0, ADDRESS_MAX_LENGTH);
+  }
 
   return apiFetch("/api/panic-button", {
     method: "POST",
@@ -273,6 +281,7 @@ export async function reportIncident({
   longitude,
   severity,
   description,
+  address,
 }) {
   const type = String(category || "other").toLowerCase();
   // SOS = critical; incidentes: medical/fire = high, resto = medium
@@ -284,6 +293,7 @@ export async function reportIncident({
     emergencyType: type,
     severity: severity || defaultSeverity,
     description: description || undefined,
+    address,
   });
 }
 

@@ -14,8 +14,8 @@ import { isDispatcher } from "../../../lib/auth";
 import {
   PRIORITY_CONFIG,
   getStatusConfig,
-  locationLabel,
 } from "../../../lib/emergencies";
+import GeoLabel from "../../../components/civic/GeoLabel";
 import PageHeader from "../../../components/PageHeader";
 import { BTN_BASE, BTN_PRIMARY } from "../../../components/ops/buttonStyles";
 
@@ -95,7 +95,7 @@ export default function AsignarOficialPage() {
             </div>
             <p className="text-sm text-on-surface-variant">
               #{emergency.id.slice(0, 8)} · {getStatusConfig(emergency.status).label} ·{" "}
-              {locationLabel(emergency)}
+              <GeoLabel emergency={emergency} fallback="Obteniendo dirección…" />
             </p>
             <p className="text-xs text-on-surface-variant mt-2 italic">
               &quot;{emergency.description}&quot;

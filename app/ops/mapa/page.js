@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import MaterialIcon from "../../components/civic/MaterialIcon";
+import GeoLabel from "../../components/civic/GeoLabel";
 import {
   fetchEmergencies,
   POLLING_INTERVAL_MS,
 } from "../../lib/api";
 import {
   priorityDotClass,
-  locationLabel,
   getStatusConfig,
 } from "../../lib/emergencies";
 import PageHeader from "../../components/PageHeader";
@@ -172,8 +172,9 @@ export default function MapaOperativoPage() {
                     {em.description}
                   </div>
                 </div>
-                <div className="text-[10px] text-on-surface-variant">
-                  {locationLabel(em)} · {getStatusConfig(em.status).label}
+                <div className="text-[10px] text-on-surface-variant truncate">
+                  <GeoLabel emergency={em} fallback="Obteniendo dirección…" /> ·{" "}
+                  {getStatusConfig(em.status).label}
                 </div>
               </button>
             );
