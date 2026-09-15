@@ -3,6 +3,7 @@
 import { Badge, Button, Card, Group, Text } from "@mantine/core";
 import { IconAlertTriangle, IconUserCheck, IconShield } from "@tabler/icons-react";
 import { SEVERITY_CONFIG } from "../lib/api";
+import GeoLabel from "./civic/GeoLabel";
 import classes from "../styles.module.css";
 
 export default function EmergencyCard({
@@ -49,6 +50,10 @@ export default function EmergencyCard({
 
       <Text fz="sm" c="dimmed" mt={5}>
         {String(emergency.id).toUpperCase()} — Reportado por {emergency.userId}
+      </Text>
+
+      <Text fz="xs" c="dimmed" mt={2}>
+        <GeoLabel emergency={emergency} fallback="Obteniendo dirección…" />
       </Text>
 
       {/* Oficial asignado (RF-08) */}
