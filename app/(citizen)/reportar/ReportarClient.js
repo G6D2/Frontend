@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../components/civic/CitizenTopBar";
@@ -11,6 +11,8 @@ import {
   getCurrentLocation,
   ApiError,
 } from "../../lib/api";
+import { reverseGeocode } from "../../lib/geocoding";
+import { SOS_ADDRESS_TIMEOUT_MS } from "../../lib/sosController";
 
 // El último ítem (siempre "Otro") ocupa el ancho completo en la grilla de 2
 // columnas de mobile cuando la cantidad de categorías es impar, sin
@@ -54,17 +56,53 @@ export default function ReportarClient() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Ubicación + dirección legible se resuelven apenas se monta la pantalla
+  // (no hace falta esperar al submit) para poder mostrar "Ubicación: <dirección>"
+  // arriba del botón de enviar. `locationRef` guarda la última ubicación
+  // resuelta para reutilizarla en el submit sin pedirla de nuevo.
+  // `address` es undefined mientras se resuelve, null si no llegó a tiempo
+  // (timeout de reverseGeocode) o no se pudo geocodificar, string si sí.
+  const [address, setAddress] = useState(undefined);
+  const locationRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCurrentLocation().then((loc) => {
+      if (cancelled) return;
+      locationRef.current = loc;
+      reverseGeocode(loc.latitude, loc.longitude, {
+        timeoutMs: SOS_ADDRESS_TIMEOUT_MS,
+      }).then((label) => {
+        if (!cancelled) setAddress(label);
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const locationStatusText =
+    address === undefined
+      ? "Ubicación: obteniendo…"
+      : address
+        ? `Ubicación: ${address}`
+        : "Ubicación: coordenadas registradas";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selected || loading) return;
     setLoading(true);
     try {
-      const location = await getCurrentLocation();
+      // Reutiliza la ubicación ya resuelta al montar; si por algún motivo
+      // todavía no llegó, la pide de nuevo (no bloquea más de lo que ya
+      // bloqueaba el flujo anterior).
+      const location = locationRef.current || (await getCurrentLocation());
       const result = await reportIncident({
         category: selected,
         latitude: location.latitude,
         longitude: location.longitude,
         description: description.trim() || undefined,
+        address: address || undefined,
       });
       notifications.show({
         title: "Incidente reportado",
@@ -195,7 +233,10 @@ export default function ReportarClient() {
           desktop es sticky al piso. El padding inferior vive en esa misma
           clase para que el safe-area no lo pise a 0 y el botón no quede
           pegado al borde. */}
-      <footer className="footer-above-nav fixed inset-x-0 z-40 bg-surface border-t border-outline-variant px-4 pt-4 flex justify-end items-center shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] lg:sticky lg:inset-x-auto">
+      <footer className="footer-above-nav fixed inset-x-0 z-40 bg-surface border-t border-outline-variant px-4 pt-3 flex flex-col gap-2 shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] lg:sticky lg:inset-x-auto">
+        <p className="text-xs text-on-surface-variant text-right truncate">
+          {locationStatusText}
+        </p>
         <div className="w-full flex justify-end">
           <button
             type="submit"
