@@ -14,10 +14,12 @@ import { isDispatcher } from "../../../lib/auth";
 import {
   PRIORITY_CONFIG,
   getStatusConfig,
+  getEffectivePriority,
 } from "../../../lib/emergencies";
 import GeoLabel from "../../../components/civic/GeoLabel";
 import PageHeader from "../../../components/PageHeader";
 import { BTN_BASE, BTN_PRIMARY } from "../../../components/ops/buttonStyles";
+import { IncidentBadge, IncidentDetailBlock } from "../../../components/ops/IncidentInfo";
 
 export default function AsignarOficialPage() {
   const params = useParams();
@@ -55,7 +57,7 @@ export default function AsignarOficialPage() {
     };
   }, [params.id, router]);
 
-  const priority = PRIORITY_CONFIG[emergency?.severity || "critical"];
+  const priority = PRIORITY_CONFIG[getEffectivePriority(emergency) || "critical"];
 
   async function handleAssign(officerId) {
     if (!emergency || busyId) return;
@@ -83,15 +85,18 @@ export default function AsignarOficialPage() {
 
         {emergency && (
           <div className="bg-surface-container-lowest border border-outline-variant rounded p-4 mb-6">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 gap-2">
               <h2 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant">
                 Emergencia
               </h2>
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold ${priority.badgeClass}`}
-              >
-                {priority.label}
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${priority.badgeClass}`}
+                >
+                  {priority.label}
+                </span>
+                <IncidentBadge emergency={emergency} />
+              </div>
             </div>
             <p className="text-sm text-on-surface-variant">
               #{emergency.id.slice(0, 8)} · {getStatusConfig(emergency.status).label} ·{" "}
@@ -100,6 +105,9 @@ export default function AsignarOficialPage() {
             <p className="text-xs text-on-surface-variant mt-2 italic">
               &quot;{emergency.description}&quot;
             </p>
+            <div className="mt-3">
+              <IncidentDetailBlock emergency={emergency} />
+            </div>
           </div>
         )}
 

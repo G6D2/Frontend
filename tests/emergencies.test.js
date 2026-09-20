@@ -14,6 +14,11 @@ import {
   SEVERITY_CONFIG,
   priorityDotClass,
   priorityTextClass,
+  getEffectivePriority,
+  isPriorityElevatedByIncident,
+  getIncidentSummary,
+  translateIncidentReasonCode,
+  getEmergencyReason,
 } from "../app/lib/emergencies";
 
 describe("emergencyTitle", () => {
@@ -318,5 +323,192 @@ describe("priorityDotClass / priorityTextClass (clases estáticas, no armadas en
     expect(priorityDotClass("critical")).toMatch(/red/);
     expect(priorityTextClass("high")).toMatch(/orange/);
     expect(priorityTextClass("critical")).toMatch(/red/);
+  });
+});
+
+// Contrato 2026-09 (PR en curso en emergencias-backend, todavía NO en
+// producción): effectivePriority/incident. Todo esto tiene que ser
+// null-safe: no debe romper si el campo no viene (backend actual).
+describe("getEffectivePriority", () => {
+  it("returns null for a null emergency", () => {
+    expect(getEffectivePriority(null)).toBeNull();
+  });
+
+  it("falls back to severity when effectivePriority is missing (backend actual)", () => {
+    expect(getEffectivePriority({ severity: "high" })).toBe("high");
+  });
+
+  it("prefers effectivePriority when the backend sends it", () => {
+    expect(
+      getEffectivePriority({ severity: "medium", effectivePriority: "critical" })
+    ).toBe("critical");
+  });
+
+  it("returns null when neither field is present", () => {
+    expect(getEffectivePriority({})).toBeNull();
+  });
+});
+
+describe("isPriorityElevatedByIncident", () => {
+  it("returns false for a null emergency", () => {
+    expect(isPriorityElevatedByIncident(null)).toBe(false);
+  });
+
+  it("returns false when there is no effectivePriority (backend actual)", () => {
+    expect(isPriorityElevatedByIncident({ severity: "medium" })).toBe(false);
+  });
+
+  it("returns false when effectivePriority equals severity", () => {
+    expect(
+      isPriorityElevatedByIncident({ severity: "high", effectivePriority: "high" })
+    ).toBe(false);
+  });
+
+  it("returns true when effectivePriority ranks above severity", () => {
+    expect(
+      isPriorityElevatedByIncident({ severity: "medium", effectivePriority: "critical" })
+    ).toBe(true);
+  });
+
+  it("returns false when effectivePriority ranks below severity (no debería pasar, pero no debe crashear)", () => {
+    expect(
+      isPriorityElevatedByIncident({ severity: "critical", effectivePriority: "low" })
+    ).toBe(false);
+  });
+
+  it("returns false for unknown severity/priority values", () => {
+    expect(
+      isPriorityElevatedByIncident({ severity: "no-existe", effectivePriority: "critical" })
+    ).toBe(false);
+  });
+});
+
+describe("getIncidentSummary", () => {
+  it("returns null when there is no incident field (backend actual)", () => {
+    expect(getIncidentSummary({ id: "e1" })).toBeNull();
+  });
+
+  it("returns null when incident is explicitly null", () => {
+    expect(getIncidentSummary({ incident: null })).toBeNull();
+  });
+
+  it("returns null for a null/undefined emergency", () => {
+    expect(getIncidentSummary(null)).toBeNull();
+    expect(getIncidentSummary(undefined)).toBeNull();
+  });
+
+  it("normalizes a full incident object", () => {
+    const summary = getIncidentSummary({
+      incident: {
+        id: "inc-1",
+        priority: "high",
+        score: 72,
+        reportCount: 4,
+        uniqueCitizens: 3,
+        reasonCodes: ["MULTIPLE_REPORTS", "CLOSE_PROXIMITY"],
+      },
+    });
+    expect(summary).toEqual({
+      id: "inc-1",
+      priority: "high",
+      score: 72,
+      reportCount: 4,
+      uniqueCitizens: 3,
+      reasonCodes: ["MULTIPLE_REPORTS", "CLOSE_PROXIMITY"],
+    });
+  });
+
+  it("defaults missing numeric/array fields without crashing", () => {
+    const summary = getIncidentSummary({ incident: { id: "inc-2" } });
+    expect(summary).toEqual({
+      id: "inc-2",
+      priority: null,
+      score: null,
+      reportCount: null,
+      uniqueCitizens: null,
+      reasonCodes: [],
+    });
+  });
+});
+
+describe("translateIncidentReasonCode", () => {
+  it("returns empty string for falsy input", () => {
+    expect(translateIncidentReasonCode(null)).toBe("");
+    expect(translateIncidentReasonCode(undefined)).toBe("");
+  });
+
+  it("translates known codes from the contract example", () => {
+    expect(translateIncidentReasonCode("MULTIPLE_REPORTS")).toBe("Múltiples reportes");
+    expect(translateIncidentReasonCode("CLOSE_PROXIMITY")).toBe(
+      "Reportes cercanos entre sí"
+    );
+  });
+
+  it("translates known codes from the in-progress backend implementation", () => {
+    expect(translateIncidentReasonCode("MULTI_REPORT_THRESHOLD")).toBe(
+      "Múltiples reportes"
+    );
+    expect(translateIncidentReasonCode("PROXIMITY_CLUSTER")).toBe(
+      "Reportes cercanos entre sí"
+    );
+    expect(translateIncidentReasonCode("UNIQUE_CITIZENS_THRESHOLD")).toBe(
+      "Reportado por varios ciudadanos"
+    );
+  });
+
+  it("falls back to a readable version of an unknown code", () => {
+    expect(translateIncidentReasonCode("SOME_NEW_CODE")).toBe("some new code");
+  });
+});
+
+describe("getEmergencyReason", () => {
+  it("returns null for a null emergency", () => {
+    expect(getEmergencyReason(null)).toBeNull();
+  });
+
+  it("returns null when there is nothing to show (backend actual, sin campo directo)", () => {
+    expect(getEmergencyReason({ id: "e1", status: "CLOSED" })).toBeNull();
+  });
+
+  it("prefers discardReason when present", () => {
+    expect(getEmergencyReason({ discardReason: "Falsa alarma" })).toBe("Falsa alarma");
+  });
+
+  it("falls back to closeReason", () => {
+    expect(getEmergencyReason({ closeReason: "Atendida por SAME" })).toBe(
+      "Atendida por SAME"
+    );
+  });
+
+  it("falls back to a generic reason field", () => {
+    expect(getEmergencyReason({ reason: "Duplicada" })).toBe("Duplicada");
+  });
+
+  it("ignores blank direct fields and falls back to statusHistory", () => {
+    const emergency = {
+      discardReason: "   ",
+      statusHistory: [
+        { newStatus: "VALIDATED", reason: null },
+        { newStatus: "DISCARDED", reason: "Sin necesidad de intervención" },
+      ],
+    };
+    expect(getEmergencyReason(emergency)).toBe("Sin necesidad de intervención");
+  });
+
+  it("takes the last entry with a reason in statusHistory", () => {
+    const emergency = {
+      statusHistory: [
+        { newStatus: "VALIDATED", reason: "primer motivo" },
+        { newStatus: "CLOSED", reason: "motivo final" },
+      ],
+    };
+    expect(getEmergencyReason(emergency)).toBe("motivo final");
+  });
+
+  it("returns null when statusHistory has no reason at all", () => {
+    const emergency = {
+      statusHistory: [{ newStatus: "VALIDATED", reason: null }],
+    };
+    expect(getEmergencyReason(emergency)).toBeNull();
   });
 });

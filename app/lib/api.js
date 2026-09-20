@@ -246,10 +246,45 @@ export async function fetchEmergencyDetail(id) {
 }
 
 export async function fetchEmergencies() {
-  const res = await apiFetch("/api/emergencies?limit=100&sortBy=createdAt&order=desc");
-  if (Array.isArray(res?.data)) return res.data;
-  if (Array.isArray(res)) return res;
-  return [];
+  const { data } = await fetchEmergenciesPage({ limit: 100 });
+  return data;
+}
+
+/**
+ * Página de emergencias vía GET /api/emergencies, con filtros/paginación.
+ *
+ * `status` acepta un string con uno o varios estados separados por coma
+ * (el controller del backend hace `status.split(',')` y filtra con
+ * `status = ANY(...)`, ver src/controllers/emergency.controller.js) — así que
+ * /ops/historial pide todos los estados terminales (CLOSED, CANCELLED,
+ * DISCARDED, RESOLVED) en una sola llamada en vez de una por estado.
+ *
+ * Devuelve `{ data, pagination }` con `pagination: { page, limit, total,
+ * totalPages } | null` (null si el backend todavía no la manda) para que
+ * quien la use pueda pedir la página siguiente ("Cargar más").
+ */
+export async function fetchEmergenciesPage({
+  status,
+  page = 1,
+  limit = 20,
+  sortBy = "createdAt",
+  order = "desc",
+} = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  params.set("sortBy", sortBy);
+  params.set("order", order);
+
+  const res = await apiFetch(`/api/emergencies?${params.toString()}`);
+  const data = Array.isArray(res?.data)
+    ? res.data
+    : Array.isArray(res)
+      ? res
+      : [];
+  const pagination = res?.pagination || null;
+  return { data, pagination };
 }
 
 export async function cancelEmergency(id, reason = null) {

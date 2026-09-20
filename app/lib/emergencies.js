@@ -233,3 +233,120 @@ export function locationLabel(emergency) {
   }
   return "Sin ubicación";
 }
+
+// ── Incidente / prioridad efectiva (contrato 2026-09, PR en curso en
+// emergencias-backend, todavía NO en producción) ──────────────────────────
+//
+// El backend va a empezar a mandar, en el listado y detalle de emergencias:
+//   effectivePriority: "critical" | "high" | "medium" | "low" | undefined
+//   incident: null | { id, priority, score, reportCount, uniqueCitizens, reasonCodes }
+//
+// Todo lo de acá abajo es null-safe a propósito: mientras el PR no esté en
+// producción (y para cualquier emergencia vieja sin incidente asociado)
+// `effectivePriority`/`incident` simplemente no vienen, y estas funciones
+// tienen que devolver algo razonable sin romper.
+
+/** Orden de severidad/prioridad, de menor a mayor. */
+const PRIORITY_RANK = { low: 0, medium: 1, high: 2, critical: 3 };
+
+/**
+ * Prioridad "efectiva" de una emergencia: la que calculó el Risk Engine de
+ * detección de incidentes (`effectivePriority`) si el backend ya la manda,
+ * o si no la `severity` original. Úsala en vez de `emergency.severity` en
+ * cualquier badge/orden de prioridad de las vistas del dispatcher.
+ */
+export function getEffectivePriority(emergency) {
+  if (!emergency) return null;
+  return emergency.effectivePriority || emergency.severity || null;
+}
+
+/**
+ * true si la prioridad efectiva quedó por encima de la severity original
+ * (el Risk Engine la subió por señales de incidente: varios reportes,
+ * proximidad, etc.). Sirve para aclarar "Prioridad elevada por incidente
+ * (era Media)" en el detalle.
+ */
+export function isPriorityElevatedByIncident(emergency) {
+  if (!emergency) return false;
+  const effective = getEffectivePriority(emergency);
+  const original = emergency.severity;
+  if (!effective || !original || effective === original) return false;
+  const effectiveRank = PRIORITY_RANK[effective];
+  const originalRank = PRIORITY_RANK[original];
+  if (effectiveRank === undefined || originalRank === undefined) return false;
+  return effectiveRank > originalRank;
+}
+
+/**
+ * Resumen normalizado del incidente agrupado (varios reportes de la misma
+ * zona/tipo agrupados por el Risk Engine en un único incidente). Devuelve
+ * null si la emergencia no tiene incidente asociado — hoy siempre, hasta que
+ * se mergee el PR del backend, o para cualquier emergencia sin agrupar.
+ */
+export function getIncidentSummary(emergency) {
+  const incident = emergency?.incident;
+  if (!incident || typeof incident !== "object") return null;
+  return {
+    id: incident.id ?? null,
+    priority: incident.priority ?? null,
+    score: typeof incident.score === "number" ? incident.score : null,
+    reportCount:
+      typeof incident.reportCount === "number" ? incident.reportCount : null,
+    uniqueCitizens:
+      typeof incident.uniqueCitizens === "number"
+        ? incident.uniqueCitizens
+        : null,
+    reasonCodes: Array.isArray(incident.reasonCodes)
+      ? incident.reasonCodes.filter((code) => typeof code === "string")
+      : [],
+  };
+}
+
+/**
+ * reasonCodes del Risk Engine → texto humano en español. Cubre tanto los
+ * códigos del contrato (MULTIPLE_REPORTS/CLOSE_PROXIMITY) como los que ya
+ * usa la implementación en curso del backend (MULTI_REPORT_THRESHOLD/
+ * PROXIMITY_CLUSTER/UNIQUE_CITIZENS_THRESHOLD); fallback al código legible
+ * si aparece uno nuevo que todavía no mapeamos.
+ */
+const INCIDENT_REASON_LABELS = {
+  MULTIPLE_REPORTS: "Múltiples reportes",
+  MULTI_REPORT_THRESHOLD: "Múltiples reportes",
+  CLOSE_PROXIMITY: "Reportes cercanos entre sí",
+  PROXIMITY_CLUSTER: "Reportes cercanos entre sí",
+  UNIQUE_CITIZENS_THRESHOLD: "Reportado por varios ciudadanos",
+  SAME_TYPE: "Mismo tipo de emergencia",
+  TIME_WINDOW: "Reportado en una ventana de tiempo corta",
+};
+
+export function translateIncidentReasonCode(code) {
+  if (!code || typeof code !== "string") return "";
+  return (
+    INCIDENT_REASON_LABELS[code] ||
+    code.replace(/_/g, " ").trim().toLowerCase()
+  );
+}
+
+/**
+ * Motivo de cierre/descarte de una emergencia. Prioriza campos directos
+ * (`discardReason`/`closeReason`/`reason`, por si el backend llega a
+ * exponerlos en el listado) y, si no hay, busca el último motivo del
+ * historial de estados (`statusHistory`, que hoy solo viene en el detalle de
+ * GET /api/emergencies/:id, no en el listado). null si no hay nada — quien
+ * la use debe mostrar "—".
+ */
+export function getEmergencyReason(emergency) {
+  if (!emergency) return null;
+  const direct =
+    emergency.discardReason || emergency.closeReason || emergency.reason;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  if (Array.isArray(emergency.statusHistory)) {
+    for (let i = emergency.statusHistory.length - 1; i >= 0; i -= 1) {
+      const entry = emergency.statusHistory[i];
+      if (entry && typeof entry.reason === "string" && entry.reason.trim()) {
+        return entry.reason.trim();
+      }
+    }
+  }
+  return null;
+}

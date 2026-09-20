@@ -68,6 +68,40 @@ describe("/api/backend/[...path]", () => {
     expect(calls[0].url).toContain("?status=activa&page=2");
   });
 
+  // /ops/historial (issue #46) pide varios estados terminales en una sola
+  // llamada, separados por coma (el controller del backend hace
+  // status.split(',') y filtra con status = ANY(...), ver
+  // src/controllers/emergency.controller.js en emergencias-backend) en vez
+  // de una llamada por estado. Este test confirma que el proxy no rompe esa
+  // lista al reenviarla, y que devuelve `pagination` intacta para el
+  // "Cargar más" del historial.
+  it("listado con filtro de varios estados (historial): reenvía status=A,B,C y devuelve data + pagination", async () => {
+    mockNextCookies(cookies, { citypass_session: TOKEN });
+    const { calls } = mockBackend({
+      "GET /emergencies": {
+        status: 200,
+        body: {
+          data: [
+            { id: "e1", status: "CLOSED", closedAt: "2026-09-19T10:00:00Z" },
+            { id: "e2", status: "DISCARDED", closedAt: "2026-09-18T10:00:00Z" },
+          ],
+          pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+        },
+      },
+    });
+
+    const req = makeRequest(
+      "http://localhost/api/backend/emergencies?status=CLOSED,CANCELLED,DISCARDED,RESOLVED&page=1&limit=20&sortBy=createdAt&order=desc"
+    );
+    const res = await GET(req, ctxFor(["emergencies"]));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(calls[0].url).toContain("status=CLOSED,CANCELLED,DISCARDED,RESOLVED");
+    expect(json.data).toHaveLength(2);
+    expect(json.pagination).toEqual({ page: 1, limit: 20, total: 2, totalPages: 1 });
+  });
+
   it("POST: reenvía el body al backend", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     const { calls } = mockBackend({

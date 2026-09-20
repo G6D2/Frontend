@@ -11,8 +11,10 @@ import {
 import {
   priorityDotClass,
   getStatusConfig,
+  getEffectivePriority,
 } from "../../lib/emergencies";
 import PageHeader from "../../components/PageHeader";
+import { IncidentBadge } from "../../components/ops/IncidentInfo";
 
 const OpsMap = dynamic(() => import("../../components/ops/OpsMap"), {
   ssr: false,
@@ -166,16 +168,17 @@ export default function MapaOperativoPage() {
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDotClass(em.severity)}`}
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityDotClass(getEffectivePriority(em))}`}
                   />
                   <div className="text-xs font-bold text-on-surface truncate">
                     {em.description}
                   </div>
                 </div>
-                <div className="text-[10px] text-on-surface-variant truncate">
+                <div className="text-[10px] text-on-surface-variant truncate mb-1">
                   <GeoLabel emergency={em} fallback="Obteniendo dirección…" /> ·{" "}
                   {getStatusConfig(em.status).label}
                 </div>
+                <IncidentBadge emergency={em} />
               </button>
             );
           })}
