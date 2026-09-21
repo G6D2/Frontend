@@ -4,9 +4,8 @@ import Image from "next/image";
 import { ActionIcon, Group, Tooltip } from "@mantine/core";
 import {
   IconHome,
-  IconMessageReport,
+  IconBellPlus,
   IconShieldExclamation,
-  IconLayoutKanban,
   IconList,
   IconMap,
   IconUsers,
@@ -17,21 +16,28 @@ import {
 } from "@tabler/icons-react";
 import classes from "../styles.module.css";
 
+// "Reportar" (antes "Reclamos", que es otro módulo de CityPass+) lleva a
+// /reportar; el ícono coincide con el "add_alert" del bottom nav del
+// ciudadano (IconBellPlus es el equivalente Tabler más cercano).
 const CITIZEN_NAV = [
   { label: "Inicio", icon: IconHome },
   { label: "Mis alertas", icon: IconShieldExclamation },
-  { label: "Reclamos", icon: IconMessageReport },
+  { label: "Reportar", icon: IconBellPlus },
   { label: "Mi Cuenta", icon: IconUser },
 ];
 
 const DISPATCHER_NAV = [
-  { label: "Estados", icon: IconLayoutKanban },
   { label: "Lista", icon: IconList },
   { label: "Mapa", icon: IconMap },
   { label: "Oficiales", icon: IconUsers },
   { label: "Historial", icon: IconHistory },
   { label: "Mi Cuenta", icon: IconUser },
 ];
+
+/** Texto visible del ítem de navegación (sin el rol entre paréntesis). */
+function navLabel(label) {
+  return label === "Mi Cuenta" ? "Mi cuenta" : label;
+}
 
 export default function Navbar({
   active,
@@ -42,25 +48,46 @@ export default function Navbar({
 }) {
   const items = role === "dispatcher" ? DISPATCHER_NAV : CITIZEN_NAV;
 
-  const links = items.map((item) => (
-    <a
-      className={classes.link}
-      data-active={item.label === active || undefined}
-      href="#"
-      key={item.label}
-      onClick={(event) => {
-        event.preventDefault();
-        onNavClick(item.label);
-      }}
-    >
-      <item.icon className={classes.linkIcon} stroke={1.5} />
-      <span>
-        {item.label === "Mi Cuenta"
-          ? `Mi Cuenta (${role === "usuario" ? "Usuario" : "Dispatcher"})`
-          : item.label}
-      </span>
-    </a>
-  ));
+  const links = items.map((item) => {
+    const isActive = item.label === active;
+    const label = navLabel(item.label);
+
+    if (!opened) {
+      // Modo contraído: sólo ícono, con title/tooltip nativo para el label.
+      return (
+        <a
+          className={`${classes.link} ${classes.linkCollapsed}`}
+          data-active={isActive || undefined}
+          href="#"
+          key={item.label}
+          title={label}
+          aria-label={label}
+          onClick={(event) => {
+            event.preventDefault();
+            onNavClick(item.label);
+          }}
+        >
+          <item.icon className={classes.linkIcon} stroke={1.5} />
+        </a>
+      );
+    }
+
+    return (
+      <a
+        className={classes.link}
+        data-active={isActive || undefined}
+        href="#"
+        key={item.label}
+        onClick={(event) => {
+          event.preventDefault();
+          onNavClick(item.label);
+        }}
+      >
+        <item.icon className={classes.linkIcon} stroke={1.5} />
+        <span>{label}</span>
+      </a>
+    );
+  });
 
   const bottomLinks = items.map((item) => {
     const isActive = item.label === active;
@@ -87,75 +114,94 @@ export default function Navbar({
 
   return (
     <>
-      {!opened && onToggle && (
-        <Tooltip label="Expandir menú" position="right" withArrow>
-          <ActionIcon
-            variant="filled"
-            size="lg"
-            radius="xl"
-            onClick={onToggle}
-            className={classes.navbarExpandFloatingBtn}
-            aria-label="Expandir menú"
-          >
-            <IconChevronRight size={20} />
-          </ActionIcon>
-        </Tooltip>
-      )}
-
       {/* Desktop Sidebar Navbar */}
       <nav
         className={`${classes.navbar} ${!opened ? classes.navbarCollapsed : ""}`}
       >
         <div className={classes.navbarMain}>
-          <Group className={classes.header} justify="space-between" align="center">
-            <Group gap="sm" align="center" style={{ flex: 1 }}>
+          {opened ? (
+            <Group className={classes.header} justify="space-between" align="center">
+              <Group gap="sm" align="center" style={{ flex: 1 }}>
+                <Image
+                  src="/Images/CityPass_logo.png"
+                  alt="CityPass+ Logo"
+                  width={45}
+                  height={45}
+                  style={{ objectFit: "contain" }}
+                />
+                <span className={classes.brandName}>
+                  CityPass<span className={classes.brandPlus}>+</span>
+                </span>
+              </Group>
+
+              {onToggle && (
+                <Tooltip label="Ocultar menú" position="bottom" withArrow>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="md"
+                    radius="md"
+                    onClick={onToggle}
+                    aria-label="Ocultar menú"
+                  >
+                    <IconChevronLeft size={20} color="rgba(255,255,255,0.7)" />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
+          ) : (
+            <div className={`${classes.header} ${classes.headerCollapsed}`}>
               <Image
                 src="/Images/CityPass_logo.png"
                 alt="CityPass+ Logo"
-                width={45}
-                height={45}
+                width={28}
+                height={28}
                 style={{ objectFit: "contain" }}
               />
-              <span className={classes.brandName}>
-                CityPass<span className={classes.brandPlus}>+</span>
-              </span>
-            </Group>
 
-            {onToggle && (
-              <Tooltip label="Ocultar menú" position="bottom" withArrow>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="md"
-                  radius="md"
-                  onClick={onToggle}
-                  aria-label="Ocultar menú"
-                >
-                  <IconChevronLeft size={20} color="rgba(255,255,255,0.7)" />
-                </ActionIcon>
-              </Tooltip>
-            )}
-          </Group>
+              {onToggle && (
+                <Tooltip label="Expandir menú" position="right" withArrow>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="md"
+                    radius="md"
+                    onClick={onToggle}
+                    aria-label="Expandir menú"
+                  >
+                    <IconChevronRight size={20} color="rgba(255,255,255,0.7)" />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </div>
+          )}
 
-          <div className={classes.sectionTitle}>Navegación</div>
+          {opened && <div className={classes.sectionTitle}>Navegación</div>}
           {links}
         </div>
 
-        <div className={classes.navbarFooterImage}>
-          <Image
-            src="/Images/CityPass_footer_navbar_image.png"
-            alt="CityPass+"
-            width={225}
-            height={105}
-            style={{ objectFit: "contain" }}
-          />
-        </div>
+        {opened && (
+          <div className={classes.navbarFooterImage}>
+            <Image
+              src="/Images/CityPass_footer_navbar_image.png"
+              alt="CityPass+"
+              width={225}
+              height={105}
+              style={{ objectFit: "contain" }}
+            />
+          </div>
+        )}
       </nav>
 
-      {/* Mobile Bottom Navbar */}
-      <nav className={classes.bottomNavbar} aria-label="Navegación móvil">
-        {bottomLinks}
-      </nav>
+      {/* Mobile Bottom Navbar: solo para dispatcher/oficial. El ciudadano usa
+          CitizenBottomNav (app/components/civic/CitizenBottomNav.js), montado
+          una sola vez desde app/(citizen)/layout.js; si también se mostrara
+          esta barra quedarían dos navs inferiores superpuestas en celular. */}
+      {role !== "usuario" && (
+        <nav className={classes.bottomNavbar} aria-label="Navegación móvil">
+          {bottomLinks}
+        </nav>
+      )}
     </>
   );
 }

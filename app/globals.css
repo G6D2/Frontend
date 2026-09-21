@@ -50,13 +50,18 @@
   --color-outline: #74777f;
   --color-outline-variant: #c4c6cf;
 
-  /* Ops colors */
-  --color-priority-high: #b91c1c;
-  --color-priority-med: #f97316;
+  /* Ops colors: crítica (roja) y alta (naranja) distintas — antes
+     compartían --color-priority-high y el banner/pill mostraba "ALTA"
+     para ambas severidades. */
+  --color-priority-critical: #b91c1c;
+  --color-priority-high: #f97316;
+  --color-priority-med: #ca8a04;
   --color-priority-low: #3b82f6;
-  --color-status-pendiente: #64748b;
-  --color-status-validada: #0d9488;
-  --color-status-despachada: #7c3aed;
+  /* Tonos oscuros (AA, ≥ 4.5:1 sobre blanco y sobre su propio tinte claro) */
+  --color-status-pendiente: #78350f;
+  --color-status-validada: #166534;
+  --color-status-despachada: #1e40af;
+  --color-status-terminal: #374151;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -86,6 +91,19 @@
   }
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0px);
+  }
+  /* Footer de acción del ciudadano: en mobile va pegado justo encima de
+     CitizenBottomNav (4rem + safe-area), en desktop es sticky al piso y
+     absorbe el safe-area en su propio padding. */
+  .footer-above-nav {
+    bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 1rem;
+  }
+  @media (min-width: 1024px) {
+    .footer-above-nav {
+      bottom: 0;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    }
   }
   .min-h-touch {
     min-height: 44px;
@@ -142,6 +160,30 @@
   100% {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(186, 26, 26, 0);
+  }
+}
+
+/* Anillo exterior que titila para el header de una emergencia activa (RF-*).
+   Sólo anima box-shadow/outline: nunca toca el color del texto, así que el
+   título y la descripción mantienen su contraste AA en todo momento. */
+@keyframes emergency-ring-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-error) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-error) 0%, transparent);
+  }
+}
+
+.emergency-pulse-ring {
+  animation: emergency-ring-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emergency-pulse-ring {
+    animation: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 45%, transparent);
   }
 }
 

@@ -8,12 +8,11 @@ import classes from "../styles.module.css";
 const CITIZEN_ROUTES = {
   Inicio: "/inicio",
   "Mis alertas": "/mis-alertas",
-  Reclamos: "/reportar",
+  Reportar: "/reportar",
   "Mi Cuenta": "/perfil",
 };
 
 const DISPATCHER_ROUTES = {
-  Estados: "/ops",
   Lista: "/ops/lista",
   Mapa: "/ops/mapa",
   Oficiales: "/ops/oficiales",
@@ -28,11 +27,13 @@ function resolveActive(pathname, role) {
     if (pathname.startsWith("/ops/historial")) return "Historial";
     if (pathname.startsWith("/ops/mapa")) return "Mapa";
     if (pathname.startsWith("/ops/oficiales")) return "Oficiales";
-    return "Estados";
+    // "Estados" (kanban Mantine en /ops) se sacó del drawer; /ops redirige a
+    // /ops/lista (ver app/ops/page.js), que ahora es el primer ítem.
+    return "Lista";
   }
 
   if (pathname.startsWith("/mis-alertas")) return "Mis alertas";
-  if (pathname.startsWith("/reportar")) return "Reclamos";
+  if (pathname.startsWith("/reportar")) return "Reportar";
   if (pathname.startsWith("/perfil")) return "Mi Cuenta";
   return "Inicio";
 }

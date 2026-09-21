@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { notifications } from "@mantine/notifications";
+import CitizenTopBar from "../../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../../components/civic/MaterialIcon";
+import ConfirmCancelModal from "../../../components/civic/ConfirmCancelModal";
 import {
   fetchEmergencyDetail,
   cancelEmergency,
@@ -13,6 +15,7 @@ import {
 import {
   getStatusConfig,
   isCancelable,
+  isActiveStatus,
   formatTime,
   formatTimeShort,
 } from "../../../lib/emergencies";
@@ -24,6 +27,7 @@ export default function AlertDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,11 +48,11 @@ export default function AlertDetailPage() {
     };
   }, [params.id]);
 
-  const handleCancel = async () => {
+  const handleCancel = async (reason) => {
     if (!emergency || !isCancelable(emergency.status)) return;
     setCancelling(true);
     try {
-      const cancelReason = "Ya no necesito asistencia";
+      const cancelReason = reason || "Ya no necesito asistencia";
       const updated = await cancelEmergency(emergency.id, cancelReason);
       setEmergency((prev) => ({
         ...prev,
@@ -68,6 +72,7 @@ export default function AlertDetailPage() {
         message: "Se avisó que ya no necesitás ayuda.",
         color: "teal",
       });
+      setCancelModalOpen(false);
     } catch (err) {
       notifications.show({
         title: "No se pudo cancelar",
@@ -81,23 +86,13 @@ export default function AlertDetailPage() {
 
   const statusCfg = getStatusConfig(emergency?.status);
   const history = emergency?.statusHistory || [];
+  const isEmergencyActive = Boolean(emergency && isActiveStatus(emergency.status));
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-40 flex items-center px-4 h-14 bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-        <Link
-          href="/mis-alertas"
-          aria-label="Volver"
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-primary"
-        >
-          <MaterialIcon name="arrow_back" size={28} />
-        </Link>
-        <h1 className="text-xl font-semibold text-primary ml-2 flex-1 truncate">
-          Estado de emergencia
-        </h1>
-      </header>
+    <>
+      <CitizenTopBar showBack backHref="/mis-alertas" title="Detalle de la alerta" />
 
-      <main className="p-4 md:p-12 max-w-md w-full mx-auto flex-1 flex flex-col gap-6 pb-8">
+      <CitizenPageContainer>
         {loading && (
           <p className="text-on-surface-variant text-center py-12">Cargando…</p>
         )}
@@ -110,9 +105,12 @@ export default function AlertDetailPage() {
 
         {emergency && (
           <>
-            <section className="bg-surface-container-high rounded-xl p-6 shadow-sm border border-surface-container relative overflow-hidden flex flex-col items-center text-center">
-              <div className="absolute inset-0 bg-primary opacity-5 animate-pulse rounded-xl pointer-events-none" />
-              <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-on-primary mb-4 relative z-10 shadow-md">
+            <section
+              className={`bg-surface-container-high rounded-xl p-6 shadow-sm border border-surface-container flex flex-col items-center text-center ${
+                isEmergencyActive ? "emergency-pulse-ring" : ""
+              }`}
+            >
+              <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-on-primary mb-4 shadow-md">
                 <MaterialIcon
                   name={
                     emergency.status === "CANCELLED" ? "cancel" : "emergency"
@@ -121,10 +119,10 @@ export default function AlertDetailPage() {
                   size={32}
                 />
               </div>
-              <h2 className="text-2xl font-bold text-on-surface relative z-10">
+              <h2 className="text-2xl font-bold text-on-surface">
                 {statusCfg.label}
               </h2>
-              <p className="text-base text-on-surface-variant mt-2 max-w-[250px] relative z-10">
+              <p className="text-base text-on-surface-variant mt-2 max-w-[250px]">
                 {emergency.description}
               </p>
             </section>
@@ -146,10 +144,6 @@ export default function AlertDetailPage() {
               <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                 <MaterialIcon name="schedule" size={18} />
                 <span>{formatTime(emergency.createdAt)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-on-surface-variant font-mono">
-                <MaterialIcon name="tag" size={18} />
-                <span className="truncate">{emergency.id}</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                 <MaterialIcon name="priority_high" size={18} className="text-error" />
@@ -199,22 +193,34 @@ export default function AlertDetailPage() {
 
             {isCancelable(emergency.status) && (
               <button
-                onClick={handleCancel}
+                type="button"
+                onClick={() => setCancelModalOpen(true)}
                 disabled={cancelling}
-                className="w-full bg-surface text-secondary font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-secondary/40 hover:bg-error-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                aria-busy={cancelling}
+                className="w-full bg-surface text-secondary font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-secondary/40 cursor-pointer hover:bg-error-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <MaterialIcon name="cancel" />
                 {cancelling ? "Cancelando…" : "Cancelar asistencia"}
               </button>
             )}
 
-            <button className="w-full bg-surface text-error font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-error/30 hover:bg-error-container transition-colors flex items-center justify-center gap-2">
+            <a
+              href="tel:911"
+              className="w-full bg-surface text-error font-semibold text-sm tracking-wide py-4 rounded-full min-h-[56px] border border-error/30 cursor-pointer hover:bg-error-container transition-colors flex items-center justify-center gap-2"
+            >
               <MaterialIcon name="call" />
               Llamar al 911
-            </button>
+            </a>
           </>
         )}
-      </main>
-    </div>
+      </CitizenPageContainer>
+
+      <ConfirmCancelModal
+        open={cancelModalOpen}
+        onClose={() => (cancelling ? null : setCancelModalOpen(false))}
+        onConfirm={handleCancel}
+        loading={cancelling}
+      />
+    </>
   );
 }

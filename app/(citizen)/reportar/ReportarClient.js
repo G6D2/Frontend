@@ -1,23 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../components/civic/CitizenTopBar";
+import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
   reportIncident,
   getCurrentLocation,
   ApiError,
 } from "../../lib/api";
+import { reverseGeocode } from "../../lib/geocoding";
+import { SOS_ADDRESS_TIMEOUT_MS } from "../../lib/sosController";
 
+// El último ítem (siempre "Otro") ocupa el ancho completo en la grilla de 2
+// columnas de mobile cuando la cantidad de categorías es impar, sin
+// hardcodear qué categoría es: se calcula por posición más abajo.
 const CATEGORIES = [
   {
     value: "medical",
     label: "Emergencia médica",
     icon: "medical_services",
     emergency: true,
-    colSpan: "col-span-2 md:col-span-1",
   },
   {
     value: "fire",
@@ -51,17 +56,53 @@ export default function ReportarClient() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Ubicación + dirección legible se resuelven apenas se monta la pantalla
+  // (no hace falta esperar al submit) para poder mostrar "Ubicación: <dirección>"
+  // arriba del botón de enviar. `locationRef` guarda la última ubicación
+  // resuelta para reutilizarla en el submit sin pedirla de nuevo.
+  // `address` es undefined mientras se resuelve, null si no llegó a tiempo
+  // (timeout de reverseGeocode) o no se pudo geocodificar, string si sí.
+  const [address, setAddress] = useState(undefined);
+  const locationRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCurrentLocation().then((loc) => {
+      if (cancelled) return;
+      locationRef.current = loc;
+      reverseGeocode(loc.latitude, loc.longitude, {
+        timeoutMs: SOS_ADDRESS_TIMEOUT_MS,
+      }).then((label) => {
+        if (!cancelled) setAddress(label);
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const locationStatusText =
+    address === undefined
+      ? "Ubicación: obteniendo…"
+      : address
+        ? `Ubicación: ${address}`
+        : "Ubicación: coordenadas registradas";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selected || loading) return;
     setLoading(true);
     try {
-      const location = await getCurrentLocation();
+      // Reutiliza la ubicación ya resuelta al montar; si por algún motivo
+      // todavía no llegó, la pide de nuevo (no bloquea más de lo que ya
+      // bloqueaba el flujo anterior).
+      const location = locationRef.current || (await getCurrentLocation());
       const result = await reportIncident({
         category: selected,
         latitude: location.latitude,
         longitude: location.longitude,
         description: description.trim() || undefined,
+        address: address || undefined,
       });
       notifications.show({
         title: "Incidente reportado",
@@ -86,16 +127,12 @@ export default function ReportarClient() {
 
   return (
     <>
-      <CitizenTopBar
-        showBack
-        backHref="/inicio"
-        showClose
-        onClose={() => router.push("/inicio")}
-        showNotifications={false}
-      />
+      <CitizenTopBar title="Reportar incidente" />
 
-      <main className="flex-1 px-4 md:px-12 md:max-w-[1280px] md:mx-auto w-full pt-6 pb-8">
-        <div className="mb-8">
+      {/* pb-36 en mobile deja lugar al footer fijo + CitizenBottomNav (ambos
+          `fixed`) para que no tapen el cuadro de aviso final del form. */}
+      <CitizenPageContainer className="pt-6 pb-36 lg:pb-8">
+        <div className="mb-4">
           <h2 className="text-2xl md:text-[32px] font-bold text-on-surface mb-2">
             ¿Qué está pasando?
           </h2>
@@ -107,7 +144,7 @@ export default function ReportarClient() {
         <form
           id="report-form"
           onSubmit={handleSubmit}
-          className="flex flex-col gap-8"
+          className="flex flex-col gap-6"
         >
           <div className="flex flex-col gap-2">
             <label
@@ -133,41 +170,49 @@ export default function ReportarClient() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {CATEGORIES.map((cat) => (
-              <label
-                key={cat.value}
-                className={`relative cursor-pointer group ${cat.colSpan || ""}`}
-              >
-                <input
-                  type="radio"
-                  name="incident_type"
-                  value={cat.value}
-                  checked={selected === cat.value}
-                  onChange={() => setSelected(cat.value)}
-                  className={`category-radio sr-only ${cat.emergency ? "emergency-radio" : ""}`}
-                />
-                <div className="h-full bg-surface rounded-xl border border-outline-variant p-4 flex flex-col items-center justify-center text-center gap-3 transition-all duration-200 hover:shadow-md min-h-[120px]">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      cat.emergency
-                        ? "bg-error-container"
-                        : "bg-surface-container-high"
-                    }`}
-                  >
-                    <MaterialIcon
-                      name={cat.icon}
-                      size={28}
-                      className={
-                        cat.emergency ? "text-error" : "text-on-surface-variant"
-                      }
-                    />
+            {CATEGORIES.map((cat, index) => {
+              // En la grilla de 2 columnas de mobile, si la cantidad de
+              // categorías es impar el último ítem (siempre "Otro", ver
+              // arriba) ocupa el ancho completo para no dejar un hueco.
+              const isLastOdd =
+                index === CATEGORIES.length - 1 &&
+                CATEGORIES.length % 2 === 1;
+              return (
+                <label
+                  key={cat.value}
+                  className={`relative cursor-pointer group ${isLastOdd ? "col-span-2 md:col-span-1" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="incident_type"
+                    value={cat.value}
+                    checked={selected === cat.value}
+                    onChange={() => setSelected(cat.value)}
+                    className={`category-radio sr-only ${cat.emergency ? "emergency-radio" : ""}`}
+                  />
+                  <div className="h-full bg-surface rounded-xl border border-outline-variant p-4 flex flex-col items-center justify-center text-center gap-3 transition-all duration-200 hover:shadow-md min-h-[120px]">
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                        cat.emergency
+                          ? "bg-error-container"
+                          : "bg-surface-container-high"
+                      }`}
+                    >
+                      <MaterialIcon
+                        name={cat.icon}
+                        size={28}
+                        className={
+                          cat.emergency ? "text-error" : "text-on-surface-variant"
+                        }
+                      />
+                    </div>
+                    <span className="text-sm font-semibold tracking-wide text-on-surface">
+                      {cat.label}
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold tracking-wide text-on-surface">
-                    {cat.label}
-                  </span>
-                </div>
-              </label>
-            ))}
+                </label>
+              );
+            })}
           </div>
         </form>
 
@@ -181,9 +226,17 @@ export default function ReportarClient() {
             el botón de SOS o llame al 911 inmediatamente.
           </p>
         </div>
-      </main>
+      </CitizenPageContainer>
 
-      <footer className="sticky bottom-0 z-40 bg-surface border-t border-outline-variant px-4 py-4 pb-safe flex justify-end items-center shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)]">
+      {/* En mobile es fixed justo encima de CitizenBottomNav (ver
+          .footer-above-nav en globals.css: 4rem + safe-area, sin hueco); en
+          desktop es sticky al piso. El padding inferior vive en esa misma
+          clase para que el safe-area no lo pise a 0 y el botón no quede
+          pegado al borde. */}
+      <footer className="footer-above-nav fixed inset-x-0 z-40 bg-surface border-t border-outline-variant px-4 pt-3 flex flex-col gap-2 shadow-[0_-4px_12px_0_rgba(0,0,0,0.05)] lg:sticky lg:inset-x-auto">
+        <p className="text-xs text-on-surface-variant text-right truncate">
+          {locationStatusText}
+        </p>
         <div className="w-full flex justify-end">
           <button
             type="submit"

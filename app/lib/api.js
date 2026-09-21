@@ -4,6 +4,7 @@ import {
   setStoredUser,
   getHomePathForUser,
 } from "./auth";
+import { SEVERITY_CONFIG } from "./emergencies";
 
 export const POLLING_INTERVAL_MS = 5000;
 
@@ -35,6 +36,61 @@ export class ApiError extends Error {
   }
 }
 
+// ── Store "esperando al backend" ──────────────────────────────────────
+// El backend en Render (plan free) tarda 10 a 60 s en despertar y
+// lib/backend-fetch.js (usado por el proxy /api/backend/*) reintenta hasta
+// ~24 s antes de devolver un error. Mientras tanto, apiFetch queda colgado
+// desde la vista del cliente. Este store marca "esperando" cuando una
+// llamada supera WAITING_THRESHOLD_MS sin resolverse, para que
+// BackendWaitingIndicator (civic/BackendWaitingIndicator.js) muestre un
+// aviso discreto fuera del login. Expuesto como un mini event emitter
+// compatible con useSyncExternalStore (subscribe + getSnapshot).
+const WAITING_THRESHOLD_MS = 3000;
+let pendingCalls = 0;
+let waiting = false;
+let waitTimer = null;
+const waitingListeners = new Set();
+
+function setWaiting(value) {
+  if (waiting === value) return;
+  waiting = value;
+  waitingListeners.forEach((listener) => listener());
+}
+
+function beginBackendCall() {
+  pendingCalls += 1;
+  if (!waitTimer && !waiting) {
+    waitTimer = setTimeout(() => {
+      waitTimer = null;
+      if (pendingCalls > 0) setWaiting(true);
+    }, WAITING_THRESHOLD_MS);
+  }
+}
+
+function endBackendCall() {
+  pendingCalls = Math.max(0, pendingCalls - 1);
+  if (pendingCalls === 0) {
+    if (waitTimer) {
+      clearTimeout(waitTimer);
+      waitTimer = null;
+    }
+    setWaiting(false);
+  }
+}
+
+export const backendWaitingStore = {
+  subscribe(listener) {
+    waitingListeners.add(listener);
+    return () => waitingListeners.delete(listener);
+  },
+  getSnapshot() {
+    return waiting;
+  },
+  getServerSnapshot() {
+    return false;
+  },
+};
+
 async function parseJsonSafe(res) {
   try {
     return await res.json();
@@ -50,12 +106,19 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
   }
 
   const url = auth ? `/api/backend${path}` : path;
-  const res = await fetch(url, {
-    method,
-    headers,
-    credentials: "same-origin",
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+
+  let res;
+  beginBackendCall();
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      credentials: "same-origin",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } finally {
+    endBackendCall();
+  }
 
   const data = await parseJsonSafe(res);
 
@@ -140,12 +203,17 @@ export async function hasValidSession() {
   }
 }
 
+// Tope del backend para el campo opcional `address` (string ≤ 200, ver
+// POST /api/panic-button en emergencies-backend).
+const ADDRESS_MAX_LENGTH = 200;
+
 export async function triggerPanicButton({
   latitude,
   longitude,
   description,
   severity = "critical",
   emergencyType = "panic",
+  address,
 }) {
   // Backend exige numbers (AES location crypto + ValidationError si NaN/string)
   const lat = Number(latitude);
@@ -162,6 +230,9 @@ export async function triggerPanicButton({
     emergencyType,
   };
   if (description) body.description = description;
+  if (typeof address === "string" && address.trim()) {
+    body.address = address.trim().slice(0, ADDRESS_MAX_LENGTH);
+  }
 
   return apiFetch("/api/panic-button", {
     method: "POST",
@@ -175,10 +246,45 @@ export async function fetchEmergencyDetail(id) {
 }
 
 export async function fetchEmergencies() {
-  const res = await apiFetch("/api/emergencies?limit=100&sortBy=createdAt&order=desc");
-  if (Array.isArray(res?.data)) return res.data;
-  if (Array.isArray(res)) return res;
-  return [];
+  const { data } = await fetchEmergenciesPage({ limit: 100 });
+  return data;
+}
+
+/**
+ * Página de emergencias vía GET /api/emergencies, con filtros/paginación.
+ *
+ * `status` acepta un string con uno o varios estados separados por coma
+ * (el controller del backend hace `status.split(',')` y filtra con
+ * `status = ANY(...)`, ver src/controllers/emergency.controller.js) — así que
+ * /ops/historial pide todos los estados terminales (CLOSED, CANCELLED,
+ * DISCARDED, RESOLVED) en una sola llamada en vez de una por estado.
+ *
+ * Devuelve `{ data, pagination }` con `pagination: { page, limit, total,
+ * totalPages } | null` (null si el backend todavía no la manda) para que
+ * quien la use pueda pedir la página siguiente ("Cargar más").
+ */
+export async function fetchEmergenciesPage({
+  status,
+  page = 1,
+  limit = 20,
+  sortBy = "createdAt",
+  order = "desc",
+} = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  params.set("sortBy", sortBy);
+  params.set("order", order);
+
+  const res = await apiFetch(`/api/emergencies?${params.toString()}`);
+  const data = Array.isArray(res?.data)
+    ? res.data
+    : Array.isArray(res)
+      ? res
+      : [];
+  const pagination = res?.pagination || null;
+  return { data, pagination };
 }
 
 export async function cancelEmergency(id, reason = null) {
@@ -190,12 +296,9 @@ export async function cancelEmergency(id, reason = null) {
 }
 
 // ── Kanban legacy (DispatcherView Mantine) ───────────────────────────
-export const SEVERITY_CONFIG = {
-  low: { key: "low", color: "blue", label: "Baja" },
-  medium: { key: "medium", color: "yellow", label: "Media" },
-  high: { key: "high", color: "orange", label: "Alta" },
-  critical: { key: "critical", color: "red", label: "Crítica" },
-};
+// SEVERITY_CONFIG vive en ./emergencies (fuente única compartida con
+// PRIORITY_CONFIG de la lista); se re-exporta acá por compatibilidad.
+export { SEVERITY_CONFIG };
 
 export const STATUS_CONFIG = [
   { key: "pendiente", label: "Pendientes", color: "red" },
@@ -213,6 +316,7 @@ export async function reportIncident({
   longitude,
   severity,
   description,
+  address,
 }) {
   const type = String(category || "other").toLowerCase();
   // SOS = critical; incidentes: medical/fire = high, resto = medium
@@ -224,6 +328,7 @@ export async function reportIncident({
     emergencyType: type,
     severity: severity || defaultSeverity,
     description: description || undefined,
+    address,
   });
 }
 
@@ -243,6 +348,11 @@ export async function discardEmergency(id, reason) {
   return res.data;
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone prioridad manual
+ * (HU-04). Ver Task Tracker issue #25. No debe invocarse ni mostrarse ninguna
+ * acción que dependa de esto en pantallas del ciudadano.
+ */
 export async function overridePriority() {
   throw new ApiError("TODO(back): PATCH prioridad manual (HU-04)", {
     status: 501,
@@ -272,6 +382,12 @@ export async function assignOfficer(emergencyId, officerId) {
   };
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone estados de oficial
+ * EN_ROUTE/ON_SITE/RESOLVED (HU-08). Ver Task Tracker issue #21. No debe
+ * invocarse ni mostrarse ninguna acción que dependa de esto en pantallas del
+ * ciudadano.
+ */
 export async function updateEmergencyStatus() {
   throw new ApiError(
     "TODO(back): PATCH estado EN_ROUTE/ON_SITE/RESOLVED (HU-08)",
@@ -279,12 +395,22 @@ export async function updateEmergencyStatus() {
   );
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone observaciones/evidencias
+ * (HU-09). Ver Task Tracker issue #23. No debe invocarse ni mostrarse ninguna
+ * acción que dependa de esto en pantallas del ciudadano.
+ */
 export async function addObservation() {
   throw new ApiError("TODO(back): POST observaciones/evidencias (HU-09)", {
     status: 501,
   });
 }
 
+/**
+ * @deprecated Stub 501: el backend todavía no expone pedido de refuerzos
+ * (HU-10). Ver Task Tracker issue #29. No debe invocarse ni mostrarse ninguna
+ * acción que dependa de esto en pantallas del ciudadano.
+ */
 export async function requestReinforcements() {
   throw new ApiError("TODO(back): POST refuerzos (HU-10)", { status: 501 });
 }

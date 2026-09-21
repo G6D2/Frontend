@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { reverseGeocode } from "../../lib/geocoding";
-import { hasValidCoords, locationLabel } from "../../lib/emergencies";
+import { reverseGeocode, resolveEmergencyAddress } from "../../lib/geocoding";
+import { hasValidCoords } from "../../lib/emergencies";
 
 /**
  * Muestra la ubicación de una emergencia como dirección humana.
  *
- * - Si la emergencia tiene coordenadas válidas: llama a Nominatim para obtener
- *   la dirección y la muestra cuando llegue. Mientras tanto muestra el fallback.
- * - Si el backend ya devuelve locationLabel (texto), lo usa directamente sin geocodificar.
+ * - Si el backend ya manda `address` (o el legado `locationLabel`), lo usa
+ *   directamente: no geocodificamos de más (ver resolveEmergencyAddress).
+ * - Si no hay dirección del backend pero sí coordenadas válidas: llama al
+ *   BFF de geocodificación inversa y la muestra cuando llegue. Mientras
+ *   tanto muestra el fallback.
  * - Si la ubicación está anonimizada o no hay coords: muestra el label existente.
  *
  * Props:
@@ -30,10 +32,10 @@ export default function GeoLabel({
   const lng = Number(emergency?.longitude);
   const hasCoordsFlag = hasValidCoords(emergency);
   const anonymized = emergency?.locationAnonymized;
+  const unavailable = emergency?.locationUnavailable;
 
-  // Si el backend ya provee un label o la ubicación está anonimizada, no geocodificamos
-  const backendLabel = emergency?.locationLabel;
-  const skipGeocode = Boolean(backendLabel) || anonymized || !hasCoordsFlag;
+  const { label: knownLabel, needsGeocode } = resolveEmergencyAddress(emergency);
+  const skipGeocode = !needsGeocode;
 
   useEffect(() => {
     if (skipGeocode) return;
@@ -61,17 +63,17 @@ export default function GeoLabel({
 
   // ── Determinar el texto a mostrar ──
   let displayText;
-  if (anonymized) {
-    displayText = "Ubicación anonimizada";
-  } else if (backendLabel) {
-    displayText = backendLabel;
+  if (knownLabel) {
+    // Backend address / locationLabel legado / anonimizada / sin ubicación,
+    // ya resuelto por resolveEmergencyAddress: no hace falta geocodificar.
+    displayText = knownLabel;
   } else if (address) {
     displayText = address;
   } else if (resolving) {
     displayText = fallback;
   } else {
     // Geocodificación falló o no hay coords: mostrar lat/lng como último recurso
-    displayText = locationLabel(emergency);
+    displayText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   }
 
   const coordsText =
