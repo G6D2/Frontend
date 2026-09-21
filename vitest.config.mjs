@@ -19,8 +19,6 @@ export default defineConfig({
         "app/lib/api.js",
         // Browser fetch + client-side cache — integration concern
         "app/lib/geocoding.js",
-        // Feature flag constants — no executable logic to test
-        "app/lib/features.js",
       ],
       thresholds: {
         lines: 80,
