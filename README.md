@@ -1,37 +1,244 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CityPass+ — Frontend
 
-## Getting Started
+Aplicación de gestión de servicios urbanos y emergencias para la ciudad. El frontend funciona como **BFF (Backend For Frontend)** sobre Next.js App Router: las páginas cliente nunca hablan directamente al backend; todo pasa por Route Handlers que mantienen la sesión en una cookie `httpOnly`.
 
-First, run the development server:
+---
+
+## Inicio rápido
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> El backend (Express) debe estar corriendo en `http://localhost:3000` (o definir `API_URL`).
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+---
 
-## Learn More
+## Stack tecnológico
 
-To learn more about Next.js, take a look at the following resources:
+| Tecnología | Uso |
+|---|---|
+| **Next.js 15 (App Router)** | Framework React — SSR, Route Handlers (BFF), middleware |
+| **React 19** | UI reactiva |
+| **Tailwind CSS v4** | Utilidades de estilo via `@theme` tokens |
+| **Material Symbols Outlined** | Iconografía (Google Fonts, variable font) |
+| **Vitest** | Tests unitarios |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Arquitectura
 
-## Deploy on Vercel
+```
+Browser  ──►  Next.js (BFF)  ──►  Express backend (puerto 3000)
+              /api/auth/*             /auth/dev/login
+              /api/backend/*          /api/emergencies
+                                      /api/officers
+                                      /api/user
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- La cookie `citypass_session` (JWT, `httpOnly`, `sameSite: lax`) es emitida por el BFF y nunca queda expuesta al JS del cliente.
+- `middleware.js` protege todas las rutas excepto `/acceso` y `/api/auth/*`.
+- `lib/backend-fetch.js` implementa **retry automático** (6 intentos, 4 s entre reintentos) para absorber el cold start de Render (502/503/504).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Cuentas de demo
+
+Definidas en `app/lib/features.js` → `DEMO_ACCOUNTS`. Contraseña unificada: **`abracadabra`**.
+
+| Email | Botón Antipánico | Rol |
+|---|---|---|
+| `JuanPanico@gmail.com` | ✅ Sí | Ciudadano |
+| `LuciaTranquila@gmail.com` | ❌ No | Ciudadano |
+
+### Acceso rápido Dispatcher
+
+En la pantalla de login, debajo del card, hay un botón dorado **"Vista Dispatcher — Demo"** que hace login directo como dispatcher (`DISP-Demo001`) y redirige a `/ops` sin necesidad de ingresar credenciales.
+
+La cuenta dispatcher está definida en `DISPATCHER_DEMO` (también en `features.js`).
+
+---
+
+## Feature flags (`app/lib/features.js`)
+
+| Flag | Valor actual | Descripción |
+|---|---|---|
+| `ANTIPANIC_MODE` | `"mock"` | `"mock"` → `hasAntipanicButton` viene de `DEMO_ACCOUNTS`; `"backend"` → viene de `GET /api/user` |
+| `DEMO_ACCOUNTS` | (ver archivo) | Cuentas ciudadanas de demostración |
+| `DISPATCHER_DEMO` | (ver archivo) | Cuenta dispatcher de acceso directo |
+
+> Para conectar con el backend real: cambiar `ANTIPANIC_MODE = "backend"` y asegurarse de que `GET /api/user` devuelva `{ hasAntipanicButton: boolean }`.
+
+---
+
+## Endpoints BFF (`app/api/`)
+
+| Método | Ruta | Estado | Descripción |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | ✅ Activo | Login vía backend dev (`/auth/dev/login`). Emite cookie de sesión. |
+| `POST` | `/api/auth/logout` | ✅ Activo | Borra la cookie de sesión. |
+| `GET` | `/api/auth/session` | ✅ Activo | Devuelve el usuario de la sesión actual (para hidratación cliente). |
+| `POST` | `/api/auth/register` | 🔲 Stub (501) | Registro real con IdP. Pendiente HU-12. |
+| `POST` | `/api/auth/forgot-password` | 🔲 Stub (200 mock) | Recuperación de contraseña. Siempre responde 200 (no revela si el email existe). |
+| `GET/POST/PATCH` | `/api/backend/*` | ✅ Activo | Proxy genérico al backend Express. Adjunta el JWT de la cookie. |
+| `GET` | `/api/warmup` | ✅ Activo | Pega al backend para despertarlo (Render free tier). |
+
+Los stubs tienen el contrato de request/response documentado en sus archivos para facilitar la integración futura.
+
+---
+
+## Rutas de la aplicación
+
+| Ruta | Quién accede | Descripción |
+|---|---|---|
+| `/acceso` | Todos (sin sesión) | Login + signup + recuperación de contraseña |
+| `/inicio` | Ciudadano | Home con mapa de emergencias y botón antipánico |
+| `/perfil` | Ciudadano | Perfil, configuración, CTA de Sign Up |
+| `/emergencia/nueva` | Ciudadano | Formulario de nueva emergencia |
+| `/ops` | Dispatcher | Panel Kanban de gestión de emergencias |
+| `/ops/lista` | Dispatcher | Vista lista de emergencias |
+| `/ops/mapa` | Dispatcher | Vista mapa de emergencias |
+| `/ops/historial` | Dispatcher | Historial de emergencias cerradas |
+| `/ops/oficiales` | Dispatcher | Gestión de oficiales |
+
+La redirección al home correcta por rol está en `app/lib/auth-roles.js → getHomePathForUser`.
+
+---
+
+## Vistas principales
+
+### Ciudadano (`/inicio`)
+
+- **Botón Antipánico:** `POST /api/backend/panic` con coordenadas reales del dispositivo (o fallback CABA). Si `hasAntipanicButton = false`, no se renderiza.
+- **Mapa de emergencias:** Leaflet con marcadores de las emergencias propias del usuario.
+
+### Dispatcher (`/ops`)
+
+- **Kanban** alternando entre vista por Estado (7 columnas) y por Criticidad (3 columnas).
+- **Polling** cada 5 s (`POLLING_INTERVAL_MS`) via `GET /api/backend/emergencies`.
+- **Merge incremental:** solo agrega emergencias nuevas al estado local sin resetear.
+- **Animación "NUEVO":** pulso rojo durante 6 s en tarjetas recién llegadas.
+- **Asignar Oficial:** `GET /api/backend/officers` → modal de selección → `PATCH /api/backend/emergencies/:id`.
+- **Herramienta de simulación:** `window.simularNuevaEmergencia("descripción", "high")` disponible en consola.
+
+---
+
+## Flujo de autenticación
+
+```
+[Login form]
+    │  POST /api/auth/login { sub, groups, hasAntipanicButton, loginMethod }
+    ▼
+[BFF /api/auth/login]
+    │  POST backend /auth/dev/login  →  { access_token }
+    │  GET  backend /api/user        →  enriquece user (si disponible)
+    │  Si ANTIPANIC_MODE="mock": sobrescribe hasAntipanicButton desde body
+    │  Set-Cookie: citypass_session=<JWT>  (httpOnly, sameSite: lax)
+    ▼
+[Client]  router.replace( getHomePathForUser(user) )
+    │      /inicio  →  ciudadano
+    │      /ops     →  dispatcher
+```
+
+El campo `loginMethod` (`"sesion"` | `"anonima"`) es un dato **solo del frontend** (mock): se guarda en `sessionStorage` vía `api.js → fetchCurrentUser` para que el perfil sepa si mostrar el CTA de Sign Up.
+
+---
+
+## Perfil (`/perfil`) — lógica de Sign Up
+
+| `loginMethod` | Botón "Sign Up" |
+|---|---|
+| `"anonima"` (cuenta ciudadana sin email) | Activo — redirige a `/acceso?signup=1` |
+| `"sesion"` (login con credenciales) | Deshabilitado (gris) — ya tiene cuenta |
+
+---
+
+## Desarrollo desde otra máquina
+
+Si corrés el dev server en una PC y accedés desde otra:
+
+```js
+// next.config.mjs
+experimental: {
+  allowedDevOrigins: ["192.168.X.X"],  // IP de la máquina desde la que accedés
+}
+```
+
+Sin esto, Next.js 15 devuelve **403** en los chunks `/_next/*`: la página carga el HTML pero React nunca hidrata (botones muertos, sin errores visibles).
+
+---
+
+## Deploy
+
+### Producción (Render)
+
+El CD (`.github/workflows/cd.yml`) dispara el deploy hook en cada push a `main`.
+
+Variables de entorno requeridas:
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `API_URL` | `https://emergencias-backend-34go.onrender.com` | URL del backend Express |
+| `NODE_ENV` | `production` | Activa cookies `Secure` y build optimizado |
+| `BACKEND_WARMUP_PATH` | `/health` | Ruta que pega `/api/warmup` para despertar el backend |
+| `BACKEND_WARMUP` | (vacío / `off`) | Poner `off` cuando el backend sea always-on |
+
+### Docker
+
+```bash
+docker build -t emergencias-frontend .
+docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergencias-frontend
+```
+
+---
+
+## Tests
+
+```bash
+npm test               # Vitest (modo watch)
+npm run test:run       # Una sola ejecución (CI)
+```
+
+Los tests viven en `tests/`. Lógica de negocio pura (sin hooks) en `app/lib/emergencies.js` es candidata principal para cobertura.
+
+---
+
+## Estructura de archivos clave
+
+```
+Frontend/
+├── middleware.js              # Protección de rutas (session guard)
+├── lib/
+│   ├── session.js             # JWT, cookie options, userFromJwt
+│   ├── backend-fetch.js       # fetch con retry (cold start Render)
+│   └── auth.js                # Re-exports de auth-roles
+└── app/
+    ├── acceso/
+    │   └── AccesoForm.js      # Login / signup / forgot-password
+    ├── api/
+    │   └── auth/
+    │       ├── login/         # POST — emite cookie de sesión
+    │       ├── logout/        # POST — borra cookie
+    │       ├── session/       # GET  — devuelve user actual
+    │       ├── register/      # POST — stub 501 (HU-12)
+    │       └── forgot-password/ # POST — stub mock 200
+    ├── (citizen)/
+    │   ├── inicio/            # Home ciudadano + botón antipánico
+    │   └── perfil/            # Perfil + CTA Sign Up
+    ├── ops/                   # Vista dispatcher (Kanban, lista, mapa)
+    ├── components/
+    │   ├── civic/             # MaterialIcon, PanicButton, etc.
+    │   └── DispatcherView.js  # Kanban completo del dispatcher
+    └── lib/
+        ├── api.js             # Todos los fetch al BFF (loginDev, fetchEmergencies…)
+        ├── auth-roles.js      # isDispatcher, isCitizen, getHomePathForUser
+        ├── features.js        # Feature flags + DEMO_ACCOUNTS + DISPATCHER_DEMO
+        └── emergencies.js     # Lógica de negocio pura (sin hooks)
+```
+
+
+
 
 ---
 
