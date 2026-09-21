@@ -5,6 +5,8 @@ import {
   PRIORITY_CONFIG,
   getStatusConfig,
   hasValidCoords,
+  getEffectivePriority,
+  getIncidentSummary,
 } from "../../lib/emergencies";
 
 const CABA = [-34.6037, -58.3816];
@@ -98,8 +100,12 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
       const lat = Number(em.latitude);
       const lng = Number(em.longitude);
       latLngs.push([lat, lng]);
-      const color = markerColor(em.severity);
+      const color = markerColor(getEffectivePriority(em));
       const status = getStatusConfig(em.status).label;
+      const incident = getIncidentSummary(em);
+      const incidentLine = incident?.reportCount
+        ? `<br/><strong>Incidente</strong> · ${incident.reportCount} reporte${incident.reportCount === 1 ? "" : "s"}`
+        : "";
       const html = `<div style="width:18px;height:18px;border-radius:9999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}55,0 2px 8px rgba(0,0,0,.35)"></div>`;
 
       let marker = markersRef.current.get(em.id);
@@ -119,7 +125,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
       }
 
       marker.bindPopup(
-        `<strong>${escapeHtml(em.description || "Emergencia")}</strong><br/>${status}<br/>${lat.toFixed(4)}, ${lng.toFixed(4)}`
+        `<strong>${escapeHtml(em.description || "Emergencia")}</strong><br/>${status}<br/>${lat.toFixed(4)}, ${lng.toFixed(4)}${incidentLine}`
       );
     });
 

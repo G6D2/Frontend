@@ -21,11 +21,13 @@ import {
   isPendingStatus,
   isActiveStatus,
   priorityTextClass,
+  getEffectivePriority,
 } from "../../lib/emergencies";
 import GeoLabel from "../../components/civic/GeoLabel";
 import DiscardReasonModal from "../../components/DiscardReasonModal";
 import PageHeader from "../../components/PageHeader";
 import { PriorityBadge, StatusBadge } from "../../components/ops/OpsBadges";
+import { IncidentBadge, IncidentDetailBlock } from "../../components/ops/IncidentInfo";
 import { BTN_BASE, BTN_PRIMARY, BTN_SECONDARY } from "../../components/ops/buttonStyles";
 import {
   TABLE_HEAD,
@@ -36,6 +38,7 @@ import {
   TABLE_CELL_MONO,
 } from "../../components/ops/tableStyles";
 import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
+import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
 
 function formatUpdatedAgo(lastUpdated, nowTick) {
   if (!lastUpdated) return "";
@@ -229,7 +232,7 @@ export default function OpsPage() {
             </h2>
             <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
               {getStatusConfig(selected.status).label} ·{" "}
-              {PRIORITY_CONFIG[selected.severity || "critical"]?.label}
+              {PRIORITY_CONFIG[getEffectivePriority(selected) || "critical"]?.label}
             </span>
           </div>
           <button
@@ -261,6 +264,8 @@ export default function OpsPage() {
               </div>
             </div>
           </div>
+
+          <IncidentDetailBlock emergency={selected} />
 
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
@@ -462,7 +467,10 @@ export default function OpsPage() {
                         }`}
                       >
                         <td className={TABLE_CELL}>
-                          <PriorityBadge severity={em.severity || "critical"} />
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <PriorityBadge severity={getEffectivePriority(em) || "critical"} />
+                            <IncidentBadge emergency={em} />
+                          </div>
                         </td>
                         <td className={TABLE_CELL}>
                           <StatusBadge status={em.status} />
@@ -475,8 +483,9 @@ export default function OpsPage() {
                         </td>
                         <td
                           className={`${TABLE_CELL_MONO} font-bold ${
-                            em.severity === "critical" || em.severity === "high"
-                              ? priorityTextClass(em.severity)
+                            getEffectivePriority(em) === "critical" ||
+                            getEffectivePriority(em) === "high"
+                              ? priorityTextClass(getEffectivePriority(em))
                               : ""
                           }`}
                         >
@@ -504,8 +513,9 @@ export default function OpsPage() {
                     key={em.id}
                     badges={
                       <>
-                        <PriorityBadge severity={em.severity || "critical"} />
+                        <PriorityBadge severity={getEffectivePriority(em) || "critical"} />
                         <StatusBadge status={em.status} />
+                        <IncidentBadge emergency={em} />
                       </>
                     }
                     headline={elapsedMinutes(em.createdAt)}
@@ -525,34 +535,11 @@ export default function OpsPage() {
 
           {/* Detalle de la emergencia seleccionada: bottom sheet modal con
               overlay en mobile/tablet (<lg), panel lateral fijo sin overlay en
-              desktop (lg+). Antes era un único elemento que pasaba de
-              `fixed inset-0` a `lg:static` en el breakpoint lg — en desktop
-              terminaba con `position: static` y un `max-h-full` sin altura de
-              referencia (contenedor sin alto definido), así que el panel
-              crecía fuera de la vista en vez de quedar docked junto a la
-              tabla. Separarlos en dos elementos independientes evita esa
-              combinación frágil. */}
-          {selected && (
-            <>
-              {/* Mobile / tablet: bottom sheet modal con overlay */}
-              <div
-                className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center lg:hidden"
-                onClick={() => setSelected(null)}
-              >
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant rounded-t-2xl sm:rounded-xl flex flex-col shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200"
-                >
-                  {renderDetailPanelBody()}
-                </div>
-              </div>
-
-              {/* Desktop: panel lateral derecho de 360px, dentro del layout, sin overlay */}
-              <div className="hidden lg:flex lg:w-[360px] lg:shrink-0 lg:self-stretch bg-surface-container-lowest border border-outline-variant rounded-lg flex-col shadow-sm overflow-hidden">
-                {renderDetailPanelBody()}
-              </div>
-            </>
-          )}
+              desktop (lg+). EmergencyDetailPanel (app/components/ops/) es el
+              mismo componente que reutiliza /ops/historial. */}
+          <EmergencyDetailPanel open={Boolean(selected)} onClose={() => setSelected(null)}>
+            {renderDetailPanelBody()}
+          </EmergencyDetailPanel>
         </div>
 
         <DiscardReasonModal
