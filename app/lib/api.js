@@ -6,7 +6,12 @@ import {
 } from "./auth";
 import { SEVERITY_CONFIG } from "./emergencies";
 
-export const POLLING_INTERVAL_MS = 5000;
+/** Intervalo de polling para el dispatcher (1 minuto). Reduce carga en el backend. */
+export const POLLING_INTERVAL_MS = 60_000;
+/** Intervalo de polling para la vista del ciudadano (5 s). Permite actualizaciones
+ *  casi en tiempo real del historial de estados sin sobrecargar el sistema,
+ *  dado que la carga de ciudadanos simultáneos es menor que la del dispatcher. */
+export const CITIZEN_POLLING_INTERVAL_MS = 5_000;
 
 function redirectToLogin() {
   clearStoredUser();

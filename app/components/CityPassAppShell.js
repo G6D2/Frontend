@@ -13,6 +13,7 @@ const CITIZEN_ROUTES = {
 };
 
 const DISPATCHER_ROUTES = {
+  Estados: "/ops",
   Lista: "/ops/lista",
   Mapa: "/ops/mapa",
   Oficiales: "/ops/oficiales",
@@ -27,9 +28,8 @@ function resolveActive(pathname, role) {
     if (pathname.startsWith("/ops/historial")) return "Historial";
     if (pathname.startsWith("/ops/mapa")) return "Mapa";
     if (pathname.startsWith("/ops/oficiales")) return "Oficiales";
-    // "Estados" (kanban Mantine en /ops) se sacó del drawer; /ops redirige a
-    // /ops/lista (ver app/ops/page.js), que ahora es el primer ítem.
-    return "Lista";
+    // /ops sin subruta = vista de Estados (kanban Mantine / DispatcherView)
+    return "Estados";
   }
 
   if (pathname.startsWith("/mis-alertas")) return "Mis alertas";
