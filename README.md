@@ -486,3 +486,21 @@ it("caso nuevo", async () => {
 Si una ruta nueva importa con el alias `@/...`, no hace falta nada extra: `vitest.integration.config.mjs` ya resuelve `@` a la raíz del proyecto (necesario porque `jsconfig.json` solo le sirve al editor, no a Vitest).
 
 La suite de integración de hoy cubre login, session, el proxy `/api/backend/[...path]` y geocode como ejemplos — no es cobertura exhaustiva del BFF. Queda como deuda técnica agregar tests para `logout` y `warmup`, y tests end-to-end (Playwright) del flujo ciudadano completo y del dispatcher.
+
+### Alcance actual y lo que NO está automatizado
+
+Para no vender más de lo que hay, la matriz completa de lo que se testea automáticamente hoy es:
+
+| Nivel | ¿Existe? | Detalle |
+|---|---|---|
+| **Unit** (funciones puras) | ✅ | Vitest con env `node`, umbral 80% sobre `lib/**` y `app/lib/**` (ver "Scope del umbral") |
+| **Integración BFF** | ✅ | Vitest con `Request` reales, backend + cookies + `global.fetch` mockeados. No cuenta para el umbral. |
+| **Component testing (browser)** | ❌ | No hay `@testing-library/react`, ni env `jsdom`/`happy-dom`, ni tests sobre componentes de `app/components/**` |
+| **E2E / UI automatizado** | ❌ | No hay Playwright, Cypress, Selenium ni WebDriver. Sin script `test:e2e` en `package.json`. |
+| **Smoke test contra Render** | ❌ | Ningún workflow ni comando dispara clicks contra la URL real del deploy |
+| **Visual regression** | ❌ | Sin snapshots ni chromatic ni Percy |
+| **Accessibility automatizado** | ❌ | Sin axe/pa11y en CI |
+
+Antes de la demo se cubren manualmente por checklist (`npm run dev` local + revisión a ojo). Roadmap sugerido: agregar **Playwright** con 2-3 smoke tests que cubran login citizen + login dispatcher + POST panic-button, corriendo contra el backup site de Render en cada CI de main.
+
+**Respuesta canónica para la presentación:** "Hoy la estrategia de testing automatizado es **unit + integración BFF**. E2E / component / smoke / visual / a11y son **deuda técnica reconocida**; la vía elegida para pagarla es Playwright." No decir "tests E2E" ni "browser testing" en el discurso hasta que exista al menos un `.spec.js` de Playwright en el repo.
