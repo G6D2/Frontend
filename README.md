@@ -1,6 +1,6 @@
 # CityPass+ — Frontend
 
-Aplicación de gestión de servicios urbanos y emergencias para la ciudad. El frontend funciona como **BFF (Backend For Frontend)** sobre Next.js App Router: las páginas cliente nunca hablan directamente al backend; todo pasa por Route Handlers que mantienen la sesión en una cookie `httpOnly`.
+Responsive Web App de gestión de servicios urbanos y emergencias para la ciudad. El frontend funciona como **BFF (Backend For Frontend)** sobre Next.js App Router: las páginas cliente nunca hablan directamente al backend; todo pasa por Route Handlers que mantienen la sesión en una cookie `httpOnly`.
 
 ---
 
@@ -259,7 +259,7 @@ Frontend/
 
 # CityPass+ — Frontend
 
-Aplicación de gestión de servicios urbanos. Este repositorio contiene exclusivamente el **frontend**, construido con Next.js y Mantine UI.
+Responsive Web App de gestión de servicios urbanos. Este repositorio contiene exclusivamente el **frontend**, construido con Next.js y Mantine UI.
 
 ## Deploy y Docker
 
