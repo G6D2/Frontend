@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../../components/civic/CitizenTopBar";
@@ -11,6 +11,7 @@ import {
   fetchEmergencyDetail,
   cancelEmergency,
   ApiError,
+  CITIZEN_POLLING_INTERVAL_MS,
 } from "../../../lib/api";
 import {
   getStatusConfig,
@@ -29,24 +30,66 @@ export default function AlertDetailPage() {
   const [error, setError] = useState("");
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  // Carga inicial (con spinner) + polling silencioso cada CITIZEN_POLLING_INTERVAL_MS.
+  // La actualización silenciosa no pisa el spinner ni el mensaje de error
+  // si la emergencia ya se cargó: solo actualiza status y statusHistory.
+  const loadDetail = useCallback(
+    async ({ silent = false } = {}) => {
       try {
         const data = await fetchEmergencyDetail(params.id);
-        if (!cancelled) setEmergency(data);
+        setEmergency((prev) => {
+          // Mantener campos locales optimistas (ej. cancelación en vuelo)
+          if (!prev) return data;
+          return { ...data };
+        });
+        if (!silent) setError("");
       } catch (err) {
-        if (!cancelled) {
+        if (!silent) {
           setError(err.message || "No se pudo cargar la emergencia");
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!silent) setLoading(false);
       }
+    },
+    [params.id]
+  );
+
+  // Carga inicial
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await loadDetail({ silent: false });
     })();
     return () => {
       cancelled = true;
     };
-  }, [params.id]);
+  }, [loadDetail]);
+
+  // Polling silencioso: se inicia después de la carga inicial, se pausa
+  // cuando la pestaña no está visible para ahorrar peticiones innecesarias.
+  useEffect(() => {
+    if (loading) return; // Esperar a que termine la carga inicial
+    let interval = null;
+
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => loadDetail({ silent: true }), CITIZEN_POLLING_INTERVAL_MS);
+    };
+    const stop = () => {
+      if (interval) { clearInterval(interval); interval = null; }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") { loadDetail({ silent: true }); start(); }
+      else stop();
+    };
+
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [loading, loadDetail]);
 
   const handleCancel = async (reason) => {
     if (!emergency || !isCancelable(emergency.status)) return;

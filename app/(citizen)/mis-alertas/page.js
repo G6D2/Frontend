@@ -7,7 +7,7 @@ import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
   fetchEmergencies,
-  POLLING_INTERVAL_MS,
+  CITIZEN_POLLING_INTERVAL_MS,
 } from "../../lib/api";
 import {
   formatTime,
@@ -101,7 +101,7 @@ export default function MisAlertasPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    const interval = setInterval(load, POLLING_INTERVAL_MS);
+    const interval = setInterval(load, CITIZEN_POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [load]);
 

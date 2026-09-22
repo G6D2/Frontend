@@ -94,12 +94,14 @@ Los stubs tienen el contrato de request/response documentado en sus archivos par
 |---|---|---|
 | `/acceso` | Todos (sin sesión) | Login + signup + recuperación de contraseña |
 | `/inicio` | Ciudadano | Home con mapa de emergencias y botón antipánico |
+| `/mis-alertas` | Ciudadano | Listado de alertas propias con polling automático |
+| `/mis-alertas/[id]` | Ciudadano | Detalle de alerta con historial de estados en tiempo real |
 | `/perfil` | Ciudadano | Perfil, configuración, CTA de Sign Up |
 | `/emergencia/nueva` | Ciudadano | Formulario de nueva emergencia |
-| `/ops` | Dispatcher | Panel Kanban de gestión de emergencias |
-| `/ops/lista` | Dispatcher | Vista lista de emergencias |
+| `/ops` | Dispatcher | Panel Kanban de gestión de emergencias ("Estados" restaurado) |
+| `/ops/lista` | Dispatcher | Vista lista con métricas clickeables, búsqueda y ordenamiento |
 | `/ops/mapa` | Dispatcher | Vista mapa de emergencias |
-| `/ops/historial` | Dispatcher | Historial de emergencias cerradas |
+| `/ops/historial` | Dispatcher | Historial de emergencias con búsqueda, filtros y ordenamiento |
 | `/ops/oficiales` | Dispatcher | Gestión de oficiales |
 
 La redirección al home correcta por rol está en `app/lib/auth-roles.js → getHomePathForUser`.
@@ -108,15 +110,23 @@ La redirección al home correcta por rol está en `app/lib/auth-roles.js → get
 
 ## Vistas principales
 
-### Ciudadano (`/inicio`)
+### Ciudadano (`/inicio`, `/mis-alertas`)
 
 - **Botón Antipánico:** `POST /api/backend/panic` con coordenadas reales del dispositivo (o fallback CABA). Si `hasAntipanicButton = false`, no se renderiza.
 - **Mapa de emergencias:** Leaflet con marcadores de las emergencias propias del usuario.
+- **Historial de estados en tiempo real (`/mis-alertas/[id]`):** Polling cada 5 s (`CITIZEN_POLLING_INTERVAL_MS`) para sincronizar el historial de estados (`statusHistory`) inmediatamente tras las operaciones del despachador, sin requerir recarga manual. Se suspende en segundo plano con `visibilitychange`.
 
-### Dispatcher (`/ops`)
+### Dispatcher (`/ops`, `/ops/lista`, `/ops/historial`)
 
-- **Kanban** alternando entre vista por Estado (7 columnas) y por Criticidad (3 columnas).
-- **Polling** cada 5 s (`POLLING_INTERVAL_MS`) via `GET /api/backend/emergencies`.
+- **Tablero "Estados" (`/ops`):** Tablero Kanban restaurado accesible desde el navbar, alternando entre vista por Estado (7 columnas) y por Criticidad (3 columnas).
+- **Polling optimizado:** Polling cada 60 s (`POLLING_INTERVAL_MS = 60_000`) en vistas operativas para prevenir sobrecarga innecesaria en el backend.
+- **Tarjetas de métricas interactivas (`/ops/lista` y `/ops/historial`):** Los indicadores superiores (Total, Pendientes/Cerradas, Activas/Canceladas, Críticas, Descartadas) son clickeables y aplican/quitan filtros rápidamente (comportamiento toggle).
+- **Controles de datos (Búsqueda y Ordenamiento):**
+  - Barra de búsqueda reactiva multi-criterio en `/ops/lista` (ID, usuario, tipo, ubicación, estado) y `/ops/historial`.
+  - Ordenamiento por columnas de 3 estados en `/ops/lista` y `/ops/historial`:
+    - 1er clic: Ascendente (`▲`)
+    - 2do clic: Descendente (`▼`)
+    - 3er clic: Estado original (`○` círculo sutil)
 - **Merge incremental:** solo agrega emergencias nuevas al estado local sin resetear.
 - **Animación "NUEVO":** pulso rojo durante 6 s en tarjetas recién llegadas.
 - **Asignar Oficial:** `GET /api/backend/officers` → modal de selección → `PATCH /api/backend/emergencies/:id`.
@@ -225,8 +235,9 @@ Frontend/
     │       └── forgot-password/ # POST — stub mock 200
     ├── (citizen)/
     │   ├── inicio/            # Home ciudadano + botón antipánico
+    │   ├── mis-alertas/       # Listado y detalle en tiempo real ([id])
     │   └── perfil/            # Perfil + CTA Sign Up
-    ├── ops/                   # Vista dispatcher (Kanban, lista, mapa)
+    ├── ops/                   # Vista dispatcher (Kanban "Estados", lista, mapa, historial)
     ├── components/
     │   ├── civic/             # MaterialIcon, PanicButton, etc.
     │   └── DispatcherView.js  # Kanban completo del dispatcher
@@ -345,8 +356,8 @@ Frontend/
 
 ### Vista Dispatcher
 
-- Se accede haciendo clic en **"Mi Cuenta"** en el navbar (alterna entre Usuario y Dispatcher).
-- **RF-01 (Polling periódico):** Implementa un `setInterval` que consulta periódicamente (cada 5 segundos configurables) las emergencias mediante `fetchEmergencies()` ejecutando un `GET /api/emergencies`.
+- Se accede haciendo clic en **"Mi Cuenta"** en el navbar (alterna entre Usuario y Dispatcher), o mediante el botón demo de la pantalla de login.
+- **RF-01 (Polling periódico optimizado):** Implementa un `setInterval` que consulta periódicamente (cada 1 minuto / 60 segundos via `POLLING_INTERVAL_MS = 60_000`) las emergencias mediante `fetchEmergencies()` ejecutando un `GET /api/emergencies`.
 - **RF-02 (Merge incremental en memoria):** Al recibir los datos, compara los IDs entrantes contra el estado en memoria y agrega únicamente los casos nuevos (`[...newItems, ...currentList]`), sin resetear ni sobrescribir las emergencias existentes que el Dispatcher ya está visualizando.
 - **RF-03 (Re-render reactivo):** Al actualizarse el estado en memoria, la columna correspondiente (ej. *Pendientes*) y las métricas se re-renderizan automáticamente.
 - **RF-04 (Animación de atención visual):** Aplica una animación temporal de parpadeo/pulso con reborde rojo y badge `"NUEVO"` a las tarjetas recién agregadas durante 6 segundos.
@@ -354,6 +365,8 @@ Frontend/
 - **RF-06 (Consulta de oficiales y Modal):** Al presionar *"Asignar Oficial"*, se realiza una consulta `GET /api/officers` y se abre un modal con los oficiales disponibles, su ubicación y distancia.
 - **RF-07 (Confirmación y PATCH):** Al seleccionar un oficial y confirmar, se envía un `PATCH /api/emergencies/:id` con `{ officerId, status: "despachada", assignedOfficer }`.
 - **RF-08 (Transición a Despachada):** Con respuesta exitosa (HTTP 200), el estado local de la emergencia se actualiza a `despachada`, moviéndose automáticamente a la columna **Despachadas** y exhibiendo el badge del oficial asignado.
+- **Tarjetas de métricas interactivas y filtros (`/ops/lista` y `/ops/historial`):** Selección clickeable en métricas para filtrar emergencias y barra de búsqueda multi-campo reactiva.
+- **Ordenamiento por columnas de 3 estados:** En encabezados de tabla (Ascendente `▲`, Descendente `▼`, Sin ordenar `○`).
 - **Herramienta de simulación por consola:** Se expone `window.simularNuevaEmergencia(description, severity)` y `window.mockDatabase` para inyectar emergencias en vivo desde la consola del navegador y observar el flujo en tiempo real:
   ```javascript
   window.simularNuevaEmergencia("Incendio en depósito químico", "high");
@@ -369,8 +382,9 @@ Toda la lógica de comunicación está centralizada en `app/lib/api.js`.
 
 ```js
 // app/lib/api.js
-export const USE_BACKEND = true;         // false = todo mockeado (sin backend)
-export const POLLING_INTERVAL_MS = 5000; // intervalo de polling del dispatcher
+export const USE_BACKEND = true;                 // false = todo mockeado (sin backend)
+export const POLLING_INTERVAL_MS = 60_000;       // intervalo de polling del dispatcher (1 min)
+export const CITIZEN_POLLING_INTERVAL_MS = 5_000; // intervalo de polling del ciudadano (5 s)
 ```
 
 **URL del backend:** no está hardcodeada. Se asume que el backend corre en la **misma máquina que el front, puerto 4000**, y se arma con el hostname con el que abriste la página (`http://<hostname>:4000/api`). Para apuntar a otro lado: `NEXT_PUBLIC_API_URL=http://otro-host:4000/api npm run dev`.
