@@ -24,6 +24,8 @@ import {
   addObservation,
   requestReinforcements,
   fetchEmergencyHistory,
+  LocationError,
+  getCurrentLocation,
   getStoredUser,
   setStoredUser,
   clearSession,
@@ -496,6 +498,153 @@ describe("api.js", () => {
       });
 
       await expect(fetchEmergencyDetail("e1")).rejects.toThrow("Error HTTP 502");
+    });
+
+    it("apiFetch: utiliza data.error cuando data.message no está presente", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "Error específico de validación" }),
+      });
+
+      await expect(fetchEmergencyDetail("e1")).rejects.toThrow("Error específico de validación");
+    });
+
+    it("apiFetch: maneja redirectToLogin en ambiente SSR (window === undefined)", async () => {
+      global.window = undefined;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: "Unauthorized" }),
+      });
+
+      await expect(fetchEmergencyDetail("e1")).rejects.toThrow("Unauthorized");
+    });
+  });
+
+  describe("getCurrentLocation & LocationError", () => {
+    const originalNavigator = global.navigator;
+
+    afterEach(() => {
+      global.navigator = originalNavigator;
+      delete global.window?.__lastCoords;
+    });
+
+    it("rechaza con NOT_SUPPORTED si navigator.geolocation no existe", async () => {
+      global.navigator = {};
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "NOT_SUPPORTED",
+        message: expect.stringContaining("no soporta geolocalización"),
+      });
+    });
+
+    it("case 1: rechaza con PERMISSION_DENIED y mensaje correspondiente cuando code es 1", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((_success, error) => {
+            error({ code: 1, message: "User denied Geolocation" });
+          }),
+        },
+      };
+
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "PERMISSION_DENIED",
+        message: "Permiso de ubicación denegado. Habilitá la geolocalización en tu navegador para continuar.",
+      });
+    });
+
+    it("case 2: rechaza con POSITION_UNAVAILABLE y mensaje correspondiente cuando code es 2", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((_success, error) => {
+            error({ code: 2, message: "Position unavailable" });
+          }),
+        },
+      };
+
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "POSITION_UNAVAILABLE",
+        message: "Ubicación no disponible en este momento. Verificá la señal de GPS o conexión de red.",
+      });
+    });
+
+    it("case 3: rechaza con TIMEOUT y mensaje correspondiente cuando code es 3", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((_success, error) => {
+            error({ code: 3, message: "Timeout" });
+          }),
+        },
+      };
+
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "TIMEOUT",
+        message: "Tiempo de espera agotado al intentar determinar la ubicación.",
+      });
+    });
+
+    it("default / desconocido: rechaza con POSITION_UNAVAILABLE y err.message cuando code es no estándar", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((_success, error) => {
+            error({ code: 99, message: "Fallo desconocido de sensor" });
+          }),
+        },
+      };
+
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "POSITION_UNAVAILABLE",
+        message: "Fallo desconocido de sensor",
+      });
+    });
+
+    it("callback con err null: rechaza con mensaje y código por defecto", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((_success, error) => {
+            error(null);
+          }),
+        },
+      };
+
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "POSITION_UNAVAILABLE",
+        message: "No se pudo obtener tu ubicación actual.",
+      });
+    });
+
+    it("éxito: resuelve con coordenadas precisas y accuracy", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((success) => {
+            success({
+              coords: { latitude: -34.6037, longitude: -58.3816, accuracy: 10 },
+            });
+          }),
+        },
+      };
+
+      const loc = await getCurrentLocation();
+      expect(loc).toEqual({
+        latitude: -34.6037,
+        longitude: -58.3816,
+        precise: true,
+        accuracy: 10,
+      });
+    });
+
+    it("window.__lastCoords: resuelve inmediatamente si ya existen coordenadas cacheadas", async () => {
+      global.window = {
+        __lastCoords: { latitude: -34.5, longitude: -58.4, precise: true, accuracy: 5 },
+      };
+
+      const loc = await getCurrentLocation();
+      expect(loc).toEqual({
+        latitude: -34.5,
+        longitude: -58.4,
+        precise: true,
+        accuracy: 5,
+      });
     });
   });
 });

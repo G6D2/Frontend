@@ -15,8 +15,6 @@ export default defineConfig({
       exclude: [
         // Browser-only (sessionStorage / window) — not unit-testable in node
         "app/lib/auth.js",
-        // HTTP client with window.location redirects — integration concern
-        "app/lib/api.js",
         // Browser fetch + client-side cache — integration concern
         "app/lib/geocoding.js",
       ],
