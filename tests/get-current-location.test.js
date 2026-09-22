@@ -130,4 +130,66 @@ describe("getCurrentLocation & LocationError", () => {
     expect(loc.longitude).toBe(-58.5);
     expect(loc.precise).toBe(true);
   });
+
+  describe("LocationError class y ramas adicionales", () => {
+    it("instancia LocationError con código por defecto POSITION_UNAVAILABLE y guarda originalError", () => {
+      const orig = new Error("error nativo");
+      const errWithDefaults = new LocationError("fallo general");
+      expect(errWithDefaults.name).toBe("LocationError");
+      expect(errWithDefaults.code).toBe("POSITION_UNAVAILABLE");
+      expect(errWithDefaults.message).toBe("fallo general");
+      expect(errWithDefaults.originalError).toBeNull();
+
+      const customErr = new LocationError("fallo específico", "NOT_SUPPORTED", orig);
+      expect(customErr.code).toBe("NOT_SUPPORTED");
+      expect(customErr.originalError).toBe(orig);
+    });
+
+    it("pasa las opciones personalizadas a navigator.geolocation.getCurrentPosition", async () => {
+      const getCurrentPosition = vi.fn((success) => {
+        success({
+          coords: { latitude: -34.6, longitude: -58.4, accuracy: 20 },
+        });
+      });
+      global.navigator = { geolocation: { getCurrentPosition } };
+
+      await getCurrentLocation({ enableHighAccuracy: false, timeout: 4000, maximumAge: 1000 });
+
+      expect(getCurrentPosition).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.any(Function),
+        { enableHighAccuracy: false, timeout: 4000, maximumAge: 1000 }
+      );
+    });
+
+    it("maneja un código de error desconocido o err sin code devolviendo err.message y POSITION_UNAVAILABLE", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((_success, error) => {
+            error({ code: 999, message: "Falla de hardware desconocida" });
+          }),
+        },
+      };
+
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "POSITION_UNAVAILABLE",
+        message: "Falla de hardware desconocida",
+      });
+    });
+
+    it("maneja un error nulo/indefinido en el callback de error de geolocalización", async () => {
+      global.navigator = {
+        geolocation: {
+          getCurrentPosition: vi.fn((_success, error) => {
+            error(null);
+          }),
+        },
+      };
+
+      await expect(getCurrentLocation()).rejects.toMatchObject({
+        code: "POSITION_UNAVAILABLE",
+        message: "No se pudo obtener tu ubicación actual.",
+      });
+    });
+  });
 });
