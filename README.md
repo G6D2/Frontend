@@ -477,10 +477,12 @@ La arquitectura de pruebas del frontend está estructurada separando con clarida
 | Nivel | Qué evalúa | Configuración | Quality Gate / Umbral | Comando |
 |---|---|---|---|---|
 | **Unitario** | Funciones puras de lógica y utilidades (`lib/**`, `app/lib/**`) | `vitest.config.mjs` | **80% sobre librerías unitarias** (Statements, Branches, Functions, Lines) | `npm run test:coverage` |
-| **Integración** | Route Handlers del BFF (`app/api/**/route.js`) con `Request` real | `vitest.integration.config.mjs` | Sin umbral de cobertura (validación funcional de endpoints) | `npm run test:integration` |
+| **Integración del BFF** | Route Handlers del BFF (`app/api/**/route.js`) con `Request` real | `vitest.integration.config.mjs` | Sin umbral de cobertura (validación funcional de endpoints) | `npm run test:integration` |
 | **E2E / UI** | Flujos completos de usuario en navegador real | *Pendiente (Playwright)* | **Deuda técnica declarada** (sin tests automatizados actualmente) | *(Manual por checklist)* |
 
 Ambas suites automatizadas corren en el pipeline de CI (`.github/workflows/ci.yml`, job `lint-and-test`): primero se ejecutan los tests unitarios verificando el cumplimiento estricto del umbral del 80%, y a continuación se ejecutan los tests de integración del BFF.
+
+> **Alcance:** los tests de "integración del BFF" no son integración end-to-end. Ejercitan los handlers de `app/api/**/route.js` con `Request` reales, pero mockean `global.fetch` (backend), `next/headers` (cookies) y no levantan servidor HTTP ni backend real. Prueban que el BFF arma bien los requests al backend y traduce respuestas correctamente. Integración real contra Render/backend real queda como deuda (Playwright o smoke E2E, ver la sección 3).
 
 ---
 
@@ -624,5 +626,5 @@ Para saldar esta deuda técnica, el roadmap del equipo contempla:
 
 ### Resumen para revisiones técnicas y defensas
 - **Quality Gate:** El 80% aplica **sobre librerías unitarias** (`lib/**` + `app/lib/**` menos exclusiones), **nunca sobre todo el frontend**.
-- **Tests de Integración:** Se gestionan y documentan por separado; prueban el BFF sin estar atados al umbral de unit.
+- **Tests de Integración del BFF:** Se gestionan y documentan por separado; prueban el BFF sin estar atados al umbral de unit. Hoy cubren login, session, el proxy `/api/backend/[...path]` y geocode; quedan pendientes `logout` y `warmup`.
 - **Tests E2E:** No existen en esta etapa; su ausencia está formalmente registrada como **deuda técnica asumida**, con Playwright como tecnología elegida para su pago.
