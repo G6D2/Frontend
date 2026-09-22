@@ -11,6 +11,7 @@ import {
   updateSavedLocation,
   removeSavedLocation,
 } from "../../../lib/saved-locations";
+import { CitizenProfileApiError } from "../../../lib/citizen-profile-api.js";
 
 const INPUT_CLASS =
   "h-12 px-4 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim outline-none transition-all";
@@ -31,10 +32,29 @@ export default function UbicacionesGuardadasPage() {
   const [geoError, setGeoError] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocations(getSavedLocations());
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await getSavedLocations();
+        if (!cancelled) setLocations(list);
+      } catch (err) {
+        if (!cancelled) {
+          notifications.show({
+            title: "No se pudieron cargar las ubicaciones",
+            message: err instanceof CitizenProfileApiError ? err.message : "Reintentá en unos segundos.",
+            color: "red",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const resolvedNewLabel =
@@ -64,7 +84,7 @@ export default function UbicacionesGuardadasPage() {
     );
   };
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!resolvedNewLabel.trim() || !form.address.trim()) {
       notifications.show({
@@ -74,24 +94,31 @@ export default function UbicacionesGuardadasPage() {
       });
       return;
     }
-    const entry = addSavedLocation({
-      label: resolvedNewLabel.trim(),
-      address: form.address.trim(),
-      lat: form.lat === "" ? null : Number(form.lat),
-      lng: form.lng === "" ? null : Number(form.lng),
-    });
-    if (!entry) {
+    try {
+      const entry = await addSavedLocation({
+        label: resolvedNewLabel.trim(),
+        address: form.address.trim(),
+        lat: form.lat === "" ? null : Number(form.lat),
+        lng: form.lng === "" ? null : Number(form.lng),
+      });
+      if (!entry) {
+        throw new Error("empty");
+      }
+      setLocations((prev) => [...prev, entry]);
+      setForm(EMPTY_FORM);
+      setGeoError("");
+      notifications.show({
+        title: "Guardado",
+        message: `"${entry.label}" se agregó en el servidor.`,
+        color: "green",
+      });
+    } catch (err) {
       notifications.show({
         title: "No se pudo guardar",
-        message: "Probá de nuevo en unos segundos.",
+        message: err instanceof CitizenProfileApiError ? err.message : "Probá de nuevo en unos segundos.",
         color: "red",
       });
-      return;
     }
-    setLocations((prev) => [...prev, entry]);
-    setForm(EMPTY_FORM);
-    setGeoError("");
-    notifications.show({ title: "Guardado", message: `"${entry.label}" se agregó a tus ubicaciones.`, color: "green" });
   };
 
   const startEdit = (loc) => {
@@ -109,27 +136,37 @@ export default function UbicacionesGuardadasPage() {
     setEditForm(null);
   };
 
-  const saveEdit = (id) => {
-    const ok = updateSavedLocation(id, {
-      label: editForm.label.trim(),
-      address: editForm.address.trim(),
-      lat: editForm.lat === "" ? null : Number(editForm.lat),
-      lng: editForm.lng === "" ? null : Number(editForm.lng),
-    });
-    if (ok) {
-      setLocations(getSavedLocations());
-      notifications.show({ title: "Guardado", message: "Ubicación actualizada.", color: "green" });
-    } else {
-      notifications.show({ title: "No se pudo guardar", message: "Probá de nuevo en unos segundos.", color: "red" });
+  const saveEdit = async (id) => {
+    try {
+      await updateSavedLocation(id, {
+        label: editForm.label.trim(),
+        address: editForm.address.trim(),
+        lat: editForm.lat === "" ? null : Number(editForm.lat),
+        lng: editForm.lng === "" ? null : Number(editForm.lng),
+      });
+      setLocations(await getSavedLocations());
+      notifications.show({ title: "Guardado", message: "Ubicación actualizada en el servidor.", color: "green" });
+      cancelEdit();
+    } catch (err) {
+      notifications.show({
+        title: "No se pudo guardar",
+        message: err instanceof CitizenProfileApiError ? err.message : "Probá de nuevo en unos segundos.",
+        color: "red",
+      });
     }
-    cancelEdit();
   };
 
-  const handleDelete = (loc) => {
-    const ok = removeSavedLocation(loc.id);
-    if (ok) {
+  const handleDelete = async (loc) => {
+    try {
+      await removeSavedLocation(loc.id);
       setLocations((prev) => prev.filter((l) => l.id !== loc.id));
       notifications.show({ title: "Eliminada", message: `"${loc.label}" se borró.`, color: "gray" });
+    } catch (err) {
+      notifications.show({
+        title: "No se pudo eliminar",
+        message: err instanceof CitizenProfileApiError ? err.message : "Probá de nuevo en unos segundos.",
+        color: "red",
+      });
     }
   };
 
@@ -139,15 +176,18 @@ export default function UbicacionesGuardadasPage() {
 
       <CitizenPageContainer>
         <p className="text-sm text-on-surface-variant">
-          Guardá lugares frecuentes (como tu casa o tu trabajo) para
-          encontrarlos rápido más adelante.
+          Lugares frecuentes (casa, trabajo) para elegirlos rápido más adelante.
         </p>
-        <p className="text-xs text-on-surface-variant italic">
-          Se guarda solo en este dispositivo hasta que exista el perfil en el
-          backend.
+        <p className="text-xs text-on-surface-variant">
+          Se guardan en el backend con cifrado en reposo. No se almacenan en
+          localStorage del navegador.
         </p>
 
-        {locations.length > 0 && (
+        {loading && (
+          <p className="text-sm text-on-surface-variant">Cargando ubicaciones…</p>
+        )}
+
+        {!loading && locations.length > 0 && (
           <section className="flex flex-col gap-3">
             {locations.map((loc) =>
               editingId === loc.id ? (

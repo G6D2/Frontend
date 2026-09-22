@@ -8,8 +8,23 @@ import { SEVERITY_CONFIG } from "./emergencies";
 
 export const POLLING_INTERVAL_MS = 5000;
 
-function redirectToLogin() {
+function purgeLegacyCitizenLocalStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("citypass_personal_data");
+    localStorage.removeItem("citypass_saved_locations");
+  } catch {
+    // ignore
+  }
+}
+
+function clearClientSensitiveState() {
   clearStoredUser();
+  purgeLegacyCitizenLocalStorage();
+}
+
+function redirectToLogin() {
+  clearClientSensitiveState();
   if (typeof window === "undefined") return;
   if (window.location.pathname.startsWith("/acceso")) return;
   window.location.replace("/acceso");
@@ -167,8 +182,17 @@ export async function logout() {
     method: "POST",
     credentials: "same-origin",
   });
-  clearStoredUser();
+  clearClientSensitiveState();
 }
+
+export {
+  fetchCitizenProfile,
+  saveCitizenProfile,
+  fetchSavedLocations,
+  createSavedLocation,
+  patchSavedLocation,
+  deleteSavedLocation,
+} from "./citizen-profile-api.js";
 
 export async function fetchCurrentUser() {
   const res = await fetch("/api/auth/session", {
