@@ -9,6 +9,7 @@ import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
   triggerPanicButton,
   getCurrentLocation,
+  LocationError,
   getStoredUser,
   setStoredUser,
   fetchCurrentUser,
@@ -122,13 +123,19 @@ export default function InicioClient() {
   // ya habiendo fallado la llamada (mensaje de ApiError si corresponde).
   useEffect(() => {
     if (!sosState.error) return;
+    const isLocationErr =
+      sosState.error instanceof LocationError ||
+      sosState.error?.name === "LocationError" ||
+      ["NOT_SUPPORTED", "PERMISSION_DENIED", "POSITION_UNAVAILABLE", "TIMEOUT"].includes(
+        sosState.error?.code
+      );
+
     notifications.show({
-      title: "Error",
+      title: isLocationErr ? "Error de ubicación" : "Error",
       message:
-        sosState.error instanceof ApiError
-          ? sosState.error.message
-          : "No se pudo enviar la alerta. Intentá de nuevo.",
+        sosState.error?.message || "No se pudo enviar la alerta. Intentá de nuevo.",
       color: "red",
+      autoClose: 5000,
     });
   }, [sosState.error]);
 

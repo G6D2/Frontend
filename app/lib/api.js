@@ -425,32 +425,93 @@ export async function fetchEmergencyHistory(id) {
   return Array.isArray(detail?.statusHistory) ? detail.statusHistory : [];
 }
 
-export function getCurrentLocation() {
-  const fallback = {
-    latitude: -34.6037,
-    longitude: -58.3816,
-    precise: false,
-  };
+export class LocationError extends Error {
+  constructor(message, code = "POSITION_UNAVAILABLE", originalError = null) {
+    super(message);
+    this.name = "LocationError";
+    this.code = code;
+    this.originalError = originalError;
+  }
+}
+
+/**
+ * Obtiene la ubicación actual del dispositivo.
+ *
+ * NOTA DE SEGURIDAD:
+ * Nunca se debe devolver una coordenada fija/falsa (-34.6037, -58.3816) de forma
+ * silenciosa si la geolocalización falla, no está soportada o vence el timeout.
+ * El SOS y los reportes de emergencias no deben enviar coordenadas ficticias
+ * a las autoridades como si fueran la ubicación real del ciudadano.
+ * Ante cualquier fallo o falta de permisos, esta función rechaza explícitamente
+ * con una instancia de LocationError.
+ *
+ * @param {object} [options]
+ * @param {boolean} [options.enableHighAccuracy=true]
+ * @param {number} [options.timeout=8000]
+ * @param {number} [options.maximumAge=60000]
+ * @returns {Promise<{latitude: number, longitude: number, precise: boolean, accuracy?: number}>}
+ */
+export function getCurrentLocation(options = {}) {
+  const {
+    enableHighAccuracy = true,
+    timeout = 8000,
+    maximumAge = 60000,
+  } = options;
 
   if (typeof window !== "undefined" && window.__lastCoords) {
-    return Promise.resolve(window.__lastCoords);
+    return Promise.resolve({
+      latitude: window.__lastCoords.latitude,
+      longitude: window.__lastCoords.longitude,
+      precise: window.__lastCoords.precise ?? true,
+      accuracy: window.__lastCoords.accuracy,
+    });
   }
 
   if (typeof navigator === "undefined" || !navigator.geolocation) {
-    return Promise.resolve(fallback);
+    return Promise.reject(
+      new LocationError(
+        "Este dispositivo o navegador no soporta geolocalización.",
+        "NOT_SUPPORTED"
+      )
+    );
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         resolve({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
           precise: true,
+          accuracy: pos.coords.accuracy,
         });
       },
-      () => resolve(fallback),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      (err) => {
+        let message = "No se pudo obtener tu ubicación actual.";
+        let code = "POSITION_UNAVAILABLE";
+
+        if (err) {
+          switch (err.code) {
+            case 1: // PERMISSION_DENIED
+              code = "PERMISSION_DENIED";
+              message = "Permiso de ubicación denegado. Habilitá la geolocalización en tu navegador para continuar.";
+              break;
+            case 2: // POSITION_UNAVAILABLE
+              code = "POSITION_UNAVAILABLE";
+              message = "Ubicación no disponible en este momento. Verificá la señal de GPS o conexión de red.";
+              break;
+            case 3: // TIMEOUT
+              code = "TIMEOUT";
+              message = "Tiempo de espera agotado al intentar determinar la ubicación.";
+              break;
+            default:
+              message = err.message || message;
+          }
+        }
+
+        reject(new LocationError(message, code, err));
+      },
+      { enableHighAccuracy, timeout, maximumAge }
     );
   });
 }
