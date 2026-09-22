@@ -102,7 +102,7 @@ describe("/api/backend/[...path]", () => {
     expect(json.pagination).toEqual({ page: 1, limit: 20, total: 2, totalPages: 1 });
   });
 
-  it("POST: reenvía el body al backend", async () => {
+  it("POST: reenvía el body y genera Idempotency-Key para el backend", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     const { calls } = mockBackend({
       "POST /panic-button": { status: 201, body: { id: "E1" } },
@@ -118,6 +118,25 @@ describe("/api/backend/[...path]", () => {
     expect(res.status).toBe(201);
     expect(json).toEqual({ id: "E1" });
     expect(JSON.parse(calls[0].body)).toEqual({ lat: -34.6, lng: -58.4 });
+    expect(calls[0].headers["idempotency-key"]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  });
+
+  it("POST: preserva Idempotency-Key enviada por el cliente", async () => {
+    mockNextCookies(cookies, { citypass_session: TOKEN });
+    const { calls } = mockBackend({
+      "POST /panic-button": { status: 201, body: { id: "E1" } },
+    });
+
+    const req = makeRequest("http://localhost/api/backend/panic-button", {
+      method: "POST",
+      body: { lat: -34.6, lng: -58.4 },
+      headers: { "Idempotency-Key": "client-key-abc" },
+    });
+    const res = await POST(req, ctxFor(["panic-button"]));
+    expect(res.status).toBe(201);
+    expect(calls[0].headers["idempotency-key"]).toBe("client-key-abc");
   });
 
   it("backend 401: responde 401 y borra la cookie de sesión", async () => {
