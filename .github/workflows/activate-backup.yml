@@ -39,15 +39,20 @@ jobs:
             echo "vars.BACKUP_FRONTEND_URL no está seteado"
             exit 1
           fi
+          # /api/warmup devuelve 200 aunque el backend sea inalcanzable
+          # (con warmed:false). Un 200 solo prueba que el Next.js del backup
+          # respondio, no que el stack backend+frontend este sano. Parseamos
+          # el body y exigimos warmed==true para dar el failover por listo.
           for i in $(seq 1 36); do
-            code=$(curl -sS -o /tmp/warmup.txt -w '%{http_code}' --max-time 20 "$URL/api/warmup" || echo 000)
-            echo "attempt $i: http $code"
-            if [ "$code" = "200" ]; then
-              echo "Frontend backup respondió 200:"
-              cat /tmp/warmup.txt
+            body=$(curl -sS --max-time 20 "$URL/api/warmup" 2>/dev/null || echo "")
+            warmed=$(printf '%s' "$body" | jq -r '.warmed // false' 2>/dev/null || echo "false")
+            echo "attempt $i: warmed=$warmed body=$body"
+            if [ "$warmed" = "true" ]; then
+              echo "Failover backup operativo: frontend respondio y el backend es alcanzable"
               exit 0
             fi
             sleep 10
           done
-          echo "Frontend backup no respondió 200 en 6 minutos"
+          echo "Frontend backup no reporto warmed:true en 6 minutos"
+          echo "Ultimo body recibido: $body"
           exit 1
