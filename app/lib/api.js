@@ -110,7 +110,9 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const url = auth ? `/api/backend${path}` : path;
+  const normalizedPath =
+    path.startsWith("/api/") ? path.slice(4) : path;
+  const url = auth ? `/api/backend${normalizedPath}` : path;
 
   let res;
   beginBackendCall();
