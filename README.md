@@ -454,10 +454,35 @@ Hay dos suites de Vitest, separadas porque miden cosas distintas:
 |---|---|---|
 | Qué prueban | Funciones puras de `lib/**` y `app/lib/**` (JWT, sesión, fetch con reintentos, geocoding) | Los Route Handlers del BFF completos (`app/api/**/route.js`), invocados como funciones con un `Request` real |
 | Config | `vitest.config.mjs` | `vitest.integration.config.mjs` |
-| Cobertura | Sí, con umbral 80% sobre `lib/**` y `app/lib/**` (no bajar el umbral) | No corren con `--coverage`; no cuentan para el umbral de unit |
+| Cobertura | Sí, umbral 80% (ver "Scope del umbral" abajo — **no es 80% de toda la app**) | No corren con `--coverage`; no cuentan para el umbral de unit |
 | Comando | `npm run test:coverage` (o `npm test` sin cobertura) | `npm run test:integration` |
 
 Ambas corren en CI (`.github/workflows/ci.yml`, job `lint-and-test`): primero las unit con cobertura, después las de integración.
+
+### Scope del umbral 80%
+
+El threshold del 80% que aparece en `vitest.config.mjs` **no cubre toda la app**. Cubre solo librerías puras de JavaScript en dos carpetas:
+
+- `lib/**/*.js` (funciones puras server-side / util)
+- `app/lib/**/*.js` (funciones puras client-side / util)
+
+Y de esas dos carpetas, quedan **excluidas** por diseño (`coverage.exclude` en `vitest.config.mjs`):
+
+| Archivo | Motivo |
+|---|---|
+| `app/lib/auth.js` | Browser-only (`sessionStorage`, `window`), no unit-testable en node |
+| `app/lib/api.js` | HTTP client con redirects de `window.location`, es concern de integración |
+| `app/lib/geocoding.js` | Browser fetch + caché client-side, concern de integración |
+
+> **Nota:** `app/lib/features.js` estuvo excluido mientras eran solo constantes. Se removió del exclude cuando se agregó `findDemoAccount()` (PR #38, Log-in-funcional) junto con `tests/features.test.js`. Cualquier lógica ejecutable nueva en ese archivo cae bajo el umbral del 80%.
+
+Lo que **no está en el umbral en absoluto** (queda invisible para el gate del 80%):
+
+- Componentes React (`app/components/**`) — sin tests unit
+- Páginas (`app/**/page.js`, `app/**/layout.js`) — sin tests unit
+- Route Handlers del BFF (`app/api/**/route.js`) — cubiertos por la suite de integración del BFF, que **no cuenta para el threshold**
+
+**Respuesta canónica para la presentación:** el quality gate del 80% aplica **sobre librerías unitarias cubiertas** (`lib/**` + `app/lib/**` menos exclusiones), **no sobre todo el frontend**. Los componentes, páginas y Route Handlers tienen otra estrategia (integración BFF con mocks, sin threshold; deuda de E2E con Playwright para la UI real).
 
 ### Cómo agregar un caso de integración nuevo
 
