@@ -497,7 +497,6 @@ export function getCurrentLocation(options = {}) {
               message = "Permiso de ubicación denegado. Habilitá la geolocalización en tu navegador para continuar.";
               break;
             case 2: // POSITION_UNAVAILABLE
-              code = "POSITION_UNAVAILABLE";
               message = "Ubicación no disponible en este momento. Verificá la señal de GPS o conexión de red.";
               break;
             case 3: // TIMEOUT
