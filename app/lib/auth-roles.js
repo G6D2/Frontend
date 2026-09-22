@@ -1,4 +1,10 @@
-/** Helpers de rol (sin I/O). Usables en server y client. */
+/**
+ * Helpers de rol (sin I/O). Usables en server y client.
+ *
+ * NOTA DE SEGURIDAD:
+ * Estas funciones se usan para renderizado condicional en la UI y redirección de conveniencia (UX).
+ * Toda la protección real de roles y permisos reside en el BACKEND; el frontend no actúa como barrera de seguridad de roles.
+ */
 
 export function isDispatcher(user) {
   return Array.isArray(user?.groups) && user.groups.includes("dispatcher");

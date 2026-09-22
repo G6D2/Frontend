@@ -1,3 +1,20 @@
+/**
+ * Middleware de Autenticación (Session Guard)
+ *
+ * ARQUITECTURA DE SEGURIDAD Y ROLES:
+ * Este middleware actúa ÚNICAMENTE como guard de sesión activa: valida la presencia
+ * y vigencia de la cookie de sesión httpOnly (JWT) para evitar el acceso de usuarios
+ * anónimos a rutas privadas y redirigir al login (/acceso).
+ *
+ * NO existe protección de roles por niveles de rutas en el frontend.
+ * Toda la protección de roles, permisos y autorización reside de forma estricta
+ * y definitiva en el BACKEND. El backend valida el JWT y rechaza con 401/403
+ * cualquier llamada que no corresponda a los grupos/roles del usuario.
+ *
+ * Las redirecciones en el frontend (como getHomePathForUser) son exclusivamente
+ * de conveniencia de navegación y experiencia de usuario (UX).
+ */
+
 import { NextResponse } from "next/server";
 import { isTokenExpired } from "@/lib/jwt";
 import { SESSION_COOKIE } from "@/lib/session";
@@ -19,6 +36,10 @@ function isPublic(pathname) {
   );
 }
 
+/**
+ * Rutas que requieren sesión activa (autenticación).
+ * Nota: no restringe por rol; esa autorización la aplica el backend.
+ */
 function isProtected(pathname) {
   return (
     pathname.startsWith("/inicio") ||
