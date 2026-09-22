@@ -38,7 +38,7 @@ Browser  ──►  Next.js (BFF)  ──►  Express backend (puerto 3000)
 ```
 
 - La cookie `citypass_session` (JWT, `httpOnly`, `sameSite: lax`) es emitida por el BFF y nunca queda expuesta al JS del cliente.
-- `middleware.js` protege todas las rutas excepto `/acceso` y `/api/auth/*`.
+- `middleware.js` actúa como **session guard** (valida existencia y vigencia de la sesión para redirigir a `/acceso` o al home correspondiente). **Toda la protección de roles y autorización reside en el backend**: el middleware del frontend no restringe rutas según el rol del usuario; la seguridad y control de acceso a los datos y operaciones se valida exclusivamente en el backend al verificar el JWT en cada petición.
 - `lib/backend-fetch.js` implementa **retry automático** (6 intentos, 4 s entre reintentos) para absorber el cold start de Render (502/503/504).
 
 ---
@@ -105,6 +105,8 @@ Los stubs tienen el contrato de request/response documentado en sus archivos par
 | `/ops/oficiales` | Dispatcher | Gestión de oficiales |
 
 La redirección al home correcta por rol está en `app/lib/auth-roles.js → getHomePathForUser`.
+
+> **Aclaración sobre roles y seguridad:** La tabla anterior refleja la asignación de vistas prevista a nivel de navegación y UX. El frontend no restringe rutas según el rol del usuario; **toda la protección de roles y autorización reside de forma estricta en el backend**, que valida los claims del JWT en cada petición.
 
 ---
 
@@ -218,7 +220,7 @@ Los tests viven en `tests/`. Lógica de negocio pura (sin hooks) en `app/lib/eme
 
 ```
 Frontend/
-├── middleware.js              # Protección de rutas (session guard)
+├── middleware.js              # Guard de sesión activa (la autorización de roles reside en el backend)
 ├── lib/
 │   ├── session.js             # JWT, cookie options, userFromJwt
 │   ├── backend-fetch.js       # fetch con retry (cold start Render)
@@ -333,24 +335,26 @@ Frontend/
 
 ## Vistas
 
-### Vista Usuario (default)
+### Vista Usuario / Ciudadano (Botón de Pánico / SOS)
 
-- Página centrada con un **Panic Button** .
-- Al presionar: hace `POST /api/panic-button` al backend con coordenadas aleatorias de CABA (lat −34.70 a −34.53, lng −58.53 a −58.35) y se deshabilita mientras envía.
-- Al enviarse correctamente, muestra un toast con la respuesta real del backend (`ID <emergencyId> — lat X, lng Y`) y el botón se rehabilita solo a los 2 segundos, para poder disparar varias emergencias seguidas (comportamiento "por ahora", para demos).
-- Si el envío falla, muestra un toast rojo con el mensaje de error del backend y el botón se rehabilita para reintentar.
+- **Comportamiento demostrable visualmente en la interfaz:**
+  - El botón de pánico se ubica de forma central y destacada en `/inicio` (`app/(citizen)/inicio/InicioClient.js`).
+  - Al presionarse, inicia una cuenta regresiva visible de 3 segundos con efecto visual pulsante.
+  - El botón "Cancelar" se enfoca de inmediato en pantalla y permite interrumpir el conteo en cualquier momento (operable también mediante la tecla `Escape`).
+  - La UI exhibe claramente las transiciones de estado: cuenta regresiva activa, indicador de envío y toasts de confirmación o fallo.
+- **Geolocalización y despacho al backend:** Obtiene la posición real del dispositivo (con fallback CABA) y resuelve la dirección aproximada vía geocodificación inversa (`lib/geocoding.js`), enviando `POST /api/backend/panic` a través de `triggerPanicButton` en `app/lib/api.js`.
+- **Lógica desacoplada y testeable:** La máquina de estados y timers del SOS reside en `app/lib/sosController.js`, testeada con timers simulados en `tests/sos-controller.test.js`.
+- *(Alcance:* Se documentan únicamente los atributos observables y demostrables en la interfaz; no se declaran niveles de contraste certificados ni métricas formales de accesibilidad al no contar con mediciones automatizadas en el pipeline).*
 
-**JSON de emergencia enviado:**
+**Payload de emergencia enviado al backend:**
 
 ```json
 {
-  "userId": "user-123",
-  "location": {
-    "lat": -34.6037,
-    "lng": -58.3816
-  },
-  "description": "Botón de pánico activado",
-  "severity": "high"
+  "latitude": -34.6037,
+  "longitude": -58.3816,
+  "severity": "critical",
+  "emergencyType": "panic",
+  "address": "Av. Corrientes 1234, CABA"
 }
 ```
 
@@ -386,6 +390,8 @@ export const USE_BACKEND = true;                 // false = todo mockeado (sin b
 export const POLLING_INTERVAL_MS = 60_000;       // intervalo de polling del dispatcher (1 min)
 export const CITIZEN_POLLING_INTERVAL_MS = 5_000; // intervalo de polling del ciudadano (5 s)
 ```
+
+**Decisión arquitectónica de sincronización:** Se adoptó **Polling periódico** como la **decisión arquitectónica actual** para la sincronización de estado (60 s en vistas operativas del dispatcher y 5 s en el detalle de alertas del ciudadano, con suspensión en segundo plano vía `document.visibilitychange`). Esta arquitectura prioriza simplicidad de despliegue, tolerancia a caídas temporales y bajo consumo de infraestructura sin mantener conexiones abiertas permanentes. La adopción de **Server-Sent Events (SSE) o WebSockets queda documentada como una evolución futura** para etapas posteriores donde el volumen de despacho o la concurrencia requieran streaming bidireccional o eventos push con latencia sub-segundo.
 
 **URL del backend:** no está hardcodeada. Se asume que el backend corre en la **misma máquina que el front, puerto 4000**, y se arma con el hostname con el que abriste la página (`http://<hostname>:4000/api`). Para apuntar a otro lado: `NEXT_PUBLIC_API_URL=http://otro-host:4000/api npm run dev`.
 
