@@ -4,7 +4,12 @@ import {
   isTokenExpired,
   getTokenMaxAgeSeconds,
 } from "../lib/jwt";
-import { getHomePathForUser, isDispatcher, isCitizen } from "../app/lib/auth-roles";
+import {
+  getHomePathForUser,
+  isDispatcher,
+  isCitizen,
+  isOfficer,
+} from "../app/lib/auth-roles";
 
 function makeToken(payload) {
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString(
@@ -60,5 +65,11 @@ describe("auth roles", () => {
   it("routes citizen to /inicio", () => {
     expect(getHomePathForUser({ groups: ["citizen"] })).toBe("/inicio");
     expect(isCitizen({ groups: ["citizen"] })).toBe(true);
+  });
+
+  it("detects officer group", () => {
+    expect(isOfficer({ groups: ["officer"] })).toBe(true);
+    expect(isOfficer({ groups: ["citizen"] })).toBe(false);
+    expect(isOfficer(null)).toBe(false);
   });
 });

@@ -21,6 +21,10 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata = {
   title: "CityPass Emergencias",
   description: "Sistema de emergencias ciudadanas - CityPass",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/favicon.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({ children }) {

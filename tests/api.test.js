@@ -6,6 +6,8 @@ import {
   SEVERITY_CONFIG,
   ApiError,
   loginDev,
+  loginWithPassword,
+  registerAccount,
   logout,
   fetchCurrentUser,
   hasValidSession,
@@ -126,7 +128,14 @@ describe("api.js", () => {
         })
       );
       expect(result.user).toEqual({ sub: "u1", username: "juan", loginMethod: "directo" });
-      expect(getStoredUser()).toEqual({ sub: "u1", username: "juan", loginMethod: "directo" });
+      // setStoredUser solo persiste claims de sesión (sin PII); completa defaults.
+      expect(getStoredUser()).toEqual({
+        sub: "u1",
+        username: "juan",
+        groups: [],
+        hasAntipanicButton: false,
+        loginMethod: "directo",
+      });
     });
 
     it("loginDev: lanza ApiError si el login falla", async () => {
@@ -137,6 +146,95 @@ describe("api.js", () => {
       });
 
       await expect(loginDev({ sub: "bad" })).rejects.toThrow(ApiError);
+    });
+
+    it("loginWithPassword: POST email+password y guarda sesión", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          user: { sub: "u2", username: "ana", groups: ["citizen"] },
+        }),
+      });
+
+      const result = await loginWithPassword({
+        email: "ana@city.com",
+        password: "secret",
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ email: "ana@city.com", password: "secret" }),
+        })
+      );
+      expect(result.user).toMatchObject({
+        sub: "u2",
+        username: "ana",
+        loginMethod: "sesion",
+      });
+      expect(getStoredUser()).toMatchObject({
+        sub: "u2",
+        username: "ana",
+        loginMethod: "sesion",
+      });
+    });
+
+    it("loginWithPassword: lanza ApiError si falla", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: "Unauthorized" }),
+      });
+
+      await expect(
+        loginWithPassword({ email: "x@y.com", password: "bad" })
+      ).rejects.toThrow(ApiError);
+    });
+
+    it("registerAccount: POST register y guarda sesión", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          user: { sub: "u3", username: "nuevo", groups: ["citizen"] },
+        }),
+      });
+
+      const result = await registerAccount({
+        email: "nuevo@city.com",
+        password: "secret",
+        preferred_username: "nuevo",
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/register",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            email: "nuevo@city.com",
+            password: "secret",
+            preferred_username: "nuevo",
+          }),
+        })
+      );
+      expect(result.user.loginMethod).toBe("sesion");
+      expect(getStoredUser()?.sub).toBe("u3");
+    });
+
+    it("registerAccount: lanza ApiError si falla", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: "Email ya registrado" }),
+      });
+
+      await expect(
+        registerAccount({ email: "dup@city.com", password: "x" })
+      ).rejects.toMatchObject({ message: "Email ya registrado", status: 409 });
     });
 
     it("logout: llama a /api/auth/logout y limpia usuario almacenado", async () => {
@@ -153,17 +251,40 @@ describe("api.js", () => {
     });
 
     it("fetchCurrentUser: obtiene sesión de /api/auth/session y fusiona con perfil local", async () => {
-      setStoredUser({ sub: "u1", customPref: "dark" });
+      setStoredUser({ sub: "u1", loginMethod: "sesion" });
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ data: { sub: "u1", email: "test@city.com" } }),
+        json: async () => ({
+          data: {
+            sub: "u1",
+            username: "juan",
+            groups: ["citizen"],
+            hasAntipanicButton: true,
+            email: "test@city.com",
+          },
+        }),
       });
 
       const user = await fetchCurrentUser();
 
-      expect(user).toEqual({ sub: "u1", customPref: "dark", email: "test@city.com" });
-      expect(getStoredUser()).toEqual(user);
+      // El return incluye lo que vino de session (puede traer email en memoria),
+      // pero sessionStorage no guarda PII como email.
+      expect(user).toMatchObject({
+        sub: "u1",
+        username: "juan",
+        groups: ["citizen"],
+        hasAntipanicButton: true,
+        loginMethod: "sesion",
+        email: "test@city.com",
+      });
+      expect(getStoredUser()).toEqual({
+        sub: "u1",
+        username: "juan",
+        groups: ["citizen"],
+        hasAntipanicButton: true,
+        loginMethod: "sesion",
+      });
     });
 
     it("fetchCurrentUser: 401 redirige a /acceso y limpia usuario", async () => {
@@ -224,7 +345,7 @@ describe("api.js", () => {
       ).rejects.toThrow("latitude/longitude deben ser números");
     });
 
-    it("triggerPanicButton: envía POST /api/backend/panic-button con campos correctos y recorta dirección", async () => {
+    it("triggerPanicButton: envía POST /api/backend/api/panic-button con campos correctos y recorta dirección", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 201,
@@ -241,7 +362,7 @@ describe("api.js", () => {
 
       expect(res).toEqual({ success: true, emergencyId: "e1" });
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/panic-button",
+        "/api/backend/api/panic-button",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
@@ -294,6 +415,29 @@ describe("api.js", () => {
       });
       expect(JSON.parse(global.fetch.mock.calls[0][1].body).severity).toBe("critical");
     });
+
+    it("reportIncident: reemplaza el mensaje de pánico del backend", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          success: true,
+          emergencyId: "e3",
+          message: "Botón de pánico activado",
+        }),
+      });
+
+      const result = await reportIncident({
+        category: "other",
+        latitude: -34.6,
+        longitude: -58.4,
+      });
+
+      expect(result.message).toBe(
+        "Tu reporte fue registrado y ya está en camino al centro de operaciones."
+      );
+      expect(result.message).not.toMatch(/pánico/i);
+    });
   });
 
   describe("Operaciones de emergencias", () => {
@@ -307,7 +451,7 @@ describe("api.js", () => {
       const detail = await fetchEmergencyDetail("e1");
       expect(detail).toEqual({ id: "e1", status: "PENDING" });
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/emergencies/e1",
+        "/api/backend/api/emergencies/e1",
         expect.anything()
       );
     });
@@ -379,7 +523,7 @@ describe("api.js", () => {
       const res = await cancelEmergency("e1", "falsa alarma");
       expect(res).toEqual({ id: "e1", status: "CANCELLED" });
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/emergencies/e1/cancel",
+        "/api/backend/api/emergencies/e1/cancel",
         expect.objectContaining({
           method: "PATCH",
           body: JSON.stringify({ reason: "falsa alarma" }),
@@ -416,7 +560,7 @@ describe("api.js", () => {
       const officers = await fetchOfficers({ status: "AVAILABLE" });
       expect(officers).toEqual([{ id: "of1" }]);
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/officers?status=AVAILABLE",
+        "/api/backend/api/officers?status=AVAILABLE",
         expect.anything()
       );
 

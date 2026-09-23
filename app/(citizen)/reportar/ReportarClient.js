@@ -114,9 +114,13 @@ export default function ReportarClient() {
         description: description.trim() || undefined,
         address: address || undefined,
       });
+      // No usar el message crudo del backend (/api/panic-button): suele
+      // decir "Botón de pánico activado". reportIncident ya lo sanitiza.
       notifications.show({
         title: "Incidente reportado",
-        message: result.message || "Tu reporte fue registrado.",
+        message:
+          result?.message ||
+          "Tu reporte fue registrado y ya está en camino al centro de operaciones.",
         color: "teal",
         autoClose: 4000,
       });

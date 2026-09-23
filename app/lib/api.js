@@ -13,8 +13,23 @@ export const POLLING_INTERVAL_MS = 60_000;
  *  dado que la carga de ciudadanos simultáneos es menor que la del dispatcher. */
 export const CITIZEN_POLLING_INTERVAL_MS = 5_000;
 
-function redirectToLogin() {
+function purgeLegacyCitizenLocalStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("citypass_personal_data");
+    localStorage.removeItem("citypass_saved_locations");
+  } catch {
+    // ignore
+  }
+}
+
+function clearClientSensitiveState() {
   clearStoredUser();
+  purgeLegacyCitizenLocalStorage();
+}
+
+function redirectToLogin() {
+  clearClientSensitiveState();
   if (typeof window === "undefined") return;
   if (window.location.pathname.startsWith("/acceso")) return;
   window.location.replace("/acceso");
@@ -110,9 +125,10 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const normalizedPath =
-    path.startsWith("/api/") ? path.slice(4) : path;
-  const url = auth ? `/api/backend${normalizedPath}` : path;
+  // El backend monta todo bajo /api/* (p.ej. /api/panic-button). El BFF
+  // reenvía el path tal cual después de /api/backend → BACKEND_URL/<path>.
+  // No strippear "/api": si no, termina en BACKEND_URL/panic-button (404).
+  const url = auth ? `/api/backend${path}` : path;
 
   let res;
   beginBackendCall();
@@ -169,13 +185,62 @@ export async function loginDev({
   return { user };
 }
 
+/** Login real email+password (POST /auth/login en el backend). */
+export async function loginWithPassword({ email, password }) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || data?.error || `Error HTTP ${res.status}`,
+      { status: res.status, body: data }
+    );
+  }
+  const user = { ...data.user, loginMethod: "sesion" };
+  setStoredUser(user);
+  return { user };
+}
+
+/** Registro real email+password (POST /auth/register). */
+export async function registerAccount({ email, password, preferred_username }) {
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ email, password, preferred_username }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || data?.error || `Error HTTP ${res.status}`,
+      { status: res.status, body: data }
+    );
+  }
+  const user = { ...data.user, loginMethod: "sesion" };
+  setStoredUser(user);
+  return { user };
+}
+
 export async function logout() {
   await fetch("/api/auth/logout", {
     method: "POST",
     credentials: "same-origin",
   });
-  clearStoredUser();
+  clearClientSensitiveState();
 }
+
+export {
+  fetchCitizenProfile,
+  saveCitizenProfile,
+  fetchSavedLocations,
+  createSavedLocation,
+  patchSavedLocation,
+  deleteSavedLocation,
+} from "./citizen-profile-api.js";
 
 export async function fetchCurrentUser() {
   const res = await fetch("/api/auth/session", {
@@ -329,7 +394,10 @@ export async function reportIncident({
   // SOS = critical; incidentes: medical/fire = high, resto = medium
   const defaultSeverity =
     type === "medical" || type === "fire" ? "high" : "medium";
-  return triggerPanicButton({
+  // Reusa POST /api/panic-button con emergencyType del incidente.
+  // El backend suele devolver message="Botón de pánico activado"; lo
+  // reemplazamos para no mostrarlo en el flujo de reportar.
+  const result = await triggerPanicButton({
     latitude,
     longitude,
     emergencyType: type,
@@ -337,6 +405,10 @@ export async function reportIncident({
     description: description || undefined,
     address,
   });
+  return {
+    ...result,
+    message: "Tu reporte fue registrado y ya está en camino al centro de operaciones.",
+  };
 }
 
 export async function validateEmergency(id) {

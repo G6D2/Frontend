@@ -9,17 +9,37 @@ import {
   savePersonalData,
   EMPTY_PERSONAL_DATA,
 } from "../../../lib/personal-data";
+import { CitizenProfileApiError } from "../../../lib/citizen-profile-api.js";
 
 const INPUT_CLASS =
   "h-12 px-4 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim outline-none transition-all";
 
 export default function DatosPersonalesPage() {
   const [form, setForm] = useState(EMPTY_PERSONAL_DATA);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setForm(getPersonalData());
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getPersonalData();
+        if (!cancelled) setForm(data);
+      } catch (err) {
+        if (!cancelled) {
+          notifications.show({
+            title: "No se pudo cargar el perfil",
+            message: err instanceof CitizenProfileApiError ? err.message : "Reintentá en unos segundos.",
+            color: "red",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleChange = (field) => (e) => {
@@ -27,19 +47,26 @@ export default function DatosPersonalesPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (saving) return;
     setSaving(true);
-    const ok = savePersonalData(form);
-    setSaving(false);
-    notifications.show({
-      title: ok ? "Guardado" : "No se pudo guardar",
-      message: ok
-        ? "Tus datos se guardaron en este dispositivo."
-        : "Probá de nuevo en unos segundos.",
-      color: ok ? "green" : "red",
-    });
+    try {
+      await savePersonalData(form);
+      notifications.show({
+        title: "Guardado",
+        message: "Tu perfil quedó en el servidor (datos sensibles cifrados).",
+        color: "green",
+      });
+    } catch (err) {
+      notifications.show({
+        title: "No se pudo guardar",
+        message: err instanceof CitizenProfileApiError ? err.message : "Probá de nuevo en unos segundos.",
+        color: "red",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -50,6 +77,10 @@ export default function DatosPersonalesPage() {
         <p className="text-sm text-on-surface-variant">
           Estos datos ayudan a que, si activás el botón de pánico o reportás
           una emergencia, quien te asista tenga más contexto sobre vos.
+        </p>
+        <p className="text-xs text-on-surface-variant">
+          Se guardan en el backend con cifrado en reposo. No se almacenan en
+          localStorage del navegador.
         </p>
 
         <form
@@ -70,6 +101,7 @@ export default function DatosPersonalesPage() {
               value={form.name}
               onChange={handleChange("name")}
               placeholder="Juan Pérez"
+              disabled={loading || saving}
               className={INPUT_CLASS}
             />
           </div>
@@ -88,6 +120,7 @@ export default function DatosPersonalesPage() {
               value={form.phone}
               onChange={handleChange("phone")}
               placeholder="11 2233 4455"
+              disabled={loading || saving}
               className={INPUT_CLASS}
             />
           </div>
@@ -111,6 +144,7 @@ export default function DatosPersonalesPage() {
                 value={form.emergencyContactName}
                 onChange={handleChange("emergencyContactName")}
                 placeholder="Ana Pérez"
+                disabled={loading || saving}
                 className={INPUT_CLASS}
               />
             </div>
@@ -129,6 +163,7 @@ export default function DatosPersonalesPage() {
                 value={form.emergencyContactPhone}
                 onChange={handleChange("emergencyContactPhone")}
                 placeholder="11 9988 7766"
+                disabled={loading || saving}
                 className={INPUT_CLASS}
               />
             </div>
@@ -149,18 +184,14 @@ export default function DatosPersonalesPage() {
               value={form.medicalCondition}
               onChange={handleChange("medicalCondition")}
               placeholder="Ej: diabetes, alergias, medicación habitual…"
+              disabled={loading || saving}
               className={INPUT_CLASS}
             />
           </div>
 
-          <p className="text-xs text-on-surface-variant italic">
-            Se guarda solo en este dispositivo hasta que exista el perfil en
-            el backend.
-          </p>
-
           <button
             type="submit"
-            disabled={saving}
+            disabled={loading || saving}
             className="min-h-[52px] py-3 px-4 w-full bg-primary text-on-primary font-semibold text-sm tracking-wide rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
           >
             {saving ? "Guardando..." : "Guardar"}

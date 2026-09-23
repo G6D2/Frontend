@@ -1,14 +1,16 @@
 /**
- * Datos personales del ciudadano, guardados localmente en el dispositivo.
- *
- * TODO(back): hoy no existe un perfil de ciudadano en el backend, así que
- * esto vive en localStorage. El día que exista GET/PUT /api/perfil,
- * reemplazar por llamadas reales y usar esto solo como caché offline.
+ * Datos personales del ciudadano vía backend (cifrados en reposo).
+ * Purga restos legacy de localStorage si quedaban de versiones anteriores.
  */
 
-const STORAGE_KEY = "citypass_personal_data";
+import {
+  fetchCitizenProfile,
+  saveCitizenProfile,
+} from "./citizen-profile-api.js";
 
-const EMPTY_PERSONAL_DATA = {
+const LEGACY_STORAGE_KEY = "citypass_personal_data";
+
+export const EMPTY_PERSONAL_DATA = {
   name: "",
   phone: "",
   emergencyContactName: "",
@@ -16,45 +18,33 @@ const EMPTY_PERSONAL_DATA = {
   medicalCondition: "",
 };
 
-function hasLocalStorage() {
-  return typeof localStorage !== "undefined";
-}
-
-/** Devuelve los datos guardados, o el objeto vacío si no hay nada (o el storage no está disponible). */
-export function getPersonalData() {
-  if (!hasLocalStorage()) return { ...EMPTY_PERSONAL_DATA };
+export function purgeLegacyPersonalDataStorage() {
+  if (typeof localStorage === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...EMPTY_PERSONAL_DATA };
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return { ...EMPTY_PERSONAL_DATA };
-    return { ...EMPTY_PERSONAL_DATA, ...parsed };
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
-    return { ...EMPTY_PERSONAL_DATA };
+    // ignore
   }
 }
 
-/** Guarda los datos personales. Devuelve true si se pudo persistir. */
-export function savePersonalData(data) {
-  if (!hasLocalStorage()) return false;
-  try {
-    const merged = { ...EMPTY_PERSONAL_DATA, ...data };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    return true;
-  } catch {
-    return false;
-  }
+/** Carga el perfil desde el backend. */
+export async function getPersonalData() {
+  purgeLegacyPersonalDataStorage();
+  const data = await fetchCitizenProfile();
+  return { ...EMPTY_PERSONAL_DATA, ...data };
 }
 
-/** Borra los datos personales guardados en este dispositivo. */
+/** Persiste el perfil en el backend. Devuelve true si OK. */
+export async function savePersonalData(data) {
+  purgeLegacyPersonalDataStorage();
+  await saveCitizenProfile(data);
+  return true;
+}
+
+/** Solo limpia restos locales (el backend conserva el perfil del usuario). */
 export function clearPersonalData() {
-  if (!hasLocalStorage()) return false;
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-    return true;
-  } catch {
-    return false;
-  }
+  purgeLegacyPersonalDataStorage();
+  return true;
 }
 
-export { STORAGE_KEY as PERSONAL_DATA_STORAGE_KEY, EMPTY_PERSONAL_DATA };
+export { LEGACY_STORAGE_KEY as PERSONAL_DATA_STORAGE_KEY };

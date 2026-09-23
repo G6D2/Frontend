@@ -1,10 +1,32 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const {
+  fetchSavedLocations,
+  createSavedLocation,
+  patchSavedLocation,
+  deleteSavedLocation,
+} = vi.hoisted(() => ({
+  fetchSavedLocations: vi.fn(),
+  createSavedLocation: vi.fn(),
+  patchSavedLocation: vi.fn(),
+  deleteSavedLocation: vi.fn(),
+}));
+
+vi.mock("../app/lib/citizen-profile-api.js", () => ({
+  fetchSavedLocations,
+  createSavedLocation,
+  patchSavedLocation,
+  deleteSavedLocation,
+}));
+
 import {
   getSavedLocations,
   addSavedLocation,
   updateSavedLocation,
   removeSavedLocation,
-} from "../app/lib/saved-locations";
+  clearSavedLocations,
+  SAVED_LOCATIONS_STORAGE_KEY,
+} from "../app/lib/saved-locations.js";
 
 function createMemoryStorage() {
   const store = new Map();
@@ -16,102 +38,43 @@ function createMemoryStorage() {
   };
 }
 
-describe("saved-locations (sin localStorage)", () => {
-  it("getSavedLocations devuelve [] si no hay localStorage", () => {
-    expect(getSavedLocations()).toEqual([]);
-  });
-
-  it("addSavedLocation devuelve null si no hay localStorage", () => {
-    expect(addSavedLocation({ label: "Casa" })).toBeNull();
-  });
-
-  it("updateSavedLocation devuelve false si no hay localStorage", () => {
-    expect(updateSavedLocation("x", { label: "Y" })).toBe(false);
-  });
-
-  it("removeSavedLocation devuelve false si no hay localStorage", () => {
-    expect(removeSavedLocation("x")).toBe(false);
-  });
-});
-
-describe("saved-locations (con localStorage)", () => {
+describe("saved-locations (backend)", () => {
   beforeEach(() => {
     globalThis.localStorage = createMemoryStorage();
+    fetchSavedLocations.mockReset();
+    createSavedLocation.mockReset();
+    patchSavedLocation.mockReset();
+    deleteSavedLocation.mockReset();
   });
 
   afterEach(() => {
     delete globalThis.localStorage;
   });
 
-  it("getSavedLocations devuelve [] cuando no hay nada guardado", () => {
-    expect(getSavedLocations()).toEqual([]);
+  it("getSavedLocations pide al backend y purga localStorage legacy", async () => {
+    globalThis.localStorage.setItem(SAVED_LOCATIONS_STORAGE_KEY, "[]");
+    fetchSavedLocations.mockResolvedValue([{ id: "1", label: "Casa", address: "A" }]);
+    await expect(getSavedLocations()).resolves.toHaveLength(1);
+    expect(globalThis.localStorage.getItem(SAVED_LOCATIONS_STORAGE_KEY)).toBeNull();
   });
 
-  it("addSavedLocation agrega una entrada con id generado", () => {
-    const entry = addSavedLocation({
-      label: "Casa",
-      address: "Av. Siempre Viva 742",
-      lat: -34.6,
-      lng: -58.4,
+  it("add/update/remove delegan en el API", async () => {
+    createSavedLocation.mockResolvedValue({ id: "1", label: "Casa" });
+    patchSavedLocation.mockResolvedValue({ id: "1", label: "Trabajo" });
+    deleteSavedLocation.mockResolvedValue(true);
+
+    await expect(addSavedLocation({ label: "Casa", address: "A" })).resolves.toMatchObject({
+      id: "1",
     });
-    expect(entry).toMatchObject({
-      label: "Casa",
-      address: "Av. Siempre Viva 742",
-      lat: -34.6,
-      lng: -58.4,
-    });
-    expect(typeof entry.id).toBe("string");
-    expect(getSavedLocations()).toHaveLength(1);
+    await expect(updateSavedLocation("1", { label: "Trabajo" })).resolves.toBe(true);
+    await expect(removeSavedLocation("1")).resolves.toBe(true);
+    expect(patchSavedLocation).toHaveBeenCalledWith("1", { label: "Trabajo" });
+    expect(deleteSavedLocation).toHaveBeenCalledWith("1");
   });
 
-  it("addSavedLocation normaliza lat/lng inválidos a null", () => {
-    const entry = addSavedLocation({ label: "Trabajo", address: "Calle 1", lat: NaN, lng: "no-num" });
-    expect(entry.lat).toBeNull();
-    expect(entry.lng).toBeNull();
-  });
-
-  it("addSavedLocation acumula varias ubicaciones", () => {
-    addSavedLocation({ label: "Casa", address: "A" });
-    addSavedLocation({ label: "Trabajo", address: "B" });
-    expect(getSavedLocations()).toHaveLength(2);
-  });
-
-  it("updateSavedLocation modifica una entrada existente sin cambiar el id", () => {
-    const entry = addSavedLocation({ label: "Casa", address: "Vieja" });
-    const ok = updateSavedLocation(entry.id, { address: "Nueva" });
-    expect(ok).toBe(true);
-    const [updated] = getSavedLocations();
-    expect(updated.id).toBe(entry.id);
-    expect(updated.address).toBe("Nueva");
-  });
-
-  it("updateSavedLocation devuelve false si el id no existe", () => {
-    expect(updateSavedLocation("inexistente", { address: "X" })).toBe(false);
-  });
-
-  it("removeSavedLocation borra la entrada indicada", () => {
-    const a = addSavedLocation({ label: "Casa", address: "A" });
-    const b = addSavedLocation({ label: "Trabajo", address: "B" });
-    expect(removeSavedLocation(a.id)).toBe(true);
-    const remaining = getSavedLocations();
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0].id).toBe(b.id);
-  });
-
-  it("getSavedLocations tolera JSON corrupto", () => {
-    globalThis.localStorage.setItem("citypass_saved_locations", "{not-json");
-    expect(getSavedLocations()).toEqual([]);
-  });
-
-  it("getSavedLocations tolera un valor guardado que no es un array", () => {
-    globalThis.localStorage.setItem("citypass_saved_locations", JSON.stringify({ foo: "bar" }));
-    expect(getSavedLocations()).toEqual([]);
-  });
-
-  it("addSavedLocation devuelve null si localStorage tira una excepción al guardar", () => {
-    globalThis.localStorage.setItem = () => {
-      throw new Error("quota exceeded");
-    };
-    expect(addSavedLocation({ label: "Casa" })).toBeNull();
+  it("clearSavedLocations solo limpia restos locales", () => {
+    globalThis.localStorage.setItem(SAVED_LOCATIONS_STORAGE_KEY, "[]");
+    expect(clearSavedLocations()).toBe(true);
+    expect(globalThis.localStorage.getItem(SAVED_LOCATIONS_STORAGE_KEY)).toBeNull();
   });
 });

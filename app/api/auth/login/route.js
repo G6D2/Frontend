@@ -8,7 +8,12 @@ import {
 import { ANTIPANIC_MODE } from "@/app/lib/features";
 import { fetchBackend } from "@/lib/backend-fetch";
 
-// TODO(back): reemplazar body por login IdP real cuando AUTH_MODE=idp (HU-12)
+/**
+ * POST /api/auth/login
+ *
+ * - email+password → POST /auth/login (usuarios reales)
+ * - sub (+ groups) → POST /auth/dev/login (atajos demo / anónimo / dispatcher)
+ */
 export async function POST(request) {
   let body;
   try {
@@ -20,17 +25,30 @@ export async function POST(request) {
     );
   }
 
+  const isCredentialLogin =
+    typeof body.email === "string" && typeof body.password === "string";
+  const backendPath = isCredentialLogin ? "/auth/login" : "/auth/dev/login";
+  const backendBody = isCredentialLogin
+    ? { email: body.email, password: body.password }
+    : {
+        sub: body.sub,
+        preferred_username: body.preferred_username,
+        groups: body.groups,
+      };
+
   let res;
   try {
-    // Reintenta mientras el backend despierta (Render free devuelve 502 al instante).
-    res = await fetchBackend(`${BACKEND_URL}/auth/dev/login`, {
+    res = await fetchBackend(`${BACKEND_URL}${backendPath}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(backendBody),
     });
   } catch {
     return NextResponse.json(
-      { error: "Bad Gateway", message: "El backend no responde. Probá de nuevo en unos segundos." },
+      {
+        error: "Bad Gateway",
+        message: "El backend no responde. Probá de nuevo en unos segundos.",
+      },
       { status: 502 }
     );
   }
@@ -54,7 +72,7 @@ export async function POST(request) {
     );
   }
 
-  let user = userFromJwt(accessToken);
+  let user = data.user || userFromJwt(accessToken);
   try {
     const meRes = await fetchBackend(`${BACKEND_URL}/api/user`, {
       headers: {
@@ -64,16 +82,12 @@ export async function POST(request) {
     });
     if (meRes.ok) {
       const me = await meRes.json();
-      user = me.data || user;
+      user = { ...user, ...(me.data || {}) };
     }
   } catch {
-    // keep JWT-derived user
+    // keep token-derived user
   }
 
-  // Propagate frontend-managed permission flags.
-  // En modo "mock": hasAntipanicButton viene del toggle del formulario de login (body).
-  // En modo "backend": el campo ya viene incluido en me.data desde GET /api/user (no se toca).
-  // ▶ Cambiar ANTIPANIC_MODE en app/lib/features.js para conectar con el backend real.
   if (ANTIPANIC_MODE === "mock" && typeof body.hasAntipanicButton === "boolean") {
     user = { ...user, hasAntipanicButton: body.hasAntipanicButton };
   }

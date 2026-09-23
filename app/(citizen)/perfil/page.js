@@ -7,8 +7,7 @@ import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 import AccountView from "../../components/AccountView";
 import { getStoredUser, fetchCurrentUser } from "../../lib/api";
 
-// TODO(back): hoy vive en localStorage; migrar a endpoints reales cuando
-// exista el perfil de ciudadano.
+// Perfil y ubicaciones viven en el backend (/api/citizen/*), cifrados en reposo.
 const ACCESS_ITEMS = [
   { icon: "person", label: "Datos personales", href: "/perfil/datos" },
   { icon: "location_on", label: "Ubicaciones guardadas", href: "/perfil/ubicaciones" },
