@@ -13,10 +13,10 @@
 //    El campo hasAntipanicButton se determina por las cuentas demo (DEMO_ACCOUNTS).
 //    El valor viaja en el body del POST /api/auth/login y se almacena en sessionStorage.
 //
-//  "backend"
+//  "backend" (valor actual)
 //    hasAntipanicButton viene de GET /api/user (claim has_antipanic_button del JWT).
 //
-//  ▶ PARA CONECTAR CON EL BACKEND: cambiar "mock" → "backend".
+//  ▶ Solo usar "mock" para demos locales sin backend.
 //
 export const ANTIPANIC_MODE = "backend";
 

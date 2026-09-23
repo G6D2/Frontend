@@ -1,10 +1,9 @@
 // Integración: POST /api/auth/login (app/api/auth/login/route.js)
 //
-// Cubre: login OK setea la cookie de sesión y arma `user` (incluyendo el flag
-// `hasAntipanicButton` que en modo "mock" viaja en el body del login, ver
-// app/lib/features.js), un 400 del backend se propaga tal cual, y los 502
-// transitorios del backend dormido (Render free) se resuelven solos gracias
-// a los reintentos de lib/backend-fetch.js.
+// Cubre: login OK setea la cookie de sesión y arma `user` (incluyendo
+// `hasAntipanicButton` desde GET /api/user cuando ANTIPANIC_MODE="backend"),
+// un 400 del backend se propaga tal cual, y los 502 transitorios del backend
+// dormido (Render free) se resuelven solos gracias a lib/backend-fetch.js.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
@@ -34,18 +33,21 @@ describe("POST /api/auth/login", () => {
     mockNextCookies(cookies);
   });
 
-  it("login OK: setea la cookie de sesión y arma el user con hasAntipanicButton del body (modo mock)", async () => {
+  it("login OK: setea cookie y toma hasAntipanicButton de GET /api/user (modo backend)", async () => {
     mockBackend({
       "POST /auth/dev/login": {
         status: 200,
         body: { access_token: TOKEN, expires_in: 900 },
       },
-      "GET /api/user": { status: 404, body: {} }, // sin perfil en backend: se usa el JWT
+      "GET /api/user": {
+        status: 200,
+        body: { data: { hasAntipanicButton: true } },
+      },
     });
 
     const req = makeRequest(LOGIN_URL, {
       method: "POST",
-      body: { username: "vecina1", loginMethod: "dev", hasAntipanicButton: true },
+      body: { username: "vecina1", loginMethod: "dev" },
     });
     const res = await POST(req);
     const json = await res.json();
@@ -61,7 +63,29 @@ describe("POST /api/auth/login", () => {
     expect(setCookie?.value).toBe(TOKEN);
   });
 
-  it("respeta hasAntipanicButton=false y loginMethod del body", async () => {
+  it("respeta hasAntipanicButton=false desde el perfil backend", async () => {
+    mockBackend({
+      "POST /auth/dev/login": {
+        status: 200,
+        body: { access_token: TOKEN, expires_in: 900 },
+      },
+      "GET /api/user": {
+        status: 200,
+        body: { data: { hasAntipanicButton: false } },
+      },
+    });
+
+    const req = makeRequest(LOGIN_URL, {
+      method: "POST",
+      body: { username: "vecina1", loginMethod: "dev" },
+    });
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(json.user.hasAntipanicButton).toBe(false);
+  });
+
+  it("ignora hasAntipanicButton del body en modo backend", async () => {
     mockBackend({
       "POST /auth/dev/login": {
         status: 200,
@@ -72,12 +96,12 @@ describe("POST /api/auth/login", () => {
 
     const req = makeRequest(LOGIN_URL, {
       method: "POST",
-      body: { username: "vecina1", loginMethod: "dev", hasAntipanicButton: false },
+      body: { username: "vecina1", hasAntipanicButton: true },
     });
     const res = await POST(req);
     const json = await res.json();
 
-    expect(json.user.hasAntipanicButton).toBe(false);
+    expect(json.user.hasAntipanicButton).toBeUndefined();
   });
 
   it("backend 400: propaga el error sin setear cookie", async () => {
@@ -109,7 +133,7 @@ describe("POST /api/auth/login", () => {
 
     const req = makeRequest(LOGIN_URL, {
       method: "POST",
-      body: { username: "vecina1", hasAntipanicButton: true },
+      body: { username: "vecina1" },
     });
 
     // El reintento real espera 4s entre intentos (lib/backend-fetch.js);
