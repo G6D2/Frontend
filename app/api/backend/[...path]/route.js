@@ -21,6 +21,8 @@ async function proxy(request, context) {
   headers.set("Authorization", `Bearer ${token}`);
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("Content-Type", contentType);
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
 
   const init = {
     method: request.method,
@@ -34,8 +36,9 @@ async function proxy(request, context) {
 
   let backendRes;
   try {
-    // Reintenta 502/503/504 y errores de red: el backend dormido de Render
-    // nunca llegó a procesar la request, así que es seguro incluso para POST.
+    // Reintenta 502/503/504 y errores de red (cold start de Render).
+    // Para POST/PUT/PATCH fetchBackend inyecta un Idempotency-Key único
+    // que hace seguro el retry incluso si el backend llegó a procesar la request.
     backendRes = await fetchBackend(target, init);
   } catch {
     return NextResponse.json(

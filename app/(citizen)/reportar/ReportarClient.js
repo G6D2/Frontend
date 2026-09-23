@@ -63,30 +63,40 @@ export default function ReportarClient() {
   // `address` es undefined mientras se resuelve, null si no llegó a tiempo
   // (timeout de reverseGeocode) o no se pudo geocodificar, string si sí.
   const [address, setAddress] = useState(undefined);
+  const [geoError, setGeoError] = useState(null);
   const locationRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
-    getCurrentLocation().then((loc) => {
-      if (cancelled) return;
-      locationRef.current = loc;
-      reverseGeocode(loc.latitude, loc.longitude, {
-        timeoutMs: SOS_ADDRESS_TIMEOUT_MS,
-      }).then((label) => {
-        if (!cancelled) setAddress(label);
+    getCurrentLocation()
+      .then((loc) => {
+        if (cancelled) return;
+        locationRef.current = loc;
+        setGeoError(null);
+        reverseGeocode(loc.latitude, loc.longitude, {
+          timeoutMs: SOS_ADDRESS_TIMEOUT_MS,
+        }).then((label) => {
+          if (!cancelled) setAddress(label);
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        locationRef.current = null;
+        setGeoError(err.message || "No se pudo obtener la ubicación");
       });
-    });
     return () => {
       cancelled = true;
     };
   }, []);
 
   const locationStatusText =
-    address === undefined
-      ? "Ubicación: obteniendo…"
-      : address
-        ? `Ubicación: ${address}`
-        : "Ubicación: coordenadas registradas";
+    geoError
+      ? `Ubicación: no disponible (${geoError})`
+      : address === undefined
+        ? "Ubicación: obteniendo…"
+        : address
+          ? `Ubicación: ${address}`
+          : "Ubicación: coordenadas registradas";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
