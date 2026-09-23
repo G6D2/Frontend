@@ -2,15 +2,25 @@ import { NextResponse } from "next/server";
 import { isTokenExpired } from "@/lib/jwt";
 import { SESSION_COOKIE } from "@/lib/session";
 import { decodeJwtPayload } from "@/lib/jwt";
-import { getHomePathForUser } from "@/app/lib/auth-roles";
+import { getHomePathForUser, isDispatcher } from "@/app/lib/auth-roles";
+
+/**
+ * Guard UX de rutas (existencia de cookie + exp).
+ * La autoridad criptográfica es el backend (verifica firma RS256).
+ * Este middleware NO valida la firma del JWT.
+ */
 
 const PUBLIC_PREFIXES = [
   "/acceso",
   "/api/auth/login",
   "/api/auth/logout",
+  "/api/auth/register",
   "/_next",
   "/favicon.ico",
 ];
+
+const CITIZEN_PREFIXES = ["/inicio", "/reportar", "/mis-alertas", "/perfil"];
+const OPS_PREFIXES = ["/ops"];
 
 function isPublic(pathname) {
   if (pathname === "/") return true;
@@ -21,12 +31,30 @@ function isPublic(pathname) {
 
 function isProtected(pathname) {
   return (
-    pathname.startsWith("/inicio") ||
-    pathname.startsWith("/reportar") ||
-    pathname.startsWith("/mis-alertas") ||
-    pathname.startsWith("/perfil") ||
-    pathname.startsWith("/ops")
+    CITIZEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
+    OPS_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
   );
+}
+
+function matchesAny(pathname, prefixes) {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function clearSessionCookie(res) {
+  res.cookies.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
+function userFromToken(token) {
+  const payload = decodeJwtPayload(token);
+  return {
+    groups: Array.isArray(payload?.groups) ? payload.groups : [],
+  };
 }
 
 export function middleware(request) {
@@ -40,42 +68,35 @@ export function middleware(request) {
         { error: "Unauthorized", message: "Sin sesión" },
         { status: 401 }
       );
-      if (token) {
-        res.cookies.set(SESSION_COOKIE, "", {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 0,
-        });
-      }
+      if (token) clearSessionCookie(res);
       return res;
     }
     return NextResponse.next();
   }
 
   if (pathname === "/acceso" && valid) {
-    const payload = decodeJwtPayload(token);
-    const user = {
-      groups: Array.isArray(payload?.groups) ? payload.groups : [],
-    };
     return NextResponse.redirect(
-      new URL(getHomePathForUser(user), request.url)
+      new URL(getHomePathForUser(userFromToken(token)), request.url)
     );
   }
 
   if (isProtected(pathname) && !valid) {
     const res = NextResponse.redirect(new URL("/acceso", request.url));
-    if (token) {
-      res.cookies.set(SESSION_COOKIE, "", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 0,
-      });
-    }
+    if (token) clearSessionCookie(res);
     return res;
+  }
+
+  // Guard de rol (UX): citizen ↔ ops. El backend sigue siendo la autoridad.
+  if (valid && isProtected(pathname)) {
+    const user = userFromToken(token);
+    const dispatcher = isDispatcher(user);
+
+    if (matchesAny(pathname, OPS_PREFIXES) && !dispatcher) {
+      return NextResponse.redirect(new URL("/inicio", request.url));
+    }
+    if (matchesAny(pathname, CITIZEN_PREFIXES) && dispatcher) {
+      return NextResponse.redirect(new URL("/ops", request.url));
+    }
   }
 
   if (isPublic(pathname) || !isProtected(pathname)) {

@@ -13,10 +13,31 @@ export function getStoredUser() {
   }
 }
 
+/** Guarda solo claims de sesión (sin email ni otros PII). */
 export function setStoredUser(user) {
   if (typeof window === "undefined") return;
-  if (user) sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-  else sessionStorage.removeItem(USER_KEY);
+  if (!user) {
+    sessionStorage.removeItem(USER_KEY);
+    return;
+  }
+  const {
+    sub,
+    username,
+    preferred_username,
+    groups,
+    hasAntipanicButton,
+    loginMethod,
+  } = user;
+  sessionStorage.setItem(
+    USER_KEY,
+    JSON.stringify({
+      sub,
+      username: username || preferred_username,
+      groups: Array.isArray(groups) ? groups : [],
+      hasAntipanicButton: Boolean(hasAntipanicButton),
+      ...(loginMethod ? { loginMethod } : {}),
+    })
+  );
 }
 
 export function clearStoredUser() {

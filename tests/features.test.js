@@ -11,20 +11,20 @@ describe("features — constantes", () => {
     expect(["mock", "backend"]).toContain(ANTIPANIC_MODE);
   });
 
-  it("DEMO_ACCOUNTS trae al menos una cuenta con los campos esperados", () => {
+  it("DEMO_ACCOUNTS trae al menos una cuenta con los campos esperados (sin password en el bundle)", () => {
     expect(Array.isArray(DEMO_ACCOUNTS)).toBe(true);
     expect(DEMO_ACCOUNTS.length).toBeGreaterThan(0);
     for (const acc of DEMO_ACCOUNTS) {
       expect(acc).toEqual(
         expect.objectContaining({
           email: expect.any(String),
-          password: expect.any(String),
           sub: expect.any(String),
           preferred_username: expect.any(String),
           groups: expect.any(Array),
           hasAntipanicButton: expect.any(Boolean),
         })
       );
+      expect(acc).not.toHaveProperty("password");
     }
   });
 

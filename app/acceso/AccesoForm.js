@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MaterialIcon from "../components/civic/MaterialIcon";
-import { loginDev, ApiError, getHomePathForUser } from "../lib/api";
-import { findDemoAccount, DISPATCHER_DEMO } from "../lib/features";
+import { loginDev, loginWithPassword, registerAccount, ApiError, getHomePathForUser } from "../lib/api";
+import { DEMO_ACCOUNTS, DISPATCHER_DEMO } from "../lib/features";
 
 // ── Modo: "login" | "signup" | "forgot"
 export default function AccesoForm() {
@@ -18,6 +18,8 @@ export default function AccesoForm() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [emailHint, setEmailHint] = useState("");
+  const [passwordHint, setPasswordHint] = useState("");
 
   const isLogin = mode === "login";
   const isSignup = mode === "signup";
@@ -29,36 +31,32 @@ export default function AccesoForm() {
     setForgotSent(false);
   }
 
+  function fillDemo(account) {
+    setEmailHint(account.email);
+    setPasswordHint("");
+    setError("");
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     const form = e.target;
-    const identifier = (form.identifier?.value || "").trim();
+    const email = (form.identifier?.value || "").trim();
     const password = form.password?.value || "";
 
-    // Validar contra cuentas demo (mock). TODO(back): reemplazar por POST /auth/login IdP (HU-12)
-    const demo = findDemoAccount(identifier);
-    if (!demo) {
-      setError("Correo no reconocido. Usá una cuenta demo para la presentación.");
-      setLoading(false);
-      return;
-    }
-    if (password !== demo.password) {
-      setError("Contraseña incorrecta.");
-      setLoading(false);
-      return;
-    }
-
     try {
-      const { user } = await loginDev({
-        sub: demo.sub,
-        preferred_username: demo.preferred_username,
-        groups: ["citizen"],
-        hasAntipanicButton: demo.hasAntipanicButton,
-        loginMethod: "sesion",
-      });
-      router.replace(getHomePathForUser(user));
+      if (isSignup) {
+        const { user } = await registerAccount({
+          email,
+          password,
+          preferred_username: email.split("@")[0],
+        });
+        router.replace(getHomePathForUser(user));
+      } else {
+        const { user } = await loginWithPassword({ email, password });
+        router.replace(getHomePathForUser(user));
+      }
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -121,17 +119,18 @@ export default function AccesoForm() {
           {!isForgot && (
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-              {/* CUIL / Correo */}
+              {/* Correo */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="identifier" className="text-sm font-semibold tracking-wide text-on-surface">
-                  CUIL o correo electrónico
+                  Correo electrónico
                 </label>
                 <input
                   id="identifier"
                   name="identifier"
-                  type="text"
-                  placeholder="20-12345678-9 o vos@correo.com"
-                  key={mode}
+                  type="email"
+                  placeholder="vos@correo.com"
+                  key={`${mode}-${emailHint}`}
+                  defaultValue={emailHint}
                   autoComplete="username"
                   required
                   className="h-12 px-4 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim outline-none transition-all text-sm"
@@ -159,7 +158,10 @@ export default function AccesoForm() {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder={isSignup ? "Elegí una contraseña" : "Tu contraseña"}
+                    placeholder={isSignup ? "Mínimo 8 caracteres" : "Tu contraseña"}
+                    key={`pw-${mode}-${passwordHint}`}
+                    defaultValue={passwordHint}
+                    minLength={isSignup ? 8 : undefined}
                     autoComplete={isSignup ? "new-password" : "current-password"}
                     required
                     className="h-12 w-full pl-4 pr-12 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary-fixed-dim outline-none transition-all text-sm"
@@ -174,6 +176,22 @@ export default function AccesoForm() {
                   </button>
                 </div>
               </div>
+
+              {isLogin && (
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs text-on-surface-variant w-full">Atajos demo:</span>
+                  {DEMO_ACCOUNTS.map((acc) => (
+                    <button
+                      key={acc.email}
+                      type="button"
+                      onClick={() => fillDemo(acc)}
+                      className="text-xs px-2.5 py-1 rounded-full border border-outline-variant text-on-surface-variant hover:bg-surface-container-low"
+                    >
+                      {acc.preferred_username}
+                    </button>
+                  ))}
+                </div>
+              )}
 
 
 

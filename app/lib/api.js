@@ -177,6 +177,46 @@ export async function loginDev({
   return { user };
 }
 
+/** Login real email+password (POST /auth/login en el backend). */
+export async function loginWithPassword({ email, password }) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || data?.error || `Error HTTP ${res.status}`,
+      { status: res.status, body: data }
+    );
+  }
+  const user = { ...data.user, loginMethod: "sesion" };
+  setStoredUser(user);
+  return { user };
+}
+
+/** Registro real email+password (POST /auth/register). */
+export async function registerAccount({ email, password, preferred_username }) {
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ email, password, preferred_username }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || data?.error || `Error HTTP ${res.status}`,
+      { status: res.status, body: data }
+    );
+  }
+  const user = { ...data.user, loginMethod: "sesion" };
+  setStoredUser(user);
+  return { user };
+}
+
 export async function logout() {
   await fetch("/api/auth/logout", {
     method: "POST",
@@ -346,7 +386,10 @@ export async function reportIncident({
   // SOS = critical; incidentes: medical/fire = high, resto = medium
   const defaultSeverity =
     type === "medical" || type === "fire" ? "high" : "medium";
-  return triggerPanicButton({
+  // Reusa POST /api/panic-button con emergencyType del incidente.
+  // El backend suele devolver message="Botón de pánico activado"; lo
+  // reemplazamos para no mostrarlo en el flujo de reportar.
+  const result = await triggerPanicButton({
     latitude,
     longitude,
     emergencyType: type,
@@ -354,6 +397,10 @@ export async function reportIncident({
     description: description || undefined,
     address,
   });
+  return {
+    ...result,
+    message: "Tu reporte fue registrado y ya está en camino al centro de operaciones.",
+  };
 }
 
 export async function validateEmergency(id) {

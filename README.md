@@ -45,7 +45,7 @@ Browser  ──►  Next.js (BFF)  ──►  Express backend (puerto 3000)
 
 ## Cuentas de demo
 
-Definidas en `app/lib/features.js` → `DEMO_ACCOUNTS`. Contraseña unificada: **`abracadabra`**.
+Definidas en `app/lib/features.js` → `DEMO_ACCOUNTS` (solo email en el bundle). Contraseña unificada en el seed del backend (V16): **`abracadabra`**. Los chips del login rellenan el email; la pass se escribe a mano.
 
 | Email | Botón Antipánico | Rol |
 |---|---|---|
