@@ -345,7 +345,7 @@ describe("api.js", () => {
       ).rejects.toThrow("latitude/longitude deben ser números");
     });
 
-    it("triggerPanicButton: envía POST /api/backend/panic-button con campos correctos y recorta dirección", async () => {
+    it("triggerPanicButton: envía POST /api/backend/api/panic-button con campos correctos y recorta dirección", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 201,
@@ -362,7 +362,7 @@ describe("api.js", () => {
 
       expect(res).toEqual({ success: true, emergencyId: "e1" });
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/panic-button",
+        "/api/backend/api/panic-button",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
@@ -451,7 +451,7 @@ describe("api.js", () => {
       const detail = await fetchEmergencyDetail("e1");
       expect(detail).toEqual({ id: "e1", status: "PENDING" });
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/emergencies/e1",
+        "/api/backend/api/emergencies/e1",
         expect.anything()
       );
     });
@@ -523,7 +523,7 @@ describe("api.js", () => {
       const res = await cancelEmergency("e1", "falsa alarma");
       expect(res).toEqual({ id: "e1", status: "CANCELLED" });
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/emergencies/e1/cancel",
+        "/api/backend/api/emergencies/e1/cancel",
         expect.objectContaining({
           method: "PATCH",
           body: JSON.stringify({ reason: "falsa alarma" }),
@@ -560,7 +560,7 @@ describe("api.js", () => {
       const officers = await fetchOfficers({ status: "AVAILABLE" });
       expect(officers).toEqual([{ id: "of1" }]);
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/officers?status=AVAILABLE",
+        "/api/backend/api/officers?status=AVAILABLE",
         expect.anything()
       );
 

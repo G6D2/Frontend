@@ -125,9 +125,10 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const normalizedPath =
-    path.startsWith("/api/") ? path.slice(4) : path;
-  const url = auth ? `/api/backend${normalizedPath}` : path;
+  // El backend monta todo bajo /api/* (p.ej. /api/panic-button). El BFF
+  // reenvía el path tal cual después de /api/backend → BACKEND_URL/<path>.
+  // No strippear "/api": si no, termina en BACKEND_URL/panic-button (404).
+  const url = auth ? `/api/backend${path}` : path;
 
   let res;
   beginBackendCall();

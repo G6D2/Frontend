@@ -114,7 +114,7 @@ La redirección al home correcta por rol está en `app/lib/auth-roles.js → get
 
 ### Ciudadano (`/inicio`, `/mis-alertas`)
 
-- **Botón Antipánico:** `POST /api/backend/panic` con coordenadas reales del dispositivo (o fallback CABA). Si `hasAntipanicButton = false`, no se renderiza.
+- **Botón Antipánico:** `POST /api/backend/api/panic-button` con coordenadas reales del dispositivo (o fallback CABA). Si `hasAntipanicButton = false`, no se renderiza.
 - **Mapa de emergencias:** Leaflet con marcadores de las emergencias propias del usuario.
 - **Historial de estados en tiempo real (`/mis-alertas/[id]`):** Polling cada 5 s (`CITIZEN_POLLING_INTERVAL_MS`) para sincronizar el historial de estados (`statusHistory`) inmediatamente tras las operaciones del despachador, sin requerir recarga manual. Se suspende en segundo plano con `visibilitychange`.
 
@@ -131,7 +131,7 @@ La redirección al home correcta por rol está en `app/lib/auth-roles.js → get
     - 3er clic: Estado original (`○` círculo sutil)
 - **Merge incremental:** solo agrega emergencias nuevas al estado local sin resetear.
 - **Animación "NUEVO":** pulso rojo durante 6 s en tarjetas recién llegadas.
-- **Asignar Oficial:** `GET /api/backend/officers` → modal de selección → `PATCH /api/backend/emergencies/:id`.
+- **Asignar Oficial:** `GET /api/backend/api/officers` → modal de selección → `PATCH /api/backend/api/emergencies/:id`.
 - **Herramienta de simulación:** `window.simularNuevaEmergencia("descripción", "high")` disponible en consola.
 
 ---
@@ -346,7 +346,7 @@ Frontend/
   - Al presionarse, inicia una cuenta regresiva visible de 3 segundos con efecto visual pulsante.
   - El botón "Cancelar" se enfoca de inmediato en pantalla y permite interrumpir el conteo en cualquier momento (operable también mediante la tecla `Escape`).
   - La UI exhibe claramente las transiciones de estado: cuenta regresiva activa, indicador de envío y toasts de confirmación o fallo.
-- **Geolocalización y despacho al backend:** Obtiene la posición real del dispositivo (con fallback CABA) y resuelve la dirección aproximada vía geocodificación inversa (`lib/geocoding.js`), enviando `POST /api/backend/panic` a través de `triggerPanicButton` en `app/lib/api.js`.
+- **Geolocalización y despacho al backend:** Obtiene la posición real del dispositivo (con fallback CABA) y resuelve la dirección aproximada vía geocodificación inversa (`lib/geocoding.js`), enviando `POST /api/backend/api/panic-button` a través de `triggerPanicButton` en `app/lib/api.js`.
 - **Lógica desacoplada y testeable:** La máquina de estados y timers del SOS reside en `app/lib/sosController.js`, testeada con timers simulados en `tests/sos-controller.test.js`.
 - *(Alcance:* Se documentan únicamente los atributos observables y demostrables en la interfaz; no se declaran niveles de contraste certificados ni métricas formales de accesibilidad al no contar con mediciones automatizadas en el pipeline).*
 

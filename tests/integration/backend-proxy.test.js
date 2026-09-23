@@ -32,8 +32,8 @@ describe("/api/backend/[...path]", () => {
     mockNextCookies(cookies);
     const { calls } = mockBackend({});
 
-    const req = makeRequest("http://localhost/api/backend/emergencies");
-    const res = await GET(req, ctxFor(["emergencies"]));
+    const req = makeRequest("http://localhost/api/backend/api/emergencies");
+    const res = await GET(req, ctxFor(["api","emergencies"]));
 
     expect(res.status).toBe(401);
     expect(calls).toHaveLength(0);
@@ -42,11 +42,11 @@ describe("/api/backend/[...path]", () => {
   it("con cookie: reenvía Authorization: Bearer <token> y el método al backend", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     const { calls } = mockBackend({
-      "GET /emergencies": { status: 200, body: { data: [] } },
+      "GET /api/emergencies": { status: 200, body: { data: [] } },
     });
 
-    const req = makeRequest("http://localhost/api/backend/emergencies");
-    const res = await GET(req, ctxFor(["emergencies"]));
+    const req = makeRequest("http://localhost/api/backend/api/emergencies");
+    const res = await GET(req, ctxFor(["api","emergencies"]));
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -59,11 +59,11 @@ describe("/api/backend/[...path]", () => {
   it("preserva la query string en un GET", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     const { calls } = mockBackend({
-      "GET /emergencies": { status: 200, body: { data: [] } },
+      "GET /api/emergencies": { status: 200, body: { data: [] } },
     });
 
-    const req = makeRequest("http://localhost/api/backend/emergencies?status=activa&page=2");
-    await GET(req, ctxFor(["emergencies"]));
+    const req = makeRequest("http://localhost/api/backend/api/emergencies?status=activa&page=2");
+    await GET(req, ctxFor(["api","emergencies"]));
 
     expect(calls[0].url).toContain("?status=activa&page=2");
   });
@@ -78,7 +78,7 @@ describe("/api/backend/[...path]", () => {
   it("listado con filtro de varios estados (historial): reenvía status=A,B,C y devuelve data + pagination", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     const { calls } = mockBackend({
-      "GET /emergencies": {
+      "GET /api/emergencies": {
         status: 200,
         body: {
           data: [
@@ -91,9 +91,9 @@ describe("/api/backend/[...path]", () => {
     });
 
     const req = makeRequest(
-      "http://localhost/api/backend/emergencies?status=CLOSED,CANCELLED,DISCARDED,RESOLVED&page=1&limit=20&sortBy=createdAt&order=desc"
+      "http://localhost/api/backend/api/emergencies?status=CLOSED,CANCELLED,DISCARDED,RESOLVED&page=1&limit=20&sortBy=createdAt&order=desc"
     );
-    const res = await GET(req, ctxFor(["emergencies"]));
+    const res = await GET(req, ctxFor(["api","emergencies"]));
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -105,14 +105,14 @@ describe("/api/backend/[...path]", () => {
   it("POST: reenvía el body y genera Idempotency-Key para el backend", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     const { calls } = mockBackend({
-      "POST /panic-button": { status: 201, body: { id: "E1" } },
+      "POST /api/panic-button": { status: 201, body: { id: "E1" } },
     });
 
-    const req = makeRequest("http://localhost/api/backend/panic-button", {
+    const req = makeRequest("http://localhost/api/backend/api/panic-button", {
       method: "POST",
       body: { lat: -34.6, lng: -58.4 },
     });
-    const res = await POST(req, ctxFor(["panic-button"]));
+    const res = await POST(req, ctxFor(["api","panic-button"]));
     const json = await res.json();
 
     expect(res.status).toBe(201);
@@ -126,15 +126,15 @@ describe("/api/backend/[...path]", () => {
   it("POST: preserva Idempotency-Key enviada por el cliente", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     const { calls } = mockBackend({
-      "POST /panic-button": { status: 201, body: { id: "E1" } },
+      "POST /api/panic-button": { status: 201, body: { id: "E1" } },
     });
 
-    const req = makeRequest("http://localhost/api/backend/panic-button", {
+    const req = makeRequest("http://localhost/api/backend/api/panic-button", {
       method: "POST",
       body: { lat: -34.6, lng: -58.4 },
       headers: { "Idempotency-Key": "client-key-abc" },
     });
-    const res = await POST(req, ctxFor(["panic-button"]));
+    const res = await POST(req, ctxFor(["api","panic-button"]));
     expect(res.status).toBe(201);
     expect(calls[0].headers["idempotency-key"]).toBe("client-key-abc");
   });
@@ -142,14 +142,14 @@ describe("/api/backend/[...path]", () => {
   it("backend 401: responde 401 y borra la cookie de sesión", async () => {
     mockNextCookies(cookies, { citypass_session: TOKEN });
     mockBackend({
-      "GET /emergencies": {
+      "GET /api/emergencies": {
         status: 401,
         body: { error: "Unauthorized", message: "token vencido" },
       },
     });
 
-    const req = makeRequest("http://localhost/api/backend/emergencies");
-    const res = await GET(req, ctxFor(["emergencies"]));
+    const req = makeRequest("http://localhost/api/backend/api/emergencies");
+    const res = await GET(req, ctxFor(["api","emergencies"]));
 
     expect(res.status).toBe(401);
     const deleted = res.cookies.get("citypass_session");
