@@ -6,6 +6,8 @@ import {
   SEVERITY_CONFIG,
   ApiError,
   loginDev,
+  loginWithPassword,
+  registerAccount,
   logout,
   fetchCurrentUser,
   hasValidSession,
@@ -144,6 +146,95 @@ describe("api.js", () => {
       });
 
       await expect(loginDev({ sub: "bad" })).rejects.toThrow(ApiError);
+    });
+
+    it("loginWithPassword: POST email+password y guarda sesión", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          user: { sub: "u2", username: "ana", groups: ["citizen"] },
+        }),
+      });
+
+      const result = await loginWithPassword({
+        email: "ana@city.com",
+        password: "secret",
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ email: "ana@city.com", password: "secret" }),
+        })
+      );
+      expect(result.user).toMatchObject({
+        sub: "u2",
+        username: "ana",
+        loginMethod: "sesion",
+      });
+      expect(getStoredUser()).toMatchObject({
+        sub: "u2",
+        username: "ana",
+        loginMethod: "sesion",
+      });
+    });
+
+    it("loginWithPassword: lanza ApiError si falla", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: "Unauthorized" }),
+      });
+
+      await expect(
+        loginWithPassword({ email: "x@y.com", password: "bad" })
+      ).rejects.toThrow(ApiError);
+    });
+
+    it("registerAccount: POST register y guarda sesión", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          user: { sub: "u3", username: "nuevo", groups: ["citizen"] },
+        }),
+      });
+
+      const result = await registerAccount({
+        email: "nuevo@city.com",
+        password: "secret",
+        preferred_username: "nuevo",
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/register",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            email: "nuevo@city.com",
+            password: "secret",
+            preferred_username: "nuevo",
+          }),
+        })
+      );
+      expect(result.user.loginMethod).toBe("sesion");
+      expect(getStoredUser()?.sub).toBe("u3");
+    });
+
+    it("registerAccount: lanza ApiError si falla", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: "Email ya registrado" }),
+      });
+
+      await expect(
+        registerAccount({ email: "dup@city.com", password: "x" })
+      ).rejects.toMatchObject({ message: "Email ya registrado", status: 409 });
     });
 
     it("logout: llama a /api/auth/logout y limpia usuario almacenado", async () => {
@@ -323,6 +414,29 @@ describe("api.js", () => {
         severity: "critical",
       });
       expect(JSON.parse(global.fetch.mock.calls[0][1].body).severity).toBe("critical");
+    });
+
+    it("reportIncident: reemplaza el mensaje de pánico del backend", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          success: true,
+          emergencyId: "e3",
+          message: "Botón de pánico activado",
+        }),
+      });
+
+      const result = await reportIncident({
+        category: "other",
+        latitude: -34.6,
+        longitude: -58.4,
+      });
+
+      expect(result.message).toBe(
+        "Tu reporte fue registrado y ya está en camino al centro de operaciones."
+      );
+      expect(result.message).not.toMatch(/pánico/i);
     });
   });
 
