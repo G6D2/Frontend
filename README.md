@@ -23,7 +23,7 @@ npm run dev        # http://localhost:3001
 | **React 19** | UI reactiva |
 | **Tailwind CSS v4** | Utilidades de estilo via `@theme` tokens |
 | **Material Symbols Outlined** | Iconografía (Google Fonts, variable font) |
-| **Vitest** | Tests unitarios |
+| **Vitest** | Tests unitarios (Quality Gate 80% sobre librerías) y de integración (BFF) |
 
 ---
 
@@ -205,14 +205,18 @@ docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergen
 
 ---
 
-## Tests
+## Tests y Calidad de Código
+
+El frontend implementa una estrategia de pruebas que desacopla la lógica pura de la integración del BFF, aplicando un **Quality Gate del 80% exclusivamente sobre librerías unitarias**:
 
 ```bash
-npm test               # Vitest (modo watch)
-npm run test:run       # Una sola ejecución (CI)
+npm run test:coverage     # Tests unitarios con reporte (Quality Gate: 80% de cobertura sobre librerías)
+npm run test:integration  # Tests de integración del BFF (Route Handlers en tests/integration/)
+npm test                  # Tests unitarios en una sola corrida sin reporte de cobertura
+npm run test:watch        # Tests unitarios en modo interactivo (watch)
 ```
 
-Los tests viven en `tests/`. Lógica de negocio pura (sin hooks) en `app/lib/emergencies.js` es candidata principal para cobertura.
+> 📌 **Detalle de la estrategia:** Para consultar el alcance exacto del umbral del 80%, la documentación separada de los tests de integración del BFF y la declaración formal de deuda técnica por ausencia de tests E2E, dirigirse a la sección [Estrategia de testing, Quality Gate y Deuda Técnica](#estrategia-de-testing-quality-gate-y-deuda-técnica).
 
 ---
 
@@ -466,53 +470,98 @@ Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
 - **`allowedDevOrigins` es obligatorio para acceso por IP:** el dev server de Next 16 responde **403 en `/_next/*`** (los chunks de JS) cuando el host de la request no es `localhost`. El síntoma es traicionero: la página carga el HTML y se ve bien, pero React nunca hidrata — botones muertos, sin toasts, sin errores en pantalla; solo se ve en la consola del browser (`net::ERR_ABORTED 403` en los chunks y el websocket de HMR caído). La IP desde la que accedés tiene que estar en `allowedDevOrigins` en `next.config.mjs`.
 - Los cambios en `next.config.mjs` requieren reiniciar el dev server (no los toma el hot reload).
 
-## Tests
+## Estrategia de testing, Quality Gate y Deuda Técnica
 
-Hay dos suites de Vitest, separadas porque miden cosas distintas:
+La arquitectura de pruebas del frontend está estructurada separando con claridad las responsabilidades de cada suite, estableciendo un **Quality Gate del 80% sobre librerías unitarias**, **documentando por separado los tests de integración del BFF** y **declarando formalmente la falta de tests E2E como deuda técnica**.
 
-| | Unit (`tests/*.test.js`) | Integración (`tests/integration/*.test.js`) |
-|---|---|---|
-| Qué prueban | Funciones puras de `lib/**` y `app/lib/**` (JWT, sesión, fetch con reintentos, geocoding) | Los Route Handlers del BFF completos (`app/api/**/route.js`), invocados como funciones con un `Request` real |
-| Config | `vitest.config.mjs` | `vitest.integration.config.mjs` |
-| Cobertura | Sí, umbral 80% (ver "Scope del umbral" abajo — **no es 80% de toda la app**) | No corren con `--coverage`; no cuentan para el umbral de unit |
-| Comando | `npm run test:coverage` (o `npm test` sin cobertura) | `npm run test:integration` |
+| Nivel | Qué evalúa | Configuración | Quality Gate / Umbral | Comando |
+|---|---|---|---|---|
+| **Unitario** | Funciones puras de lógica y utilidades (`lib/**`, `app/lib/**`) | `vitest.config.mjs` | **80% sobre librerías unitarias** (Statements, Branches, Functions, Lines) | `npm run test:coverage` |
+| **Integración del BFF** | Route Handlers del BFF (`app/api/**/route.js`) con `Request` real | `vitest.integration.config.mjs` | Sin umbral de cobertura (validación funcional de endpoints) | `npm run test:integration` |
+| **E2E / UI** | Flujos completos de usuario en navegador real | *Pendiente (Playwright)* | **Deuda técnica declarada** (sin tests automatizados actualmente) | *(Manual por checklist)* |
 
-Ambas corren en CI (`.github/workflows/ci.yml`, job `lint-and-test`): primero las unit con cobertura, después las de integración.
+Ambas suites automatizadas corren en el pipeline de CI (`.github/workflows/ci.yml`, job `lint-and-test`): primero se ejecutan los tests unitarios verificando el cumplimiento estricto del umbral del 80%, y a continuación se ejecutan los tests de integración del BFF.
 
-### Scope del umbral 80%
+> **Alcance:** los tests de "integración del BFF" no son integración end-to-end. Ejercitan los handlers de `app/api/**/route.js` con `Request` reales, pero mockean `global.fetch` (backend), `next/headers` (cookies) y no levantan servidor HTTP ni backend real. Prueban que el BFF arma bien los requests al backend y traduce respuestas correctamente. Integración real contra Render/backend real queda como deuda (Playwright o smoke E2E, ver la sección 3).
 
-El threshold del 80% que aparece en `vitest.config.mjs` **no cubre toda la app**. Cubre solo librerías puras de JavaScript en dos carpetas:
+---
 
-- `lib/**/*.js` (funciones puras server-side / util)
-- `app/lib/**/*.js` (funciones puras client-side / util)
+### 1. Tests Unitarios y Quality Gate (80% sobre librerías unitarias)
 
-Y de esas dos carpetas, quedan **excluidas** por diseño (`coverage.exclude` en `vitest.config.mjs`):
+> [!IMPORTANT]
+> **Definición del Quality Gate:** El umbral del 80% configurado en `vitest.config.mjs`, exigido en CI y reportado en SonarCloud aplica **exclusivamente sobre librerías unitarias** (`lib/**` y `app/lib/**`), **no sobre todo el frontend**.
+>
+> Afirmar que el frontend tiene un 80% de cobertura global es un error conceptual: los componentes visuales de React, las páginas y los layouts no forman parte de este umbral.
 
-| Archivo | Motivo |
+#### Scope del umbral 80%
+
+El threshold del 80% en las 4 métricas (Statements, Branches, Functions, Lines) cubre de forma estricta la lógica de negocio pura y utilidades contenidas en:
+- `lib/**/*.js`: funciones puras de servidor / utilidades de infraestructura (ej. decodificación de JWT y sesión en `session.js`, reintentos de cold start en `backend-fetch.js`, store reactivo en `backend-waiting-store.js`).
+- `app/lib/**/*.js`: funciones puras de cliente sin acoplamiento a React (ej. cálculo de criticidades y estados en `emergencies.js`, banderas y cuentas demo en `features.js`, gestión de datos personales y ubicaciones guardadas).
+
+#### Exclusiones del umbral de librerías
+Incluso dentro de las carpetas de librerías, quedan **excluidas por diseño** (`coverage.exclude` en `vitest.config.mjs`) aquellos módulos acoplados al navegador o que corresponden conceptualmente a integración:
+
+| Archivo excluido | Motivo de exclusión |
 |---|---|
-| `app/lib/auth.js` | Browser-only (`sessionStorage`, `window`), no unit-testable en node |
-| `app/lib/api.js` | HTTP client con redirects de `window.location`, es concern de integración |
-| `app/lib/geocoding.js` | Browser fetch + caché client-side, concern de integración |
+| `app/lib/auth.js` | Browser-only (`sessionStorage`, `window`), no unit-testable en entorno Node. |
+| `app/lib/api.js` | Cliente HTTP acoplado a redirecciones de `window.location`; su comportamiento se valida en integración. |
+| `app/lib/geocoding.js` | Fetch de cliente con caché en memoria del navegador; testeado mediante mocks de integración. |
 
-> **Nota:** `app/lib/features.js` estuvo excluido mientras eran solo constantes. Se removió del exclude cuando se agregó `findDemoAccount()` (PR #38, Log-in-funcional) junto con `tests/features.test.js`. Cualquier lógica ejecutable nueva en ese archivo cae bajo el umbral del 80%.
+> **Nota:** `app/lib/features.js` estuvo inicialmente excluido mientras contenía solo constantes estáticas. Tras agregarse la función utilitaria `findDemoAccount()` (PR #38, Log-in-funcional), se retiró del exclude y quedó formalmente bajo el umbral del 80% junto a su suite `tests/features.test.js`.
 
-Lo que **no está en el umbral en absoluto** (queda invisible para el gate del 80%):
+#### Elementos del frontend que NO están bajo el Quality Gate Unitario
+Para total claridad técnica, lo siguiente queda fuera del umbral del 80% de unit tests:
+- **Componentes React (`app/components/**`):** Botones, modales, vistas complejas (`DispatcherView.js`), tarjetas de emergencia. No cuentan con tests unitarios basados en DOM virtual.
+- **Páginas y Layouts (`app/**/page.js`, `app/**/layout.js`):** Enrutamiento y estructura visual del App Router de Next.js.
+- **Route Handlers (`app/api/**/route.js`):** Endpoints del BFF, cuya validación se realiza en la suite de integración sin cómputo de porcentaje de cobertura unitaria.
+- **Configuración SonarCloud:** La propiedad `sonar.sources=lib,app/lib` en `sonar-project.properties` formaliza que el análisis estático y de cobertura del repositorio audita exclusivamente las librerías unitarias.
 
-- Componentes React (`app/components/**`) — sin tests unit
-- Páginas (`app/**/page.js`, `app/**/layout.js`) — sin tests unit
-- Route Handlers del BFF (`app/api/**/route.js`) — cubiertos por la suite de integración del BFF, que **no cuenta para el threshold**
+---
 
-**Respuesta canónica para la presentación:** el quality gate del 80% aplica **sobre librerías unitarias cubiertas** (`lib/**` + `app/lib/**` menos exclusiones), **no sobre todo el frontend**. Los componentes, páginas y Route Handlers tienen otra estrategia (integración BFF con mocks, sin threshold; deuda de E2E con Playwright para la UI real).
+### 2. Tests de Integración del BFF (Documentados por separado)
 
-### Cómo agregar un caso de integración nuevo
+Los tests de integración viven en `tests/integration/` y se gestionan como una **suite completamente separada** de los tests unitarios.
 
-Los tests de integración importan el handler directo desde su `route.js` y lo invocan con un `Request` de la Web API — no hay servidor HTTP levantado. Los helpers están en `tests/integration/helpers.js`:
+#### Propósito y diferenciación técnica
+A diferencia de los tests unitarios que aíslan funciones puras, los tests de integración evalúan el funcionamiento completo de los **Route Handlers del BFF** (`app/api/**/route.js`).
+Verifican:
+- El procesamiento de peticiones HTTP invocando directamente los handlers exportados (`GET`, `POST`) con instancias reales de `Request` de la Web API.
+- La lectura, emisión y borrado seguro de la cookie `citypass_session` (`httpOnly`, `sameSite: lax`).
+- El reenvío transparente de peticiones y headers hacia el backend de Express (incluyendo `Authorization: Bearer <token>` e `Idempotency-Key`).
+- La absorción de códigos de error y respuestas de contingencia (401 por sesión expirada, 502/503 por cold start de Render).
 
-- **`mockNextCookies(cookiesFn, initial?)`**: hay que declarar `vi.mock("next/headers", () => ({ cookies: vi.fn() }))` al principio del test (se hoistea, así que va antes de los imports) e importar `cookies` desde `next/headers`; después, en cada test, `mockNextCookies(cookies, { citypass_session: token })` deja un jar en memoria listo para leer/escribir/borrar esa cookie. Sin esto, `cookies()` de `next/headers` explota fuera de un request real de Next.
-- **`mockBackend(routes)`**: reemplaza `global.fetch` por una tabla `"METODO /path": respuesta`. `respuesta` puede ser `{ status, body }` o un array de respuestas para simular una secuencia (por ejemplo `[502, 502, 200]` para probar los reintentos de `lib/backend-fetch.js`). Devuelve `{ calls }` para assertar sobre lo que el BFF le mandó al backend (headers, body, URL con query string incluida).
-- **`makeRequest(url, { method, body, headers })`**: arma el `Request` que recibe el handler.
+#### Configuración separada (`vitest.integration.config.mjs`)
+Los tests de integración cuentan con su propia configuración dedicada:
+- **Aislamiento de métricas:** No se ejecutan con `--coverage` ni aportan al threshold del 80% de unit tests, evitando distorsionar las métricas de lógica pura.
+- **Resolución de alias `@/`:** Configura `resolve.alias` apuntando a la raíz del proyecto para resolver los imports absolutos de Next.js (`@/...`), necesario porque Vitest no utiliza el `jsconfig.json` del editor.
+- **Entorno `node`:** Se ejecutan en Node.js sin necesidad de levantar un servidor HTTP en un puerto real, logrando máxima velocidad y reproducibilidad en CI.
 
-Un test típico:
+Comando de ejecución:
+```bash
+npm run test:integration
+```
+
+#### Helpers de integración (`tests/integration/helpers.js`)
+Para testear los Route Handlers fuera del runtime de Next.js, se utilizan helpers especializados:
+
+1. **`mockNextCookies(cookiesFn, initial?)`:**
+   Mapea `cookies()` de `next/headers` a un jar de cookies en memoria. Permite verificar que el handler lea (`get`), guarde (`set`) o destruya (`delete`) cookies como `citypass_session` sin requerir una conexión HTTP activa.
+   > Se requiere declarar `vi.mock("next/headers", () => ({ cookies: vi.fn() }))` al tope del archivo de test.
+2. **`mockBackend(routes)`:**
+   Intercepta `global.fetch` para simular las respuestas del backend Express mediante un mapa `"METODO /path": respuesta`. Permite testear secuencias de respuestas (ej. `[502, 502, 200]` para comprobar los reintentos automáticos de `lib/backend-fetch.js`) y expone `{ calls }` para validar los headers, URLs y payloads enviados.
+3. **`makeRequest(url, { method, body, headers })`:**
+   Genera una instancia de `Request` estándar con body JSON y encabezados adecuados para pasarla directamente al Route Handler.
+
+#### Cobertura actual de la suite de integración
+La suite de integración actual cubre los siguientes flujos clave del BFF:
+- **`login.test.js`:** Endpoint `POST /api/auth/login`. Valida la autenticación, la recepción del token del backend y la emisión de la cookie de sesión protegida.
+- **`session.test.js`:** Endpoint `GET /api/auth/session`. Valida la lectura de la cookie activa y la devolución del usuario autenticado.
+- **`backend-proxy.test.js`:** Proxy genérico `ALL /api/backend/[...path]`. Valida el reenvío de peticiones al backend agregando el token de sesión y tolerando fallos de red.
+- **`geocode.test.js`:** Endpoints de geocodificación del BFF. Valida la normalización y respuesta de coordenadas.
+
+#### Cómo agregar un caso de integración nuevo
+Ejemplo estándar para probar un Route Handler:
 
 ```js
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
@@ -520,32 +569,62 @@ import { cookies } from "next/headers";
 import { POST } from "../../app/api/auth/login/route.js";
 import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
 
-it("caso nuevo", async () => {
+it("autentica con éxito y emite cookie de sesión", async () => {
   mockNextCookies(cookies);
-  mockBackend({ "POST /auth/dev/login": { status: 200, body: { access_token: "..." } } });
-  const res = await POST(makeRequest("http://localhost/api/auth/login", { method: "POST", body: {} }));
+  mockBackend({
+    "POST /auth/dev/login": { status: 200, body: { access_token: "jwt-de-prueba" } }
+  });
+
+  const res = await POST(makeRequest("http://localhost/api/auth/login", {
+    method: "POST",
+    body: { email: "ciudadano@demo.com", password: "pass" },
+  }));
+
   expect(res.status).toBe(200);
 });
 ```
 
-Si una ruta nueva importa con el alias `@/...`, no hace falta nada extra: `vitest.integration.config.mjs` ya resuelve `@` a la raíz del proyecto (necesario porque `jsconfig.json` solo le sirve al editor, no a Vitest).
+---
 
-La suite de integración de hoy cubre login, session, el proxy `/api/backend/[...path]` y geocode como ejemplos — no es cobertura exhaustiva del BFF. Queda como deuda técnica agregar tests para `logout` y `warmup`, y tests end-to-end (Playwright) del flujo ciudadano completo y del dispatcher.
+### 3. Declaración de Deuda Técnica: Falta de Tests End-to-End (E2E)
 
-### Alcance actual y lo que NO está automatizado
+> [!CAUTION]
+> **Declaración formal de Deuda Técnica:**
+> El proyecto reconoce y documenta de forma explícita la **ausencia de tests automatizados End-to-End (E2E) y de pruebas de componentes en navegador** como una **deuda técnica asumida**.
 
-Para no vender más de lo que hay, la matriz completa de lo que se testea automáticamente hoy es:
+#### Justificación y contexto de la deuda
+Durante los sprints del MVP se priorizó asegurar la lógica pura de negocio mediante el Quality Gate del 80% en librerías unitarias y la estabilidad de la capa de transporte mediante tests de integración del BFF.
 
-| Nivel | ¿Existe? | Detalle |
+La automatización de pruebas E2E con navegadores reales (Playwright/Cypress) requiere desplegar y orquestar en CI el entorno completo (base de datos relacional, backend en Express, servicio de Next.js y navegadores headless con soporte de WebSockets/polling). Esta inversión de tiempo fue postergada conscientemente para priorizar la funcionalidad completa del sistema.
+
+#### Matriz de alcance actual y Deuda Técnica
+
+| Nivel de prueba | ¿Está automatizado? | Situación en el repositorio |
 |---|---|---|
-| **Unit** (funciones puras) | ✅ | Vitest con env `node`, umbral 80% sobre `lib/**` y `app/lib/**` (ver "Scope del umbral") |
-| **Integración BFF** | ✅ | Vitest con `Request` reales, backend + cookies + `global.fetch` mockeados. No cuenta para el umbral. |
-| **Component testing (browser)** | ❌ | No hay `@testing-library/react`, ni env `jsdom`/`happy-dom`, ni tests sobre componentes de `app/components/**` |
-| **E2E / UI automatizado** | ❌ | No hay Playwright, Cypress, Selenium ni WebDriver. Sin script `test:e2e` en `package.json`. |
-| **Smoke test contra Render** | ❌ | Ningún workflow ni comando dispara clicks contra la URL real del deploy |
-| **Visual regression** | ❌ | Sin snapshots ni chromatic ni Percy |
-| **Accessibility automatizado** | ❌ | Sin axe/pa11y en CI |
+| **Librerías Unitarias (funciones puras)** | ✅ Sí | Umbral obligatorio del 80% en CI sobre `lib/**` y `app/lib/**`. |
+| **Integración BFF (Route Handlers)** | ✅ Sí | Suite independiente `tests/integration/` con mocks de cookies y backend. |
+| **Componentes UI (React)** | ❌ No (**Deuda técnica**) | Sin `@testing-library/react` ni entorno `jsdom`/`happy-dom`. |
+| **E2E / Interfaz en Navegador** | ❌ No (**Deuda técnica**) | Sin Playwright ni Cypress. Sin script `test:e2e` en `package.json`. |
+| **Smoke test contra Producción** | ❌ No (**Deuda técnica**) | Sin scripts automáticos interactuando con la URL desplegada en Render. |
+| **Regresión Visual y Accesibilidad** | ❌ No (**Deuda técnica**) | Sin snapshots (Percy/Chromatic) ni auditorías axe en CI. |
 
-Antes de la demo se cubren manualmente por checklist (`npm run dev` local + revisión a ojo). Roadmap sugerido: agregar **Playwright** con 2-3 smoke tests que cubran login citizen + login dispatcher + POST panic-button, corriendo contra el backup site de Render en cada CI de main.
+#### Mitigación actual (Validación Manual)
+Previo a demostraciones y entregas, la interfaz gráfica y los flujos integrados se validan **manualmente** mediante un checklist de humo:
+1. Verificación en entorno local (`npm run dev`): disparo del Botón Antipánico, visualización de alerta en el Kanban `/ops`, modal de asignación de oficial y descarte.
+2. Verificación en despliegue activo (Render): inicio de sesión de roles demo, renderizado de mapas interactivos con Leaflet y toasts de Mantine Notifications.
 
-**Respuesta canónica para la presentación:** "Hoy la estrategia de testing automatizado es **unit + integración BFF**. E2E / component / smoke / visual / a11y son **deuda técnica reconocida**; la vía elegida para pagarla es Playwright." No decir "tests E2E" ni "browser testing" en el discurso hasta que exista al menos un `.spec.js` de Playwright en el repo.
+#### Plan de pago de deuda técnica (Roadmap Playwright)
+Para saldar esta deuda técnica, el roadmap del equipo contempla:
+1. **Configuración de Playwright:** Incorporar `@playwright/test` y definir `playwright.config.js` con soporte para navegadores Chromium y Firefox.
+2. **Implementación de 3 flujos críticos automatizados:**
+   - **Flujo Ciudadano:** Inicio de sesión, activación del Botón Antipánico (SOS) y verificación de la alerta en `/mis-alertas`.
+   - **Flujo Despachador:** Acceso al tablero Kanban `/ops`, movimiento de columnas de incidentes y asignación de oficiales.
+   - **Flujo de Seguridad (Middleware):** Verificación de redirecciones al intentar acceder a rutas privadas sin cookie de sesión activa.
+3. **Pipeline en CI:** Ejecución de smoke tests E2E contra el entorno de staging de Render en cada merge a la rama `main`.
+
+---
+
+### Resumen para revisiones técnicas y defensas
+- **Quality Gate:** El 80% aplica **sobre librerías unitarias** (`lib/**` + `app/lib/**` menos exclusiones), **nunca sobre todo el frontend**.
+- **Tests de Integración del BFF:** Se gestionan y documentan por separado; prueban el BFF sin estar atados al umbral de unit. Hoy cubren login, session, el proxy `/api/backend/[...path]` y geocode; quedan pendientes `logout` y `warmup`.
+- **Tests E2E:** No existen en esta etapa; su ausencia está formalmente registrada como **deuda técnica asumida**, con Playwright como tecnología elegida para su pago.
