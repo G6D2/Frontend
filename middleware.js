@@ -1,18 +1,11 @@
 /**
- * Middleware de Autenticación (Session Guard)
+ * Middleware de sesión y guard UX de rutas.
  *
- * ARQUITECTURA DE SEGURIDAD Y ROLES:
- * Este middleware actúa ÚNICAMENTE como guard de sesión activa: valida la presencia
- * y vigencia de la cookie de sesión httpOnly (JWT) para evitar el acceso de usuarios
- * anónimos a rutas privadas y redirigir al login (/acceso).
- *
- * NO existe protección de roles por niveles de rutas en el frontend.
- * Toda la protección de roles, permisos y autorización reside de forma estricta
- * y definitiva en el BACKEND. El backend valida el JWT y rechaza con 401/403
- * cualquier llamada que no corresponda a los grupos/roles del usuario.
- *
- * Las redirecciones en el frontend (como getHomePathForUser) son exclusivamente
- * de conveniencia de navegación y experiencia de usuario (UX).
+ * - Valida presencia/vigencia de la cookie httpOnly (JWT) para rutas privadas.
+ * - Guard de rol citizen ↔ ops (UX): evita que un dispatcher abra /inicio o un
+ *   citizen abra /ops. La autoridad criptográfica y de autorización sigue siendo
+ *   el backend (firma RS256 + groups); acá no se valida la firma del JWT.
+ * - getHomePathForUser es solo conveniencia de navegación al ya estar logueado.
  */
 
 import { NextResponse } from "next/server";
@@ -48,7 +41,7 @@ function isPublic(pathname) {
 
 /**
  * Rutas que requieren sesión activa (autenticación).
- * Nota: no restringe por rol; esa autorización la aplica el backend.
+ * El guard de rol citizen/ops se aplica más abajo; la autorización fina es del backend.
  */
 function isProtected(pathname) {
   return (

@@ -64,11 +64,11 @@ La cuenta dispatcher está definida en `DISPATCHER_DEMO` (también en `features.
 
 | Flag | Valor actual | Descripción |
 |---|---|---|
-| `ANTIPANIC_MODE` | `"mock"` | `"mock"` → `hasAntipanicButton` viene de `DEMO_ACCOUNTS`; `"backend"` → viene de `GET /api/user` |
+| `ANTIPANIC_MODE` | `"backend"` | `"mock"` → `hasAntipanicButton` de demo local; `"backend"` → de `GET /api/user` / JWT |
 | `DEMO_ACCOUNTS` | (ver archivo) | Cuentas ciudadanas de demostración |
 | `DISPATCHER_DEMO` | (ver archivo) | Cuenta dispatcher de acceso directo |
 
-> Para conectar con el backend real: cambiar `ANTIPANIC_MODE = "backend"` y asegurarse de que `GET /api/user` devuelva `{ hasAntipanicButton: boolean }`.
+> Con `ANTIPANIC_MODE = "backend"` (valor actual), `hasAntipanicButton` sale del JWT / `GET /api/user`. Solo usar `"mock"` para demos locales sin backend.
 
 ---
 
@@ -76,10 +76,10 @@ La cuenta dispatcher está definida en `DISPATCHER_DEMO` (también en `features.
 
 | Método | Ruta | Estado | Descripción |
 |---|---|---|---|
-| `POST` | `/api/auth/login` | ✅ Activo | Login vía backend dev (`/auth/dev/login`). Emite cookie de sesión. |
+| `POST` | `/api/auth/login` | ✅ Activo | Login email+password (`/auth/login`) o atajos demo (`/auth/dev/login`). Emite cookie de sesión. |
 | `POST` | `/api/auth/logout` | ✅ Activo | Borra la cookie de sesión. |
 | `GET` | `/api/auth/session` | ✅ Activo | Devuelve el usuario de la sesión actual (para hidratación cliente). |
-| `POST` | `/api/auth/register` | 🔲 Stub (501) | Registro real con IdP. Pendiente HU-12. |
+| `POST` | `/api/auth/register` | ✅ Activo | Registro email+password vía backend (`/auth/register`). |
 | `POST` | `/api/auth/forgot-password` | 🔲 Stub (200 mock) | Recuperación de contraseña. Siempre responde 200 (no revela si el email existe). |
 | `GET/POST/PATCH` | `/api/backend/*` | ✅ Activo | Proxy genérico al backend Express. Adjunta el JWT de la cookie. |
 | `GET` | `/api/warmup` | ✅ Activo | Pega al backend para despertarlo (Render free tier). |
@@ -237,7 +237,7 @@ Frontend/
     │       ├── login/         # POST — emite cookie de sesión
     │       ├── logout/        # POST — borra cookie
     │       ├── session/       # GET  — devuelve user actual
-    │       ├── register/      # POST — stub 501 (HU-12)
+    │       ├── register/      # POST — alta email+password (BFF → /auth/register)
     │       └── forgot-password/ # POST — stub mock 200
     ├── (citizen)/
     │   ├── inicio/            # Home ciudadano + botón antipánico

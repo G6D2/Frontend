@@ -126,7 +126,14 @@ describe("api.js", () => {
         })
       );
       expect(result.user).toEqual({ sub: "u1", username: "juan", loginMethod: "directo" });
-      expect(getStoredUser()).toEqual({ sub: "u1", username: "juan", loginMethod: "directo" });
+      // setStoredUser solo persiste claims de sesión (sin PII); completa defaults.
+      expect(getStoredUser()).toEqual({
+        sub: "u1",
+        username: "juan",
+        groups: [],
+        hasAntipanicButton: false,
+        loginMethod: "directo",
+      });
     });
 
     it("loginDev: lanza ApiError si el login falla", async () => {
@@ -153,17 +160,40 @@ describe("api.js", () => {
     });
 
     it("fetchCurrentUser: obtiene sesión de /api/auth/session y fusiona con perfil local", async () => {
-      setStoredUser({ sub: "u1", customPref: "dark" });
+      setStoredUser({ sub: "u1", loginMethod: "sesion" });
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ data: { sub: "u1", email: "test@city.com" } }),
+        json: async () => ({
+          data: {
+            sub: "u1",
+            username: "juan",
+            groups: ["citizen"],
+            hasAntipanicButton: true,
+            email: "test@city.com",
+          },
+        }),
       });
 
       const user = await fetchCurrentUser();
 
-      expect(user).toEqual({ sub: "u1", customPref: "dark", email: "test@city.com" });
-      expect(getStoredUser()).toEqual(user);
+      // El return incluye lo que vino de session (puede traer email en memoria),
+      // pero sessionStorage no guarda PII como email.
+      expect(user).toMatchObject({
+        sub: "u1",
+        username: "juan",
+        groups: ["citizen"],
+        hasAntipanicButton: true,
+        loginMethod: "sesion",
+        email: "test@city.com",
+      });
+      expect(getStoredUser()).toEqual({
+        sub: "u1",
+        username: "juan",
+        groups: ["citizen"],
+        hasAntipanicButton: true,
+        loginMethod: "sesion",
+      });
     });
 
     it("fetchCurrentUser: 401 redirige a /acceso y limpia usuario", async () => {
