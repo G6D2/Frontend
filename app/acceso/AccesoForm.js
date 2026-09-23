@@ -31,9 +31,10 @@ export default function AccesoForm() {
     setForgotSent(false);
   }
 
+  // Seed V16 — solo relleno de chips de presentación (cuenta pública de demo).
   function fillDemo(account) {
     setEmailHint(account.email);
-    setPasswordHint("");
+    setPasswordHint("abracadabra");
     setError("");
   }
 
