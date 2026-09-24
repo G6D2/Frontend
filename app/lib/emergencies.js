@@ -160,6 +160,11 @@ export function isPendingStatus(status) {
   return status === "PENDING" || status === "CREATED" || status === "pendiente";
 }
 
+/** VALIDATED → se puede asignar oficial (backend: VALIDATED → DISPATCHED). */
+export function canAssignOfficer(status) {
+  return status === "VALIDATED";
+}
+
 export function isActiveStatus(status) {
   return !["CANCELLED", "CLOSED", "DISCARDED", "RESOLVED", "cancelada", "resuelta"].includes(
     status
