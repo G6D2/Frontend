@@ -5,6 +5,7 @@ import {
   isPendingStatus,
   isActiveStatus,
   isCancelable,
+  canAssignOfficer,
   formatTime,
   formatTimeShort,
   elapsedMinutes,
@@ -104,6 +105,17 @@ describe("isPendingStatus", () => {
     expect(isPendingStatus("VALIDATED")).toBe(false);
     expect(isPendingStatus("CLOSED")).toBe(false);
     expect(isPendingStatus("DISPATCHED")).toBe(false);
+  });
+});
+
+describe("canAssignOfficer", () => {
+  it("solo VALIDATED puede asignarse", () => {
+    expect(canAssignOfficer("VALIDATED")).toBe(true);
+    expect(canAssignOfficer("PENDING")).toBe(false);
+    expect(canAssignOfficer("CREATED")).toBe(false);
+    expect(canAssignOfficer("DISPATCHED")).toBe(false);
+    expect(canAssignOfficer("validada")).toBe(false);
+    expect(canAssignOfficer(null)).toBe(false);
   });
 });
 

@@ -20,6 +20,7 @@ import {
   elapsedMinutes,
   isPendingStatus,
   isActiveStatus,
+  canAssignOfficer,
   priorityTextClass,
   getEffectivePriority,
   TYPE_LABELS,
@@ -359,9 +360,13 @@ export default function OpsPage() {
 
   function renderDetailPanelBody() {
     if (!selected) return null;
+
+    const canValidate = isPendingStatus(selected.status);
+    const canAssign = canAssignOfficer(selected.status);
+
     return (
       <>
-        <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start">
+        <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start shrink-0">
           <div>
             <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
               #{selected.id.slice(0, 8)}
@@ -381,7 +386,7 @@ export default function OpsPage() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 min-h-0">
           <div className="flex items-start gap-2">
             <MaterialIcon name="location_on" className="text-on-surface-variant mt-0.5 shrink-0" />
             <div>
@@ -420,20 +425,15 @@ export default function OpsPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setSelected(null)}
-            className={`${BTN_BASE} ${BTN_SECONDARY} w-full py-2 normal-case font-semibold text-xs`}
-          >
-            Cerrar detalle
-          </button>
           {actionError && (
             <div className="p-2 rounded bg-error-container text-on-error-container text-xs">
               {actionError}
             </div>
           )}
+
+          {/* Acciones arriba de "Cerrar": en mobile no quedan bajo el fold. */}
           <div className="flex flex-col gap-2">
-            {isPendingStatus(selected.status) && (
+            {canValidate && (
               <>
                 <button
                   type="button"
@@ -453,7 +453,7 @@ export default function OpsPage() {
                 </button>
               </>
             )}
-            {(selected.status === "VALIDATED" || selected.status === "validada") && (
+            {canAssign && (
               <button
                 type="button"
                 onClick={() => router.push(`/ops/asignar/${selected.id}`)}
@@ -462,6 +462,13 @@ export default function OpsPage() {
                 Asignar oficial
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className={`${BTN_BASE} ${BTN_SECONDARY} w-full py-2 normal-case font-semibold text-xs`}
+            >
+              Cerrar detalle
+            </button>
           </div>
         </div>
       </>
