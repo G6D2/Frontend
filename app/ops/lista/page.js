@@ -184,7 +184,11 @@ export default function OpsPage() {
   // ── Controles de datos ────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
   const [metricFilter, setMetricFilter] = useState("all"); // clave de METRIC_FILTERS
-  const [sortKey, setSortKey] = useState(null); // null = sin sort explícito
+  // Por defecto la lista entra ordenada por prioridad (críticas primero):
+  // la priorización es el feature central del panel, así que el dispatcher
+  // no debería tener que clickear el header para verla ordenada. SEVERITY_ORDER
+  // pone critical=0, así que "priority"+"asc" deja críticas arriba.
+  const [sortKey, setSortKey] = useState("priority");
   const [sortDir, setSortDir] = useState("asc");
 
   const requestSeqRef = useRef(0);
