@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { resolveEmergencyAddress } from "../app/lib/geocoding";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { resolveEmergencyAddress, reverseGeocode } from "../app/lib/geocoding";
 
 describe("resolveEmergencyAddress", () => {
   it("returns no label and no geocode for null/undefined emergency", () => {
@@ -89,5 +89,60 @@ describe("resolveEmergencyAddress", () => {
         longitude: null,
       })
     ).toEqual({ label: "Sin ubicación", needsGeocode: false });
+  });
+});
+
+
+describe("reverseGeocode (dedupe en vuelo)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("devuelve null sin llamar a fetch si las coords no son finitas", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    expect(await reverseGeocode(NaN, 10)).toBeNull();
+    expect(await reverseGeocode(10, undefined)).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("dispara un solo fetch para llamadas concurrentes de la misma coordenada", async () => {
+    let resolveFetch;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+
+    // Coordenada única para no chocar con el caché de otros tests.
+    const lat = -34.10001;
+    const lng = -58.20002;
+    const p1 = reverseGeocode(lat, lng);
+    const p2 = reverseGeocode(lat, lng);
+
+    resolveFetch({ ok: true, json: async () => ({ label: "Calle Falsa 123" }) });
+
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1).toBe("Calle Falsa 123");
+    expect(r2).toBe("Calle Falsa 123");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Una tercera llamada ya con la dirección cacheada tampoco vuelve a pegar.
+    expect(await reverseGeocode(lat, lng)).toBe("Calle Falsa 123");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("no cachea el fallo: permite reintentar cuando la respuesta no trae dirección", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: false, json: async () => ({}) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ label: "Segundo intento OK" }) });
+
+    const lat = -34.30003;
+    const lng = -58.40004;
+    expect(await reverseGeocode(lat, lng)).toBeNull();
+    // Como no se cacheó el fallo, el segundo llamado vuelve a intentar.
+    expect(await reverseGeocode(lat, lng)).toBe("Segundo intento OK");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });

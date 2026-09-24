@@ -23,25 +23,40 @@ const CLIENT_TIMEOUT_MS = 15000;
  *   demorar el envío de la alerta esperando una dirección legible.
  * @returns {Promise<string|null>} Dirección legible o null si falla o tarda.
  */
-export async function reverseGeocode(lat, lng, { timeoutMs = CLIENT_TIMEOUT_MS } = {}) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+export function reverseGeocode(lat, lng, { timeoutMs = CLIENT_TIMEOUT_MS } = {}) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return Promise.resolve(null);
 
   const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-  if (cache.has(key)) return cache.get(key);
+  // Cachea la PROMESA (no solo el resultado): varios GeoLabel y cada ciclo de
+  // polling piden la misma coordenada casi a la vez; guardar la promesa en
+  // vuelo evita disparar N fetch idénticos al /api/geocode por la misma coord.
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
 
-  try {
-    const res = await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const label = data?.label || null;
-    if (label) cache.set(key, label);
-    return label;
-  } catch {
-    // Silencioso: GeoLabel cae a mostrar las coordenadas.
-    return null;
-  }
+  const pending = (async () => {
+    try {
+      const res = await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.label || null;
+    } catch {
+      // Silencioso: GeoLabel cae a mostrar las coordenadas.
+      return null;
+    }
+  })();
+
+  cache.set(key, pending);
+  // Si la resolución no trajo dirección (falla/timeout/sin label), se desaloja
+  // para permitir un reintento más adelante; una dirección válida queda cacheada.
+  pending
+    .then((label) => {
+      if (!label) cache.delete(key);
+    })
+    .catch(() => cache.delete(key));
+
+  return pending;
 }
 
 /**
