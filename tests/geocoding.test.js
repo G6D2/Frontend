@@ -132,6 +132,21 @@ describe("reverseGeocode (dedupe en vuelo)", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("no cachea el fallo cuando el fetch lanza (timeout/red) y permite reintentar", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ label: "Recuperado" }) });
+
+    const lat = -34.50005;
+    const lng = -58.60006;
+    // El error se traga en silencio y devuelve null (GeoLabel cae a coords).
+    expect(await reverseGeocode(lat, lng)).toBeNull();
+    // Como no se cacheó, el segundo intento vuelve a pegar y ahora resuelve.
+    expect(await reverseGeocode(lat, lng)).toBe("Recuperado");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("no cachea el fallo: permite reintentar cuando la respuesta no trae dirección", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

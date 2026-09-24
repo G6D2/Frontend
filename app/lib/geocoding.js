@@ -50,11 +50,10 @@ export function reverseGeocode(lat, lng, { timeoutMs = CLIENT_TIMEOUT_MS } = {})
   cache.set(key, pending);
   // Si la resolución no trajo dirección (falla/timeout/sin label), se desaloja
   // para permitir un reintento más adelante; una dirección válida queda cacheada.
-  pending
-    .then((label) => {
-      if (!label) cache.delete(key);
-    })
-    .catch(() => cache.delete(key));
+  // El IIFE siempre resuelve (maneja sus propios errores), nunca rechaza.
+  pending.then((label) => {
+    if (!label) cache.delete(key);
+  });
 
   return pending;
 }
