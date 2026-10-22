@@ -92,11 +92,19 @@ export default function AccesoForm() {
   };
 
   const iconName = isForgot ? "lock_reset" : isSignup ? "person_add" : "security";
-  const title = isForgot ? "Recuperar contraseña" : isSignup ? "Crear cuenta" : "Bienvenido";
+  const title = isForgot
+    ? "Recuperar contraseña"
+    : isSignup
+    ? "Crear cuenta"
+    : IS_IDP_MODE
+    ? "Login Federado (LDAP)"
+    : "Bienvenido";
   const subtitle = isForgot
     ? "Ingresá tu CUIL o correo y te enviamos el enlace de recuperación."
     : isSignup
     ? "Creá tu cuenta ciudadana para guardar datos y preferencias."
+    : IS_IDP_MODE
+    ? "Ingresá con tu usuario de CityPass+ (ej: juan-trabaja)."
     : "Acceso seguro a los servicios de la ciudad.";
 
   return (
@@ -341,148 +349,95 @@ export default function AccesoForm() {
 
         </div>
 
-        {/* ── Bloque inferior: Demo Dispatcher (local) o Acceso institucional (idp) ── */}
-        <div className="mt-4">
-          {IS_IDP_MODE ? (
-            /* Modo IdP real — enlace al portal del Grupo 2 */
-            IDP_LOGIN_URL ? (
-              <a
-                href={IDP_LOGIN_URL}
-                className="mt-4 w-full group relative overflow-hidden rounded-xl border-2 border-dashed p-4 flex items-center gap-4 transition-all hover:shadow-md"
-                style={{
-                  borderColor: "rgb(59, 130, 246)",
-                  backgroundColor: "rgba(59, 130, 246, 0.05)",
-                  textDecoration: "none",
-                }}
-              >
-                <div
-                  className="shrink-0 rounded-lg p-2.5 flex items-center justify-center"
-                  style={{ backgroundColor: "rgba(59, 130, 246, 0.12)" }}
-                >
-                  <span
-                    className="material-symbols-outlined material-icon"
-                    style={{ fontSize: 28, color: "rgb(37, 99, 235)", fontVariationSettings: "'FILL' 0" }}
-                  >
-                    vpn_key
-                  </span>
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm" style={{ color: "rgb(29, 78, 216)" }}>
-                      Acceso institucional
-                    </span>
-                    <span
-                      className="text-[10px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded"
-                      style={{
-                        color: "rgb(29, 78, 216)",
-                        backgroundColor: "rgba(59, 130, 246, 0.18)",
-                      }}
-                    >
-                      Login Federado
-                    </span>
-                  </div>
-                  <p className="text-xs mt-0.5" style={{ color: "rgb(59, 130, 246)" }}>
-                    Ingresá con tu cuenta del IdP CityPass+
-                  </p>
-                </div>
-                <span
-                  className="material-symbols-outlined material-icon shrink-0 transition-transform group-hover:translate-x-1"
-                  style={{ fontSize: 20, color: "rgb(37, 99, 235)", fontVariationSettings: "'FILL' 0" }}
-                >
-                  open_in_new
+        {/* ── En modo local: Botón Demo Dispatcher ── */}
+        {!IS_IDP_MODE && (
+          <div className="mt-4">
+            <div className="relative">
+              {/* Línea divisoria con etiqueta DEMO */}
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-dashed border-outline-variant" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="px-3 bg-background text-xs font-bold tracking-widest uppercase"
+                  style={{ color: "rgb(180, 120, 20)" }}>
+                  Demo
                 </span>
-              </a>
-            ) : null
-          ) : (
-            /* Modo local — botón Demo Dispatcher */
-            <>
-              <div className="relative">
-                {/* Línea divisoria con etiqueta DEMO */}
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="w-full border-t border-dashed border-outline-variant" />
-                </div>
-                <div className="relative flex justify-center">
-                  <span className="px-3 bg-background text-xs font-bold tracking-widest uppercase"
-                    style={{ color: "rgb(180, 120, 20)" }}>
+              </div>
+            </div>
+
+            <button
+              id="btn-dispatcher-demo"
+              type="button"
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                setError("");
+                try {
+                  const { user } = await loginDev({
+                    ...DISPATCHER_DEMO,
+                    loginMethod: "sesion",
+                  });
+                  router.replace(getHomePathForUser(user));
+                } catch (err) {
+                  setError(
+                    err instanceof ApiError
+                      ? err.message
+                      : "No se pudo conectar con el backend."
+                  );
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="mt-4 w-full group relative overflow-hidden rounded-xl border-2 border-dashed p-4 flex items-center gap-4 transition-all hover:shadow-md disabled:opacity-60"
+              style={{
+                borderColor: "rgb(210, 152, 63)",
+                backgroundColor: "rgba(210, 152, 63, 0.06)",
+              }}
+            >
+              {/* Ícono */}
+              <div
+                className="shrink-0 rounded-lg p-2.5 flex items-center justify-center"
+                style={{ backgroundColor: "rgba(210, 152, 63, 0.15)" }}
+              >
+                <span
+                  className="material-symbols-outlined material-icon"
+                  style={{ fontSize: 28, color: "rgb(180, 120, 20)", fontVariationSettings: "'FILL' 0" }}
+                >
+                  radio_button_checked
+                </span>
+              </div>
+
+              {/* Texto */}
+              <div className="flex-1 text-left min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-sm" style={{ color: "rgb(130, 80, 10)" }}>
+                    Vista Dispatcher
+                  </span>
+                  <span
+                    className="text-[10px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded"
+                    style={{
+                      color: "rgb(130, 80, 10)",
+                      backgroundColor: "rgba(210, 152, 63, 0.25)",
+                    }}
+                  >
                     Demo
                   </span>
                 </div>
+                <p className="text-xs mt-0.5" style={{ color: "rgb(160, 110, 30)" }}>
+                  Acceso directo al panel de control de emergencias
+                </p>
               </div>
 
-              <button
-                id="btn-dispatcher-demo"
-                type="button"
-                disabled={loading}
-                onClick={async () => {
-                  setLoading(true);
-                  setError("");
-                  try {
-                    const { user } = await loginDev({
-                      ...DISPATCHER_DEMO,
-                      loginMethod: "sesion",
-                    });
-                    router.replace(getHomePathForUser(user));
-                  } catch (err) {
-                    setError(
-                      err instanceof ApiError
-                        ? err.message
-                        : "No se pudo conectar con el backend."
-                    );
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="mt-4 w-full group relative overflow-hidden rounded-xl border-2 border-dashed p-4 flex items-center gap-4 transition-all hover:shadow-md disabled:opacity-60"
-                style={{
-                  borderColor: "rgb(210, 152, 63)",
-                  backgroundColor: "rgba(210, 152, 63, 0.06)",
-                }}
+              {/* Flecha */}
+              <span
+                className="material-symbols-outlined material-icon shrink-0 transition-transform group-hover:translate-x-1"
+                style={{ fontSize: 20, color: "rgb(180, 120, 20)", fontVariationSettings: "'FILL' 0" }}
               >
-                {/* Ícono */}
-                <div
-                  className="shrink-0 rounded-lg p-2.5 flex items-center justify-center"
-                  style={{ backgroundColor: "rgba(210, 152, 63, 0.15)" }}
-                >
-                  <span
-                    className="material-symbols-outlined material-icon"
-                    style={{ fontSize: 28, color: "rgb(180, 120, 20)", fontVariationSettings: "'FILL' 0" }}
-                  >
-                    radio_button_checked
-                  </span>
-                </div>
-
-                {/* Texto */}
-                <div className="flex-1 text-left min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm" style={{ color: "rgb(130, 80, 10)" }}>
-                      Vista Dispatcher
-                    </span>
-                    <span
-                      className="text-[10px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded"
-                      style={{
-                        color: "rgb(130, 80, 10)",
-                        backgroundColor: "rgba(210, 152, 63, 0.25)",
-                      }}
-                    >
-                      Demo
-                    </span>
-                  </div>
-                  <p className="text-xs mt-0.5" style={{ color: "rgb(160, 110, 30)" }}>
-                    Acceso directo al panel de control de emergencias
-                  </p>
-                </div>
-
-                {/* Flecha */}
-                <span
-                  className="material-symbols-outlined material-icon shrink-0 transition-transform group-hover:translate-x-1"
-                  style={{ fontSize: 20, color: "rgb(180, 120, 20)", fontVariationSettings: "'FILL' 0" }}
-                >
-                  arrow_forward
-                </span>
-              </button>
-            </>
-          )}
-        </div>
+                arrow_forward
+              </span>
+            </button>
+          </div>
+        )}
 
 
         {/* Footer */}
