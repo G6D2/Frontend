@@ -124,16 +124,16 @@ export default function AccesoForm() {
           {!isForgot && (
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-              {/* Correo */}
+              {/* Correo o Usuario LDAP */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="identifier" className="text-sm font-semibold tracking-wide text-on-surface">
-                  Correo electrónico
+                  {IS_IDP_MODE ? "Usuario o Correo (LDAP)" : "Correo electrónico"}
                 </label>
                 <input
                   id="identifier"
                   name="identifier"
-                  type="email"
-                  placeholder="vos@correo.com"
+                  type={IS_IDP_MODE ? "text" : "email"}
+                  placeholder={IS_IDP_MODE ? "ej: juan-labura o delegado-emer" : "vos@correo.com"}
                   key={`${mode}-${emailHint}`}
                   defaultValue={emailHint}
                   autoComplete="username"

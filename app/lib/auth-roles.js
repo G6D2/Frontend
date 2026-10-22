@@ -7,11 +7,19 @@
  */
 
 export function isDispatcher(user) {
-  return Array.isArray(user?.groups) && user.groups.includes("dispatcher");
+  if (!Array.isArray(user?.groups)) return false;
+  return user.groups.some(
+    (g) =>
+      typeof g === "string" &&
+      (g.toLowerCase() === "dispatcher" || g.toLowerCase() === "delegados")
+  );
 }
 
 export function isCitizen(user) {
-  return Array.isArray(user?.groups) && user.groups.includes("citizen");
+  if (!Array.isArray(user?.groups)) return false;
+  return user.groups.some(
+    (g) => typeof g === "string" && g.toLowerCase() === "citizen"
+  );
 }
 
 // TODO(back): grupo `officer` + guards de pantallas de terreno (HU-08/09/10)

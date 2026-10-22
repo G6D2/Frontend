@@ -38,74 +38,120 @@ export async function POST(request) {
 
   const isCredentialLogin =
     typeof body.email === "string" && typeof body.password === "string";
-  const backendPath = isCredentialLogin ? "/auth/login" : "/auth/dev/login";
-  const backendBody = isCredentialLogin
-    ? { email: body.email, password: body.password }
-    : {
-        sub: body.sub,
-        preferred_username: body.preferred_username,
-        groups: body.groups,
-      };
 
   let res;
-  try {
-    res = await fetchBackend(`${BACKEND_URL}${backendPath}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(backendBody),
-    });
-  } catch {
-    return NextResponse.json(
-      {
-        error: "Bad Gateway",
-        message: "El backend no responde. Probá de nuevo en unos segundos.",
-      },
-      { status: 502 }
-    );
-  }
+  let data;
 
-  let data = await res.json().catch(() => null);
+  if (IS_IDP_MODE && isCredentialLogin) {
+    const idpUrl =
+      process.env.CITYPASS_IDP_AUTH_URL ||
+      "https://api.citypass-login.pp.ua/auth/login";
+    const clientId =
+      process.env.CITYPASS_IDP_CLIENT_ID || "citypass-emergencias-web";
+    const username = body.email.includes("@")
+      ? body.email.split("@")[0].trim()
+      : body.email.trim();
 
-  // En modo IdP real (LOGIN Federado), el backend autentica contra LDAP vía el
-  // IdP del Grupo 2. No hay fallback a dev/login: el error se propaga al usuario.
-  //
-  // En modo local (dev/demo), si el backend no tiene /auth/login (404), derivamos
-  // a /auth/dev/login para que los atajos demo sigan funcionando sin cambiar el form.
-  if (isCredentialLogin && res.status === 404 && !IS_IDP_MODE) {
-    const devSub = body.email.split("@")[0];
-    let devRes;
     try {
-      devRes = await fetchBackend(`${BACKEND_URL}/auth/dev/login`, {
+      res = await fetch(idpUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
-          sub: devSub,
-          preferred_username: devSub,
-          groups: body.groups || ["citizen"],
+          username,
+          password: body.password,
+          clientId,
         }),
       });
     } catch {
       return NextResponse.json(
-        { error: "Bad Gateway", message: "El backend no responde. Probá de nuevo en unos segundos." },
+        {
+          error: "Bad Gateway",
+          message: "No se pudo conectar con el servidor de Login Federado (LDAP).",
+        },
         { status: 502 }
       );
     }
-    data = await devRes.json().catch(() => null);
-    if (!devRes.ok) {
+
+    data = await res.json().catch(() => null);
+
+    if (!res.ok) {
       return NextResponse.json(
-        { error: data?.error || "Login failed", message: data?.message || `Error HTTP ${devRes.status}` },
-        { status: devRes.status }
+        {
+          error: data?.error || "Login failed",
+          message: data?.message || "Usuario o contraseña inválidos en LDAP",
+        },
+        { status: res.status }
       );
     }
-    res = devRes;
-  } else if (!res.ok) {
-    return NextResponse.json(
-      {
-        error: data?.error || "Login failed",
-        message: data?.message || `Error HTTP ${res.status}`,
-      },
-      { status: res.status }
-    );
+  } else {
+    const backendPath = isCredentialLogin ? "/auth/login" : "/auth/dev/login";
+    const backendBody = isCredentialLogin
+      ? { email: body.email, password: body.password }
+      : {
+          sub: body.sub,
+          preferred_username: body.preferred_username,
+          groups: body.groups,
+        };
+
+    try {
+      res = await fetchBackend(`${BACKEND_URL}${backendPath}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(backendBody),
+      });
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Bad Gateway",
+          message: "El backend no responde. Probá de nuevo en unos segundos.",
+        },
+        { status: 502 }
+      );
+    }
+
+    data = await res.json().catch(() => null);
+
+    // En modo local (dev/demo), si el backend no tiene /auth/login (404), derivamos
+    // a /auth/dev/login para que los atajos demo sigan funcionando sin cambiar el form.
+    if (isCredentialLogin && res.status === 404 && !IS_IDP_MODE) {
+      const devSub = body.email.split("@")[0];
+      let devRes;
+      try {
+        devRes = await fetchBackend(`${BACKEND_URL}/auth/dev/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            sub: devSub,
+            preferred_username: devSub,
+            groups: body.groups || ["citizen"],
+          }),
+        });
+      } catch {
+        return NextResponse.json(
+          { error: "Bad Gateway", message: "El backend no responde. Probá de nuevo en unos segundos." },
+          { status: 502 }
+        );
+      }
+      data = await devRes.json().catch(() => null);
+      if (!devRes.ok) {
+        return NextResponse.json(
+          { error: data?.error || "Login failed", message: data?.message || `Error HTTP ${devRes.status}` },
+          { status: devRes.status }
+        );
+      }
+      res = devRes;
+    } else if (!res.ok) {
+      return NextResponse.json(
+        {
+          error: data?.error || "Login failed",
+          message: data?.message || `Error HTTP ${res.status}`,
+        },
+        { status: res.status }
+      );
+    }
   }
 
   const accessToken = data?.access_token;
