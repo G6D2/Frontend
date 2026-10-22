@@ -5,15 +5,26 @@ import {
   sessionCookieOptions,
   userFromJwt,
 } from "@/lib/session";
-import { ANTIPANIC_MODE } from "@/app/lib/features";
+import { ANTIPANIC_MODE, findDemoAccount } from "@/app/lib/features";
 import { fetchBackend } from "@/lib/backend-fetch";
 
 /**
  * POST /api/auth/login
  *
- * - email+password → POST /auth/login (usuarios reales)
- * - sub (+ groups) → POST /auth/dev/login (atajos demo / anónimo / dispatcher)
+ * Flujos soportados:
+ *
+ * AUTH_MODE=idp (Login Federado — Grupo 2):
+ *   - email+password → POST /auth/login del backend, que valida contra el IdP (LDAP).
+ *   - No hay fallback a /auth/dev/login: si falla, se propaga el error.
+ *
+ * AUTH_MODE=local (dev/demo — sin IdP):
+ *   - email+password → POST /auth/login. Si devuelve 404 (backend local sin
+ *     ese endpoint), deriva a POST /auth/dev/login con sub inferido del email.
+ *   - sub (+ groups) → POST /auth/dev/login directamente (atajos demo).
  */
+
+const IS_IDP_MODE = process.env.NEXT_PUBLIC_AUTH_MODE === "idp";
+
 export async function POST(request) {
   let body;
   try {
@@ -53,8 +64,41 @@ export async function POST(request) {
     );
   }
 
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
+  let data = await res.json().catch(() => null);
+
+  // En modo IdP real (LOGIN Federado), el backend autentica contra LDAP vía el
+  // IdP del Grupo 2. No hay fallback a dev/login: el error se propaga al usuario.
+  //
+  // En modo local (dev/demo), si el backend no tiene /auth/login (404), derivamos
+  // a /auth/dev/login para que los atajos demo sigan funcionando sin cambiar el form.
+  if (isCredentialLogin && res.status === 404 && !IS_IDP_MODE) {
+    const devSub = body.email.split("@")[0];
+    let devRes;
+    try {
+      devRes = await fetchBackend(`${BACKEND_URL}/auth/dev/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          sub: devSub,
+          preferred_username: devSub,
+          groups: body.groups || ["citizen"],
+        }),
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "Bad Gateway", message: "El backend no responde. Probá de nuevo en unos segundos." },
+        { status: 502 }
+      );
+    }
+    data = await devRes.json().catch(() => null);
+    if (!devRes.ok) {
+      return NextResponse.json(
+        { error: data?.error || "Login failed", message: data?.message || `Error HTTP ${devRes.status}` },
+        { status: devRes.status }
+      );
+    }
+    res = devRes;
+  } else if (!res.ok) {
     return NextResponse.json(
       {
         error: data?.error || "Login failed",
@@ -92,6 +136,15 @@ export async function POST(request) {
     user = { ...user, hasAntipanicButton: body.hasAntipanicButton };
   }
 
+  // En modo local, si el backend dev no incluye has_antipanic_button en el JWT,
+  // lo leemos de DEMO_ACCOUNTS por email.
+  if (!IS_IDP_MODE && isCredentialLogin && typeof user.hasAntipanicButton !== "boolean") {
+    const demoAccount = findDemoAccount(body.email);
+    if (demoAccount !== null) {
+      user = { ...user, hasAntipanicButton: Boolean(demoAccount.hasAntipanicButton) };
+    }
+  }
+
   const response = NextResponse.json({
     success: true,
     user,
@@ -100,3 +153,4 @@ export async function POST(request) {
   response.cookies.set(SESSION_COOKIE, accessToken, sessionCookieOptions(accessToken));
   return response;
 }
+
