@@ -66,8 +66,18 @@ function clearSessionCookie(res) {
 
 function userFromToken(token) {
   const payload = decodeJwtPayload(token);
+  const rawGroups = [
+    ...(Array.isArray(payload?.groups) ? payload.groups : (typeof payload?.groups === "string" ? [payload.groups] : [])),
+    ...(Array.isArray(payload?.roles) ? payload.roles : (typeof payload?.roles === "string" ? [payload.roles] : [])),
+    ...(typeof payload?.role === "string" ? [payload.role] : []),
+    ...(typeof payload?.group === "string" ? [payload.group] : []),
+  ];
   return {
-    groups: Array.isArray(payload?.groups) ? payload.groups : [],
+    sub: payload?.sub,
+    username: payload?.preferred_username || payload?.username || payload?.sub,
+    groups: rawGroups,
+    roles: payload?.roles,
+    role: payload?.role,
   };
 }
 

@@ -60,6 +60,11 @@ describe("auth roles", () => {
   it("routes dispatcher to /ops", () => {
     expect(getHomePathForUser({ groups: ["dispatcher"] })).toBe("/ops");
     expect(isDispatcher({ groups: ["dispatcher"] })).toBe(true);
+    expect(isDispatcher({ groups: ["Dispatcher"] })).toBe(true);
+    expect(isDispatcher({ groups: ["delegados"] })).toBe(true);
+    expect(isDispatcher({ roles: ["dispatcher"] })).toBe(true);
+    expect(getHomePathForUser({ groups: ["delegados"] })).toBe("/ops");
+    expect(getHomePathForUser({ roles: ["dispatcher"] })).toBe("/ops");
   });
 
   it("routes citizen to /inicio", () => {

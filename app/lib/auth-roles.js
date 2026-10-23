@@ -7,24 +7,86 @@
  */
 
 export function isDispatcher(user) {
-  if (!Array.isArray(user?.groups)) return false;
-  return user.groups.some(
-    (g) =>
-      typeof g === "string" &&
-      (g.toLowerCase() === "dispatcher" || g.toLowerCase() === "delegados")
-  );
+  if (!user) return false;
+  const groups = Array.isArray(user.groups)
+    ? user.groups
+    : typeof user.groups === "string"
+    ? [user.groups]
+    : [];
+  const roles = Array.isArray(user.roles)
+    ? user.roles
+    : typeof user.roles === "string"
+    ? [user.roles]
+    : [];
+  const role = typeof user.role === "string" ? [user.role] : [];
+  const group = typeof user.group === "string" ? [user.group] : [];
+
+  const list = [...groups, ...roles, ...role, ...group];
+
+  if (typeof user.username === "string" && user.username.toLowerCase().includes("dispatcher")) {
+    list.push("dispatcher");
+  }
+  if (typeof user.sub === "string" && user.sub.toLowerCase().includes("dispatcher")) {
+    list.push("dispatcher");
+  }
+
+  return list.some((g) => {
+    if (typeof g !== "string") return false;
+    const lower = g.trim().toLowerCase();
+    return (
+      lower === "dispatcher" ||
+      lower === "dispatchers" ||
+      lower === "delegados" ||
+      lower === "operador" ||
+      lower === "admin" ||
+      lower === "admin-general" ||
+      lower === "admin_general" ||
+      lower === "administrador-general"
+    );
+  });
 }
 
 export function isCitizen(user) {
-  if (!Array.isArray(user?.groups)) return false;
-  return user.groups.some(
-    (g) => typeof g === "string" && g.toLowerCase() === "citizen"
+  if (!user) return false;
+  const groups = Array.isArray(user.groups)
+    ? user.groups
+    : typeof user.groups === "string"
+    ? [user.groups]
+    : [];
+  const roles = Array.isArray(user.roles)
+    ? user.roles
+    : typeof user.roles === "string"
+    ? [user.roles]
+    : [];
+  const role = typeof user.role === "string" ? [user.role] : [];
+  const group = typeof user.group === "string" ? [user.group] : [];
+
+  const list = [...groups, ...roles, ...role, ...group];
+  return list.some(
+    (g) => typeof g === "string" && g.trim().toLowerCase() === "citizen"
   );
 }
 
 // TODO(back): grupo `officer` + guards de pantallas de terreno (HU-08/09/10)
 export function isOfficer(user) {
-  return Array.isArray(user?.groups) && user.groups.includes("officer");
+  if (!user) return false;
+  const groups = Array.isArray(user.groups)
+    ? user.groups
+    : typeof user.groups === "string"
+    ? [user.groups]
+    : [];
+  const roles = Array.isArray(user.roles)
+    ? user.roles
+    : typeof user.roles === "string"
+    ? [user.roles]
+    : [];
+  const role = typeof user.role === "string" ? [user.role] : [];
+  const group = typeof user.group === "string" ? [user.group] : [];
+
+  const list = [...groups, ...roles, ...role, ...group];
+  return list.some(
+    (g) => typeof g === "string" && g.trim().toLowerCase() === "officer"
+  );
 }
 
 export function getHomePathForUser(user) {

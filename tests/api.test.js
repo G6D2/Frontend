@@ -669,13 +669,21 @@ describe("api.js", () => {
   describe("getCurrentLocation & LocationError", () => {
     const originalNavigator = global.navigator;
 
+    function setNavigator(val) {
+      Object.defineProperty(global, "navigator", {
+        value: val,
+        configurable: true,
+        writable: true,
+      });
+    }
+
     afterEach(() => {
-      global.navigator = originalNavigator;
+      setNavigator(originalNavigator);
       delete global.window?.__lastCoords;
     });
 
     it("rechaza con NOT_SUPPORTED si navigator.geolocation no existe", async () => {
-      global.navigator = {};
+      setNavigator({});
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "NOT_SUPPORTED",
         message: expect.stringContaining("no soporta geolocalización"),
@@ -683,13 +691,13 @@ describe("api.js", () => {
     });
 
     it("case 1: rechaza con PERMISSION_DENIED y mensaje correspondiente cuando code es 1", async () => {
-      global.navigator = {
+      setNavigator({
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 1, message: "User denied Geolocation" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "PERMISSION_DENIED",
@@ -698,13 +706,13 @@ describe("api.js", () => {
     });
 
     it("case 2: rechaza con POSITION_UNAVAILABLE y mensaje correspondiente cuando code es 2", async () => {
-      global.navigator = {
+      setNavigator({
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 2, message: "Position unavailable" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "POSITION_UNAVAILABLE",
@@ -713,13 +721,13 @@ describe("api.js", () => {
     });
 
     it("case 3: rechaza con TIMEOUT y mensaje correspondiente cuando code es 3", async () => {
-      global.navigator = {
+      setNavigator({
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 3, message: "Timeout" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "TIMEOUT",
@@ -728,13 +736,13 @@ describe("api.js", () => {
     });
 
     it("default / desconocido: rechaza con POSITION_UNAVAILABLE y err.message cuando code es no estándar", async () => {
-      global.navigator = {
+      setNavigator({
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 99, message: "Fallo desconocido de sensor" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "POSITION_UNAVAILABLE",
@@ -743,13 +751,13 @@ describe("api.js", () => {
     });
 
     it("callback con err null: rechaza con mensaje y código por defecto", async () => {
-      global.navigator = {
+      setNavigator({
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error(null);
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "POSITION_UNAVAILABLE",
@@ -758,7 +766,7 @@ describe("api.js", () => {
     });
 
     it("éxito: resuelve con coordenadas precisas y accuracy", async () => {
-      global.navigator = {
+      setNavigator({
         geolocation: {
           getCurrentPosition: vi.fn((success) => {
             success({
@@ -766,7 +774,7 @@ describe("api.js", () => {
             });
           }),
         },
-      };
+      });
 
       const loc = await getCurrentLocation();
       expect(loc).toEqual({

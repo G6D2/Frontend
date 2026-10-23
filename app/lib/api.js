@@ -205,6 +205,31 @@ export async function loginWithPassword({ email, password }) {
   return { user };
 }
 
+/** Login institucional vía LDAP (POST /api/auth/login con loginType="ldap"). */
+export async function loginWithLdap({ username, password }) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      username: username?.trim(),
+      email: username?.trim(),
+      password,
+      loginType: "ldap",
+    }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || data?.error || `Error HTTP ${res.status}`,
+      { status: res.status, body: data }
+    );
+  }
+  const user = { ...data.user, loginMethod: "ldap" };
+  setStoredUser(user);
+  return { user };
+}
+
 /** Registro real email+password (POST /auth/register). */
 export async function registerAccount({ email, password, preferred_username }) {
   const res = await fetch("/api/auth/register", {
