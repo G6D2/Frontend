@@ -18,17 +18,7 @@ export function isDispatcher(user) {
     : typeof user.roles === "string"
     ? [user.roles]
     : [];
-  const role = typeof user.role === "string" ? [user.role] : [];
-  const group = typeof user.group === "string" ? [user.group] : [];
-
-  const list = [...groups, ...roles, ...role, ...group];
-
-  if (typeof user.username === "string" && user.username.toLowerCase().includes("dispatcher")) {
-    list.push("dispatcher");
-  }
-  if (typeof user.sub === "string" && user.sub.toLowerCase().includes("dispatcher")) {
-    list.push("dispatcher");
-  }
+  const list = [...groups, ...roles];
 
   return list.some((g) => {
     if (typeof g !== "string") return false;
@@ -36,13 +26,29 @@ export function isDispatcher(user) {
     return (
       lower === "dispatcher" ||
       lower === "dispatchers" ||
-      lower === "delegados" ||
-      lower === "operador" ||
-      lower === "admin" ||
-      lower === "admin-general" ||
-      lower === "admin_general" ||
-      lower === "administrador-general"
+      lower === "operador"
     );
+  });
+}
+
+export function isDelegado(user) {
+  if (!user) return false;
+  const groups = Array.isArray(user.groups)
+    ? user.groups
+    : typeof user.groups === "string"
+    ? [user.groups]
+    : [];
+  const roles = Array.isArray(user.roles)
+    ? user.roles
+    : typeof user.roles === "string"
+    ? [user.roles]
+    : [];
+  const list = [...groups, ...roles];
+
+  return list.some((g) => {
+    if (typeof g !== "string") return false;
+    const lower = g.trim().toLowerCase();
+    return lower === "delegados" || lower === "delegado";
   });
 }
 
@@ -90,6 +96,9 @@ export function isOfficer(user) {
 }
 
 export function getHomePathForUser(user) {
+  if (isDelegado(user)) {
+    return process.env.NEXT_PUBLIC_LDAP_PANEL_URL || "https://citypass-login.pp.ua";
+  }
   if (isDispatcher(user)) return "/ops";
   return "/inicio";
 }

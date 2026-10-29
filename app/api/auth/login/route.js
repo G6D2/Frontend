@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import {
   BACKEND_URL,
   SESSION_COOKIE,
+  REFRESH_COOKIE,
   sessionCookieOptions,
+  refreshCookieOptions,
   userFromJwt,
 } from "@/lib/session";
 import { ANTIPANIC_MODE, findDemoAccount } from "@/app/lib/features";
@@ -36,26 +38,6 @@ export async function POST(request) {
     );
   }
 
-  // ── Flujo 0: Token LDAP directo pasado en el body
-  const directToken = body.token || body.accessToken;
-  if (typeof directToken === "string" && directToken.trim()) {
-    const trimmed = directToken.trim();
-    const user = userFromJwt(trimmed);
-    if (!user) {
-      return NextResponse.json(
-        { error: "Invalid token", message: "El token JWT provisto no es válido o está malformado." },
-        { status: 400 }
-      );
-    }
-    const response = NextResponse.json({
-      success: true,
-      user,
-      expires_in: 900,
-    });
-    response.cookies.set(SESSION_COOKIE, trimmed, sessionCookieOptions(trimmed));
-    return response;
-  }
-
   const rawIdentifier = (body.username || body.email || "").trim();
   const isCredentialLogin =
     Boolean(rawIdentifier) && typeof body.password === "string";
@@ -64,8 +46,7 @@ export async function POST(request) {
     isCredentialLogin &&
     (body.loginType === "ldap" ||
       body.loginMethod === "ldap" ||
-      body.provider === "ldap" ||
-      (IS_IDP_MODE && body.loginType !== "password"));
+      body.provider === "ldap");
 
   let res;
   let data;
@@ -75,7 +56,7 @@ export async function POST(request) {
       process.env.CITYPASS_IDP_AUTH_URL ||
       "https://api.citypass-login.pp.ua/auth/login";
     const clientId =
-      process.env.CITYPASS_IDP_CLIENT_ID || "citypass-emergencias-api";
+      process.env.CITYPASS_IDP_CLIENT_ID || "citypass-emergencias-web";
     const username = rawIdentifier.includes("@")
       ? rawIdentifier.split("@")[0].trim()
       : rawIdentifier;
@@ -96,36 +77,6 @@ export async function POST(request) {
       data = await res.json().catch(() => null);
     } catch {
       // red / timeout
-    }
-
-    // Si falló el IdP externo (o estamos en local/testing), pero las credenciales
-    // corresponden al dispatcher demo o usuario de prueba con dispatcher:
-    if (!res || !res.ok) {
-      const isDispatcherUser =
-        username.toLowerCase() === "dispatcher" ||
-        username.toLowerCase().includes("dispatcher") ||
-        username.toLowerCase() === "delegado-emer" ||
-        username.toLowerCase() === "delegados";
-
-      if (!IS_IDP_MODE || isDispatcherUser) {
-        try {
-          const devRes = await fetchBackend(`${BACKEND_URL}/auth/dev/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({
-              sub: username || "DISP-Demo001",
-              preferred_username: username || "Dispatcher Demo",
-              groups: ["dispatcher"],
-            }),
-          });
-          if (devRes.ok) {
-            data = await devRes.json().catch(() => null);
-            res = devRes;
-          }
-        } catch {
-          // ignore dev fallback failure
-        }
-      }
     }
 
     if (!res) {
@@ -175,10 +126,13 @@ export async function POST(request) {
 
     data = await res.json().catch(() => null);
 
-    // En modo local (dev/demo), si el backend no tiene /auth/login (404), derivamos
-    // a /auth/dev/login para que los atajos demo sigan funcionando sin cambiar el form.
-    if (isCredentialLogin && res.status === 404 && !IS_IDP_MODE) {
-      const devSub = rawIdentifier.split("@")[0];
+    // Si el backend no tiene /auth/login (404), derivamos
+    // a /auth/dev/login para que las cuentas ciudadanas/demo funcionen correctamente:
+    if (isCredentialLogin && res.status === 404) {
+      const demoAccount = findDemoAccount(rawIdentifier);
+      const devSub = demoAccount?.sub || rawIdentifier.split("@")[0];
+      const devUsername = demoAccount?.preferred_username || devSub;
+      const devGroups = demoAccount?.groups || body.groups || ["citizen"];
       let devRes;
       try {
         devRes = await fetchBackend(`${BACKEND_URL}/auth/dev/login`, {
@@ -186,8 +140,8 @@ export async function POST(request) {
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({
             sub: devSub,
-            preferred_username: devSub,
-            groups: body.groups || ["citizen"],
+            preferred_username: devUsername,
+            groups: devGroups,
           }),
         });
       } catch {
@@ -243,9 +197,9 @@ export async function POST(request) {
     user = { ...user, hasAntipanicButton: body.hasAntipanicButton };
   }
 
-  // En modo local, si el backend dev no incluye has_antipanic_button en el JWT,
-  // lo leemos de DEMO_ACCOUNTS por email.
-  if (!IS_IDP_MODE && isCredentialLogin && typeof user.hasAntipanicButton !== "boolean") {
+  // Si el backend dev no incluye has_antipanic_button en el JWT,
+  // lo leemos de DEMO_ACCOUNTS por email para cuentas demo ciudadanas.
+  if (isCredentialLogin && typeof user.hasAntipanicButton !== "boolean") {
     const demoAccount = findDemoAccount(rawIdentifier);
     if (demoAccount !== null) {
       user = { ...user, hasAntipanicButton: Boolean(demoAccount.hasAntipanicButton) };
@@ -258,6 +212,9 @@ export async function POST(request) {
     expires_in: data.expires_in,
   });
   response.cookies.set(SESSION_COOKIE, accessToken, sessionCookieOptions(accessToken));
+  if (data?.refresh_token) {
+    response.cookies.set(REFRESH_COOKIE, data.refresh_token, refreshCookieOptions());
+  }
   return response;
 }
 

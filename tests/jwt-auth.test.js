@@ -7,6 +7,7 @@ import {
 import {
   getHomePathForUser,
   isDispatcher,
+  isDelegado,
   isCitizen,
   isOfficer,
 } from "../app/lib/auth-roles";
@@ -61,10 +62,13 @@ describe("auth roles", () => {
     expect(getHomePathForUser({ groups: ["dispatcher"] })).toBe("/ops");
     expect(isDispatcher({ groups: ["dispatcher"] })).toBe(true);
     expect(isDispatcher({ groups: ["Dispatcher"] })).toBe(true);
-    expect(isDispatcher({ groups: ["delegados"] })).toBe(true);
     expect(isDispatcher({ roles: ["dispatcher"] })).toBe(true);
-    expect(getHomePathForUser({ groups: ["delegados"] })).toBe("/ops");
     expect(getHomePathForUser({ roles: ["dispatcher"] })).toBe("/ops");
+  });
+
+  it("routes delegado to LDAP panel", () => {
+    expect(isDelegado({ groups: ["delegados"] })).toBe(true);
+    expect(getHomePathForUser({ groups: ["delegados"] })).toMatch(/citypass-login/);
   });
 
   it("routes citizen to /inicio", () => {

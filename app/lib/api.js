@@ -146,11 +146,30 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
   const data = await parseJsonSafe(res);
 
   if (!res.ok) {
-    const message =
-      data?.message || data?.error || `Error HTTP ${res.status}`;
-    if (res.status === 401) {
+    if (res.status === 401 && auth) {
+      try {
+        const refreshRes = await fetch("/api/auth/refresh", {
+          method: "POST",
+          credentials: "same-origin",
+        });
+        if (refreshRes.ok) {
+          const retryRes = await fetch(url, {
+            method,
+            headers,
+            credentials: "same-origin",
+            body: body !== undefined ? JSON.stringify(body) : undefined,
+          });
+          if (retryRes.ok) {
+            return await parseJsonSafe(retryRes);
+          }
+        }
+      } catch {
+        // Continuar con redirectToLogin
+      }
       redirectToLogin();
     }
+    const message =
+      data?.message || data?.error || `Error HTTP ${res.status}`;
     throw new ApiError(message, { status: res.status, body: data });
   }
 

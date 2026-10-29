@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import { isTokenExpired } from "@/lib/jwt";
 import { SESSION_COOKIE } from "@/lib/session";
 import { decodeJwtPayload } from "@/lib/jwt";
-import { getHomePathForUser, isDispatcher } from "@/app/lib/auth-roles";
+import { getHomePathForUser, isDispatcher, isDelegado } from "@/app/lib/auth-roles";
 
 /**
  * Guard UX de rutas (existencia de cookie + exp).
@@ -98,10 +98,33 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  if (pathname === "/acceso" && valid) {
-    return NextResponse.redirect(
-      new URL(getHomePathForUser(userFromToken(token)), request.url)
-    );
+  if (pathname === "/logout") {
+    const res = NextResponse.redirect(new URL("/acceso", request.url));
+    clearSessionCookie(res);
+    return res;
+  }
+
+  if (pathname === "/acceso") {
+    if (request.nextUrl.searchParams.has("logout") || request.nextUrl.searchParams.has("reset")) {
+      const res = NextResponse.next();
+      clearSessionCookie(res);
+      return res;
+    }
+    if (valid) {
+      const user = userFromToken(token);
+      if (isDelegado(user)) {
+        // Si el usuario era delegado y regresa a /acceso, limpiamos la sesión de delegado
+        // para que pueda ver el login de emergencias sin ser expulsado a la URL externa.
+        const res = NextResponse.next();
+        clearSessionCookie(res);
+        return res;
+      }
+      if (isDispatcher(user)) {
+        return NextResponse.redirect(new URL("/ops", request.url));
+      }
+      return NextResponse.redirect(new URL("/inicio", request.url));
+    }
+    return NextResponse.next();
   }
 
   if (isProtected(pathname) && !valid) {
@@ -116,7 +139,13 @@ export function middleware(request) {
     const dispatcher = isDispatcher(user);
 
     if (matchesAny(pathname, OPS_PREFIXES) && !dispatcher) {
-      return NextResponse.redirect(new URL("/inicio", request.url));
+      const target = isDelegado(user)
+        ? (process.env.NEXT_PUBLIC_LDAP_PANEL_URL || "https://citypass-login.pp.ua")
+        : "/inicio";
+      if (target.startsWith("http://") || target.startsWith("https://")) {
+        return NextResponse.redirect(new URL(target));
+      }
+      return NextResponse.redirect(new URL(target, request.url));
     }
     if (matchesAny(pathname, CITIZEN_PREFIXES) && dispatcher) {
       return NextResponse.redirect(new URL("/ops", request.url));

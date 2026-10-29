@@ -146,6 +146,47 @@
     color: #ba1a1a;
     font-variation-settings: "FILL" 1;
   }
+
+  .animate-form-fade {
+    animation: formFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-drawer-slide {
+    animation: drawerSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-out forwards;
+  }
+}
+
+@keyframes formFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drawerSlideIn {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes pulse-ring {
