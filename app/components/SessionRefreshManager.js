@@ -9,10 +9,13 @@ const REFRESH_INTERVAL_MS = 13 * 60 * 1000; // 780.000 ms
 export default function SessionRefreshManager() {
   const pathname = usePathname();
   const router = useRouter();
-  const lastRefreshRef = useRef(Date.now());
+  const lastRefreshRef = useRef(null);
   const isRefreshingRef = useRef(false);
 
   useEffect(() => {
+    if (lastRefreshRef.current === null) {
+      lastRefreshRef.current = Date.now();
+    }
     // Si estamos en pantallas públicas de autenticación, no programar refresh
     if (pathname === "/acceso" || pathname === "/logout") {
       return;
