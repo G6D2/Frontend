@@ -553,16 +553,20 @@ describe("api.js", () => {
   });
 
   describe("Oficiales", () => {
+    // El backend solo conoce `disponible` y `ocupado` (CHECK officers_status_check
+    // de la migración V11) y filtra por igualdad exacta: cualquier otro valor
+    // (p. ej. "AVAILABLE") devuelve una lista vacía. AssignOfficerModal pide
+    // `disponible`.
     it("fetchOfficers: devuelve lista con o sin filtro de status", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({ data: [{ id: "of1" }] }),
+        json: async () => ({ data: [{ id: "of-001", status: "disponible" }] }),
       });
-      const officers = await fetchOfficers({ status: "AVAILABLE" });
-      expect(officers).toEqual([{ id: "of1" }]);
+      const officers = await fetchOfficers({ status: "disponible" });
+      expect(officers).toEqual([{ id: "of-001", status: "disponible" }]);
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/api/officers?status=AVAILABLE",
+        "/api/backend/api/officers?status=disponible",
         expect.anything()
       );
 
@@ -594,19 +598,30 @@ describe("api.js", () => {
     });
   });
 
-  describe("Stubs 501", () => {
-    it("lanzan ApiError con status 501 indicando funcionalidad no implementada", async () => {
+  // Estos 501 los tira el FRONT sin llamar al backend (no hay fetch). Los
+  // tests fijan ese comportamiento local, no el estado del backend.
+  describe("Stubs 501 del front (no llaman al backend)", () => {
+    it("prioridad manual, observaciones y refuerzos: el backend tampoco tiene endpoint", async () => {
       await expect(overridePriority()).rejects.toThrow(ApiError);
       await expect(overridePriority()).rejects.toMatchObject({ status: 501 });
-
-      await expect(updateEmergencyStatus()).rejects.toThrow(ApiError);
-      await expect(updateEmergencyStatus()).rejects.toMatchObject({ status: 501 });
 
       await expect(addObservation()).rejects.toThrow(ApiError);
       await expect(addObservation()).rejects.toMatchObject({ status: 501 });
 
       await expect(requestReinforcements()).rejects.toThrow(ApiError);
       await expect(requestReinforcements()).rejects.toMatchObject({ status: 501 });
+    });
+
+    // El mensaje "TODO(back)" de updateEmergencyStatus quedó viejo: el backend
+    // ya expone PATCH /api/emergencies/:id/en-route, /on-scene y /resolve
+    // (grupo `officer`, sub === oficial asignado). Lo que falta es del front:
+    // no hay pantallas de oficial ni código que consuma esas rutas.
+    it("updateEmergencyStatus: deuda del front, el backend ya tiene en-route/on-scene/resolve", async () => {
+      global.fetch = vi.fn();
+
+      await expect(updateEmergencyStatus()).rejects.toThrow(ApiError);
+      await expect(updateEmergencyStatus()).rejects.toMatchObject({ status: 501 });
+      expect(global.fetch).not.toHaveBeenCalled();
     });
   });
 
