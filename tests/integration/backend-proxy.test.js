@@ -3,12 +3,14 @@
 // Proxy autenticado hacia el backend: reenvía método/headers/body con
 // `Authorization: Bearer <cookie>`, propaga status/body de la respuesta, y si
 // el backend devuelve 401 limpia la cookie de sesión (token vencido/revocado).
-import { describe, it, expect, beforeEach, vi } from "vitest";
+// Solo deja pasar las rutas y métodos que usa el front (allowlist), y no
+// reintenta los POST/PATCH cuando no se sabe si el backend los procesó.
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
 import { cookies } from "next/headers";
-import { GET, POST } from "../../app/api/backend/[...path]/route.js";
+import { GET, POST, PATCH, PUT, DELETE } from "../../app/api/backend/[...path]/route.js";
 import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
 
 function jwtFor(payload) {
@@ -155,5 +157,266 @@ describe("/api/backend/[...path]", () => {
     const deleted = res.cookies.get("citypass_session");
     expect(deleted?.value).toBe("");
     expect(deleted?.maxAge).toBe(0);
+  });
+
+  // ── Allowlist de rutas y métodos ─────────────────────────────────────
+
+  describe("allowlist", () => {
+    beforeEach(() => {
+      mockNextCookies(cookies, { citypass_session: TOKEN });
+    });
+
+    it("path fuera de la allowlist (auth/dev/login): 404 y no llama al backend", async () => {
+      const { calls } = mockBackend({});
+      const req = makeRequest("http://localhost/api/backend/auth/dev/login", {
+        method: "POST",
+        body: { sub: "DISP-Demo001", groups: ["dispatcher"] },
+      });
+      const res = await POST(req, ctxFor(["auth", "dev", "login"]));
+
+      expect(res.status).toBe(404);
+      expect(calls).toHaveLength(0);
+    });
+
+    it("rutas del backend que el front no usa (api/user, api/incidents, api/outbox-events): 404", async () => {
+      const { calls } = mockBackend({});
+      for (const path of [["api", "user"], ["api", "incidents"], ["api", "outbox-events"]]) {
+        const req = makeRequest(`http://localhost/api/backend/${path.join("/")}`);
+        const res = await GET(req, ctxFor(path));
+        expect(res.status).toBe(404);
+      }
+      expect(calls).toHaveLength(0);
+    });
+
+    it("no matchea por prefijo de texto: api/emergencies-admin no entra por api/emergencies", async () => {
+      const { calls } = mockBackend({});
+      const req = makeRequest("http://localhost/api/backend/api/emergencies-admin");
+      const res = await GET(req, ctxFor(["api", "emergencies-admin"]));
+
+      expect(res.status).toBe(404);
+      expect(calls).toHaveLength(0);
+    });
+
+    it("segmentos con .. (decodificados o no): 400 y no llama al backend", async () => {
+      const { calls } = mockBackend({});
+      const attempts = [
+        ["api", "emergencies", "..", "..", "auth", "dev", "login"],
+        ["api", "emergencies", "../../auth/dev/login"], // ..%2F..%2F decodificado
+        ["api", "emergencies", "..%2F..%2Fauth%2Fdev%2Flogin"], // sin decodificar
+        ["api", "emergencies", "%2e%2e"],
+        ["api", "emergencies", "."],
+        ["api", "emergencies", "a\\..\\b"],
+      ];
+      for (const path of attempts) {
+        const req = makeRequest("http://localhost/api/backend/api/emergencies/x", { method: "PATCH", body: {} });
+        const res = await PATCH(req, ctxFor(path));
+        expect(res.status, JSON.stringify(path)).toBe(400);
+      }
+      expect(calls).toHaveLength(0);
+    });
+
+    it("método que la ruta no usa (PUT/DELETE sobre emergencias): 405 con Allow y no llama al backend", async () => {
+      const { calls } = mockBackend({});
+      const put = await PUT(
+        makeRequest("http://localhost/api/backend/api/emergencies/e1", { method: "PUT", body: {} }),
+        ctxFor(["api", "emergencies", "e1"])
+      );
+      const del = await DELETE(
+        makeRequest("http://localhost/api/backend/api/emergencies/e1", { method: "DELETE" }),
+        ctxFor(["api", "emergencies", "e1"])
+      );
+
+      expect(put.status).toBe(405);
+      expect(put.headers.get("allow")).toBe("GET, PATCH");
+      expect(del.status).toBe(405);
+      expect(calls).toHaveLength(0);
+    });
+
+    it("rutas que el front sí usa: PATCH cancel, PUT perfil y DELETE ubicación guardada (sin body)", async () => {
+      const { calls } = mockBackend({
+        "PATCH /api/emergencies/e1/cancel": { status: 200, body: { data: { id: "e1" } } },
+        "PUT /api/citizen/profile": { status: 200, body: { data: {} } },
+        "DELETE /api/citizen/saved-locations/l1": { status: 200, body: { data: { removed: true } } },
+      });
+
+      const cancel = await PATCH(
+        makeRequest("http://localhost/api/backend/api/emergencies/e1/cancel", { method: "PATCH", body: {} }),
+        ctxFor(["api", "emergencies", "e1", "cancel"])
+      );
+      const profile = await PUT(
+        makeRequest("http://localhost/api/backend/api/citizen/profile", { method: "PUT", body: { phone: "1" } }),
+        ctxFor(["api", "citizen", "profile"])
+      );
+      const del = await DELETE(
+        makeRequest("http://localhost/api/backend/api/citizen/saved-locations/l1", { method: "DELETE" }),
+        ctxFor(["api", "citizen", "saved-locations", "l1"])
+      );
+
+      expect(cancel.status).toBe(200);
+      expect(profile.status).toBe(200);
+      expect(del.status).toBe(200);
+      expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+        "PATCH /api/emergencies/e1/cancel",
+        "PUT /api/citizen/profile",
+        "DELETE /api/citizen/saved-locations/l1",
+      ]);
+    });
+  });
+
+  // ── CSRF en POST/PATCH/PUT/DELETE (lib/csrf.js) ──────────────────────
+
+  describe("csrf", () => {
+    beforeEach(() => {
+      mockNextCookies(cookies, { citypass_session: TOKEN });
+    });
+
+    it("POST con cookie válida pero desde otro origen: 403 y no llama al backend", async () => {
+      const { calls } = mockBackend({});
+      const req = makeRequest("https://citypass.test/api/backend/api/panic-button", {
+        method: "POST",
+        headers: { Host: "citypass.test", Origin: "https://evil.example" },
+        body: { location: { latitude: -34.6, longitude: -58.4 } },
+      });
+
+      const res = await POST(req, ctxFor(["api", "panic-button"]));
+
+      expect(res.status).toBe(403);
+      expect(calls).toHaveLength(0);
+    });
+
+    it("POST con text/plain del mismo origen: 415", async () => {
+      const { calls } = mockBackend({});
+      const req = makeRequest("https://citypass.test/api/backend/api/panic-button", {
+        method: "POST",
+        headers: { Host: "citypass.test", Origin: "https://citypass.test", "Content-Type": "text/plain" },
+        body: "{}",
+      });
+
+      const res = await POST(req, ctxFor(["api", "panic-button"]));
+
+      expect(res.status).toBe(415);
+      expect(calls).toHaveLength(0);
+    });
+
+    it("DELETE del mismo origen sin body ni Content-Type pasa; desde otro origen, 403", async () => {
+      const { calls } = mockBackend({
+        "DELETE /api/citizen/saved-locations/l1": { status: 200, body: { data: { removed: true } } },
+      });
+      const ctx = ctxFor(["api", "citizen", "saved-locations", "l1"]);
+      const url = "https://citypass.test/api/backend/api/citizen/saved-locations/l1";
+
+      const ok = await DELETE(
+        makeRequest(url, { method: "DELETE", headers: { Host: "citypass.test", Origin: "https://citypass.test" } }),
+        ctx
+      );
+      const evil = await DELETE(
+        makeRequest(url, { method: "DELETE", headers: { Host: "citypass.test", Origin: "https://evil.example" } }),
+        ctx
+      );
+
+      expect(ok.status).toBe(200);
+      expect(evil.status).toBe(403);
+      expect(calls).toHaveLength(1);
+    });
+  });
+
+  // ── Reintentos (lib/backend-fetch.js) ────────────────────────────────
+
+  describe("reintentos", () => {
+    beforeEach(() => {
+      mockNextCookies(cookies, { citypass_session: TOKEN });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("POST ante 504: no reintenta (el backend pudo haber creado el SOS) y devuelve el 504", async () => {
+      const { calls } = mockBackend({
+        "POST /api/panic-button": [
+          { status: 504, body: { error: "Gateway Timeout" } },
+          { status: 201, body: { id: "E-duplicada" } },
+        ],
+      });
+
+      const req = makeRequest("http://localhost/api/backend/api/panic-button", {
+        method: "POST",
+        body: { location: { latitude: -34.6, longitude: -58.4 } },
+      });
+      const res = await POST(req, ctxFor(["api", "panic-button"]));
+
+      expect(res.status).toBe(504);
+      expect(calls).toHaveLength(1);
+    });
+
+    it("POST con la conexión cortada después de conectar: 502 sin reintentar", async () => {
+      const { calls } = mockBackend({
+        "POST /api/panic-button": ["network-error", { status: 201, body: { id: "E-duplicada" } }],
+      });
+
+      const req = makeRequest("http://localhost/api/backend/api/panic-button", {
+        method: "POST",
+        body: { location: { latitude: -34.6, longitude: -58.4 } },
+      });
+      const res = await POST(req, ctxFor(["api", "panic-button"]));
+
+      expect(res.status).toBe(502);
+      expect(calls).toHaveLength(1);
+    });
+
+    it("POST ante 502/503 (cold start de Render): reintenta con la misma Idempotency-Key", async () => {
+      const { calls } = mockBackend({
+        "POST /api/panic-button": [
+          { status: 502, body: {} },
+          { status: 503, body: {} },
+          { status: 201, body: { id: "E1" } },
+        ],
+      });
+
+      vi.useFakeTimers();
+      const req = makeRequest("http://localhost/api/backend/api/panic-button", {
+        method: "POST",
+        body: { location: { latitude: -34.6, longitude: -58.4 } },
+      });
+      const pending = POST(req, ctxFor(["api", "panic-button"]));
+      await vi.advanceTimersByTimeAsync(4000);
+      await vi.advanceTimersByTimeAsync(4000);
+      const res = await pending;
+
+      expect(res.status).toBe(201);
+      expect(calls).toHaveLength(3);
+      expect(new Set(calls.map((c) => c.headers["idempotency-key"])).size).toBe(1);
+    });
+
+    it("GET ante 504: sí reintenta (es idempotente)", async () => {
+      const { calls } = mockBackend({
+        "GET /api/emergencies": [
+          { status: 504, body: {} },
+          { status: 200, body: { data: [] } },
+        ],
+      });
+
+      vi.useFakeTimers();
+      const pending = GET(
+        makeRequest("http://localhost/api/backend/api/emergencies"),
+        ctxFor(["api", "emergencies"])
+      );
+      await vi.advanceTimersByTimeAsync(4000);
+      const res = await pending;
+
+      expect(res.status).toBe(200);
+      expect(calls).toHaveLength(2);
+    });
+
+    it("cada intento lleva su propio AbortSignal con timeout", async () => {
+      const { calls } = mockBackend({
+        "GET /api/emergencies": { status: 200, body: { data: [] } },
+      });
+
+      await GET(makeRequest("http://localhost/api/backend/api/emergencies"), ctxFor(["api", "emergencies"]));
+
+      expect(calls[0].signal).toBeInstanceOf(AbortSignal);
+      expect(calls[0].signal.aborted).toBe(false);
+    });
   });
 });
