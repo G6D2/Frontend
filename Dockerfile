@@ -1,6 +1,7 @@
 # Frontend CityPass+ Emergencias (Next.js 16). Misma receta que usa Render:
-# build en la imagen y `next start` escuchando en $PORT.
-FROM node:20-alpine AS build
+# build en la imagen y `next start` escuchando en $PORT. Node 22 LTS, igual que
+# el CI y `engines` en package.json.
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -8,7 +9,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
