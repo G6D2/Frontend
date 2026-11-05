@@ -6,93 +6,39 @@
  * Toda la protección real de roles y permisos reside en el BACKEND; el frontend no actúa como barrera de seguridad de roles.
  */
 
-export function isDispatcher(user) {
-  if (!user) return false;
-  const groups = Array.isArray(user.groups)
-    ? user.groups
-    : typeof user.groups === "string"
-    ? [user.groups]
-    : [];
-  const roles = Array.isArray(user.roles)
-    ? user.roles
-    : typeof user.roles === "string"
-    ? [user.roles]
-    : [];
-  const list = [...groups, ...roles];
+function getUserRoleTokens(user) {
+  if (!user) return [];
+  const toArray = (val) =>
+    Array.isArray(val) ? val : typeof val === "string" ? [val] : [];
+  return [
+    ...toArray(user.groups),
+    ...toArray(user.roles),
+    ...toArray(user.role),
+    ...toArray(user.group),
+  ]
+    .filter((g) => typeof g === "string")
+    .map((g) => g.trim().toLowerCase());
+}
 
-  return list.some((g) => {
-    if (typeof g !== "string") return false;
-    const lower = g.trim().toLowerCase();
-    return (
-      lower === "dispatcher" ||
-      lower === "dispatchers" ||
-      lower === "operador"
-    );
-  });
+export function isDispatcher(user) {
+  const list = getUserRoleTokens(user);
+  return list.some(
+    (g) => g === "dispatcher" || g === "dispatchers" || g === "operador"
+  );
 }
 
 export function isDelegado(user) {
-  if (!user) return false;
-  const groups = Array.isArray(user.groups)
-    ? user.groups
-    : typeof user.groups === "string"
-    ? [user.groups]
-    : [];
-  const roles = Array.isArray(user.roles)
-    ? user.roles
-    : typeof user.roles === "string"
-    ? [user.roles]
-    : [];
-  const list = [...groups, ...roles];
-
-  return list.some((g) => {
-    if (typeof g !== "string") return false;
-    const lower = g.trim().toLowerCase();
-    return lower === "delegados" || lower === "delegado";
-  });
+  const list = getUserRoleTokens(user);
+  return list.some((g) => g === "delegados" || g === "delegado");
 }
 
 export function isCitizen(user) {
-  if (!user) return false;
-  const groups = Array.isArray(user.groups)
-    ? user.groups
-    : typeof user.groups === "string"
-    ? [user.groups]
-    : [];
-  const roles = Array.isArray(user.roles)
-    ? user.roles
-    : typeof user.roles === "string"
-    ? [user.roles]
-    : [];
-  const role = typeof user.role === "string" ? [user.role] : [];
-  const group = typeof user.group === "string" ? [user.group] : [];
-
-  const list = [...groups, ...roles, ...role, ...group];
-  return list.some(
-    (g) => typeof g === "string" && g.trim().toLowerCase() === "citizen"
-  );
+  return getUserRoleTokens(user).includes("citizen");
 }
 
 // TODO(back): grupo `officer` + guards de pantallas de terreno (HU-08/09/10)
 export function isOfficer(user) {
-  if (!user) return false;
-  const groups = Array.isArray(user.groups)
-    ? user.groups
-    : typeof user.groups === "string"
-    ? [user.groups]
-    : [];
-  const roles = Array.isArray(user.roles)
-    ? user.roles
-    : typeof user.roles === "string"
-    ? [user.roles]
-    : [];
-  const role = typeof user.role === "string" ? [user.role] : [];
-  const group = typeof user.group === "string" ? [user.group] : [];
-
-  const list = [...groups, ...roles, ...role, ...group];
-  return list.some(
-    (g) => typeof g === "string" && g.trim().toLowerCase() === "officer"
-  );
+  return getUserRoleTokens(user).includes("officer");
 }
 
 export function getHomePathForUser(user) {

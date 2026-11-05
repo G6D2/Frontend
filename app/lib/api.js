@@ -130,15 +130,14 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
   // No strippear "/api": si no, termina en BACKEND_URL/panic-button (404).
   const url = auth ? `/api/backend${path}` : path;
 
+  const payload = body !== undefined ? JSON.stringify(body) : undefined;
+  const send = () =>
+    fetch(url, { method, headers, credentials: "same-origin", body: payload });
+
   let res;
   beginBackendCall();
   try {
-    res = await fetch(url, {
-      method,
-      headers,
-      credentials: "same-origin",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    res = await send();
   } finally {
     endBackendCall();
   }
@@ -153,12 +152,7 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
           credentials: "same-origin",
         });
         if (refreshRes.ok) {
-          const retryRes = await fetch(url, {
-            method,
-            headers,
-            credentials: "same-origin",
-            body: body !== undefined ? JSON.stringify(body) : undefined,
-          });
+          const retryRes = await send();
           if (retryRes.ok) {
             return await parseJsonSafe(retryRes);
           }
