@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkCsrf } from "@/lib/csrf";
 
 /**
  * POST /api/auth/forgot-password
@@ -40,7 +41,10 @@ import { NextResponse } from "next/server";
  *     message: "Si el correo esta registrado, recibiras el enlace en breve.",
  *   });
  */
-export async function POST() {
+export async function POST(request) {
+  const rejected = checkCsrf(request);
+  if (rejected) return rejected;
+
   // Mock: responde 200 siempre (no revela si el email esta registrado)
   return NextResponse.json({
     success: true,
