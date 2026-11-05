@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isOpsStatus } from "../../lib/api";
 import {
   PRIORITY_CONFIG,
   getStatusConfig,
@@ -16,14 +17,18 @@ const PRIORITY_HEX = {
   "priority-med": "#ca8a04",
   "priority-low": "#3b82f6",
 };
+// Sin prioridad: gris, igual que el punto de priorityDotClass (antes caía
+// en rojo, como si fuera crítica).
+const NO_PRIORITY_HEX = "#6b7280";
 
 function markerColor(severity) {
-  const cfg = PRIORITY_CONFIG[severity] || PRIORITY_CONFIG.critical;
-  return PRIORITY_HEX[cfg.color] || "#b91c1c";
+  return PRIORITY_HEX[PRIORITY_CONFIG[severity]?.color] || NO_PRIORITY_HEX;
 }
 
-function hasCoords(em) {
-  return hasValidCoords(em);
+/** Se pinta solo lo abierto y con coordenadas: nunca cerradas, canceladas ni
+ * descartadas, aunque lleguen en la lista. */
+function isMappable(em) {
+  return hasValidCoords(em) && isOpsStatus(em?.status);
 }
 
 function escapeHtml(text) {
@@ -86,7 +91,8 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
     const L = leafletRef.current;
     if (!mapReady || !map || !L) return;
 
-    const nextIds = new Set(emergencies.filter(hasCoords).map((e) => e.id));
+    const mappable = emergencies.filter(isMappable);
+    const nextIds = new Set(mappable.map((e) => e.id));
     for (const [id, marker] of markersRef.current) {
       if (!nextIds.has(id)) {
         marker.remove();
@@ -95,8 +101,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
     }
 
     const latLngs = [];
-    emergencies.forEach((em) => {
-      if (!hasCoords(em)) return;
+    mappable.forEach((em) => {
       const lat = Number(em.latitude);
       const lng = Number(em.longitude);
       latLngs.push([lat, lng]);
@@ -144,7 +149,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
     const map = mapRef.current;
     if (!mapReady || !map || !selectedId) return;
     const em = emergencies.find((e) => e.id === selectedId);
-    if (!hasCoords(em)) return;
+    if (!isMappable(em)) return;
     map.flyTo([Number(em.latitude), Number(em.longitude)], 16, {
       duration: 0.55,
     });
