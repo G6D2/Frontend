@@ -25,8 +25,14 @@ import {
 
 export default function InicioClient() {
   const router = useRouter();
-  // Cargamos el perfil del usuario para leer el flag hasAntipanicButton
-  const [user, setUser] = useState(getStoredUser());
+  // Cargamos el perfil del usuario para leer el flag hasAntipanicButton.
+  // Arranca en null también en el cliente para que el primer render coincida
+  // con el HTML del server (sin sessionStorage); el guardado se lee al montar.
+  const [user, setUser] = useState(null);
+  // true cuando terminó fetchCurrentUser (bien o mal). Mientras no haya
+  // usuario y la sesión no esté verificada se muestra "cargando", no el aviso
+  // de "no habilitado".
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [sosState, setSosState] = useState({
     phase: "idle",
     secondsLeft: SOS_COUNTDOWN_SECONDS,
@@ -38,13 +44,17 @@ export default function InicioClient() {
 
   // Refresca usuario al montar el componente
   useEffect(() => {
+    const storedUser = getStoredUser();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (storedUser) setUser(storedUser);
+
     // En modo "mock": hasAntipanicButton viene del toggle del login y vive en sessionStorage.
     //   fetchCurrentUser() lo perdería (el backend no lo conoce), así que lo recuperamos del storage.
     // En modo "backend": hasAntipanicButton viene directamente del backend en la sesión fresca.
     //   fetchCurrentUser() ya lo trae; no necesitamos hacer nada especial.
     const savedAntipanicFlag =
       ANTIPANIC_MODE === "mock"
-        ? (getStoredUser()?.hasAntipanicButton ?? false)
+        ? (storedUser?.hasAntipanicButton ?? false)
         : undefined; // en modo backend lo provee el backend
 
     fetchCurrentUser()
@@ -59,7 +69,8 @@ export default function InicioClient() {
         setStoredUser(merged);
         setUser(merged);
       })
-      .catch(() => {}); // silencioso: si falla, seguimos con el usuario del storage
+      .catch(() => {}) // silencioso: si falla, seguimos con el usuario del storage
+      .finally(() => setSessionChecked(true));
   }, []);
 
   // La máquina de estados del SOS (cuenta regresiva + ubicación + dirección +
@@ -141,6 +152,7 @@ export default function InicioClient() {
 
   // IF principal: ¿tiene este usuario habilitado el Botón Antipánico?
   const canUseAntipanicButton = Boolean(user?.hasAntipanicButton);
+  const loadingUser = !user && !sessionChecked;
   const counting = sosState.phase === "counting";
   const sending = sosState.phase === "sending";
   const countdownRatio = sosState.secondsLeft / SOS_COUNTDOWN_SECONDS;
@@ -151,7 +163,18 @@ export default function InicioClient() {
 
       <CitizenPageContainer className="items-center pb-10">
         <div className="flex flex-col items-center justify-center mt-6 sm:mt-12 w-full">
-          {canUseAntipanicButton ? (
+          {loadingUser ? (
+            // ── Cargando la sesión: todavía no se sabe si tiene el botón ──
+            <div className="flex flex-col items-center gap-6 w-full">
+              <div
+                aria-hidden="true"
+                className="w-64 h-64 rounded-full bg-surface-container animate-pulse"
+              />
+              <p role="status" className="text-base text-on-surface-variant text-center px-4">
+                Cargando tu cuenta…
+              </p>
+            </div>
+          ) : canUseAntipanicButton ? (
             counting || sending ? (
               // ── Cuenta regresiva / envío en curso ──
               <div className="flex flex-col items-center gap-6 w-full">
