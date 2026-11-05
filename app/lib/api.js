@@ -6,8 +6,9 @@ import {
 } from "./auth";
 import { SEVERITY_CONFIG } from "./emergencies";
 
-/** Intervalo de polling para el dispatcher (1 minuto). Reduce carga en el backend. */
-export const POLLING_INTERVAL_MS = 60_000;
+/** Intervalo de polling para el dispatcher (15 s). Se pausa con la pestaña
+ *  oculta y nunca superpone pedidos (ver createPoller en ./polling). */
+export const POLLING_INTERVAL_MS = 15_000;
 /** Intervalo de polling para la vista del ciudadano (5 s). Permite actualizaciones
  *  casi en tiempo real del historial de estados sin sobrecargar el sistema,
  *  dado que la carga de ciudadanos simultáneos es menor que la del dispatcher. */
@@ -323,6 +324,45 @@ export async function fetchEmergencies() {
 }
 
 /**
+ * Estados que muestran las vistas operativas del dispatcher (lista, mapa y
+ * tablero por estados): todo lo que sigue abierto. Las cerradas, canceladas
+ * y descartadas viven en /ops/historial. Sin CREATED: son filas legacy de
+ * antes de la máquina de estados y el backend no las deja transicionar.
+ */
+export const OPS_STATUSES = [
+  "PENDING",
+  "VALIDATED",
+  "DISPATCHED",
+  "EN_ROUTE",
+  "ON_SCENE",
+  "RESOLVED",
+];
+
+export function isOpsStatus(status) {
+  return OPS_STATUSES.includes(status);
+}
+
+/**
+ * Emergencias abiertas para el dispatcher, las más urgentes primero.
+ *
+ * Antes las vistas usaban fetchEmergencies() (las 100 más nuevas, sin filtro
+ * de estado): con más de 100 emergencias, una PENDING crítica vieja quedaba
+ * afuera. Ahora se filtra por estado en el backend y se ordena por prioridad
+ * efectiva (sortBy=priority + order=desc: críticas primero y, a igual
+ * prioridad, la más vieja primero; ver findPage en el repository de
+ * emergencias-backend). El tope de 100 por página es del backend.
+ */
+export async function fetchOpsEmergencies() {
+  const { data } = await fetchEmergenciesPage({
+    status: OPS_STATUSES.join(","),
+    limit: 100,
+    sortBy: "priority",
+    order: "desc",
+  });
+  return data;
+}
+
+/**
  * Página de emergencias vía GET /api/emergencies, con filtros/paginación.
  *
  * `status` acepta un string con uno o varios estados separados por coma
@@ -372,6 +412,9 @@ export async function cancelEmergency(id, reason = null) {
 // PRIORITY_CONFIG de la lista); se re-exporta acá por compatibilidad.
 export { SEVERITY_CONFIG };
 
+// Columnas del tablero: una por cada estado de OPS_STATUSES. Las cerradas no
+// tienen columna porque fetchOpsEmergencies() ya no las trae (están en
+// /ops/historial).
 export const STATUS_CONFIG = [
   { key: "pendiente", label: "Pendientes", color: "red" },
   { key: "validada", label: "Validadas", color: "orange" },
@@ -379,7 +422,6 @@ export const STATUS_CONFIG = [
   { key: "en_camino", label: "En Camino", color: "cyan" },
   { key: "en_lugar", label: "En Lugar", color: "indigo" },
   { key: "resuelta", label: "Resuelta", color: "teal" },
-  { key: "cerrada", label: "Cerrada", color: "gray" },
 ];
 
 export async function reportIncident({

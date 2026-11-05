@@ -15,6 +15,9 @@ import {
   fetchEmergencyDetail,
   fetchEmergencies,
   fetchEmergenciesPage,
+  fetchOpsEmergencies,
+  OPS_STATUSES,
+  isOpsStatus,
   cancelEmergency,
   reportIncident,
   validateEmergency,
@@ -71,7 +74,7 @@ describe("api.js", () => {
 
   describe("Constantes exportadas", () => {
     it("define intervalos de polling esperados", () => {
-      expect(POLLING_INTERVAL_MS).toBe(60000);
+      expect(POLLING_INTERVAL_MS).toBe(15000);
       expect(CITIZEN_POLLING_INTERVAL_MS).toBe(5000);
     });
 
@@ -513,6 +516,67 @@ describe("api.js", () => {
         expect.stringContaining("limit=100"),
         expect.anything()
       );
+    });
+
+    describe("listado operativo del dispatcher", () => {
+      function mockList(data = []) {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ data }),
+        });
+      }
+
+      function requestedParams() {
+        const [url] = global.fetch.mock.calls[0];
+        const [path, query] = url.split("?");
+        return { path, params: new URLSearchParams(query) };
+      }
+
+      it("OPS_STATUSES son los estados abiertos, sin cerradas, canceladas, descartadas ni CREATED", () => {
+        expect(OPS_STATUSES).toEqual([
+          "PENDING",
+          "VALIDATED",
+          "DISPATCHED",
+          "EN_ROUTE",
+          "ON_SCENE",
+          "RESOLVED",
+        ]);
+        expect(isOpsStatus("ON_SCENE")).toBe(true);
+        ["CLOSED", "CANCELLED", "DISCARDED", "CREATED", undefined].forEach((status) => {
+          expect(isOpsStatus(status)).toBe(false);
+        });
+      });
+
+      it("fetchOpsEmergencies: filtra por estado y ordena por prioridad, críticas primero", async () => {
+        mockList([{ id: "crit-vieja" }]);
+
+        const list = await fetchOpsEmergencies();
+
+        expect(list).toEqual([{ id: "crit-vieja" }]);
+        const { path, params } = requestedParams();
+        expect(path).toBe("/api/backend/api/emergencies");
+        // El backend hace status.split(",") → status = ANY(...).
+        expect(params.get("status")).toBe(
+          "PENDING,VALIDATED,DISPATCHED,EN_ROUTE,ON_SCENE,RESOLVED"
+        );
+        // sortBy=priority + desc = prioridad efectiva más alta primero.
+        expect(params.get("sortBy")).toBe("priority");
+        expect(params.get("order")).toBe("desc");
+        expect(params.get("limit")).toBe("100");
+        expect(params.get("page")).toBe("1");
+      });
+
+      it("fetchEmergencies (Mis alertas del ciudadano) no cambia: sin filtro de estado y por fecha", async () => {
+        mockList();
+
+        await fetchEmergencies();
+
+        const { params } = requestedParams();
+        expect(params.has("status")).toBe(false);
+        expect(params.get("sortBy")).toBe("createdAt");
+        expect(params.get("order")).toBe("desc");
+      });
     });
 
     it("cancelEmergency: envía PATCH /api/emergencies/:id/cancel con reason", async () => {
