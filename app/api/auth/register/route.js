@@ -6,12 +6,17 @@ import {
   userFromJwt,
 } from "@/lib/session";
 import { fetchBackend } from "@/lib/backend-fetch";
+import { checkCsrf } from "@/lib/csrf";
 
 /**
  * POST /api/auth/register → POST {BACKEND}/auth/register
  * Setea cookie httpOnly con el JWT local.
+ * Solo acepta JSON del mismo origen (ver lib/csrf.js).
  */
 export async function POST(request) {
+  const rejected = checkCsrf(request);
+  if (rejected) return rejected;
+
   let body;
   try {
     body = await request.json();

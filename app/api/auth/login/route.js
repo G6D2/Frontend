@@ -7,14 +7,21 @@ import {
 } from "@/lib/session";
 import { ANTIPANIC_MODE } from "@/app/lib/features";
 import { fetchBackend } from "@/lib/backend-fetch";
+import { checkCsrf } from "@/lib/csrf";
 
 /**
  * POST /api/auth/login
  *
  * - email+password → POST /auth/login (usuarios reales)
  * - sub (+ groups) → POST /auth/dev/login (atajos demo / anónimo / dispatcher)
+ *
+ * Solo acepta JSON del mismo origen (ver lib/csrf.js): sin eso, otro sitio
+ * podía loguear a la víctima con una cuenta ajena.
  */
 export async function POST(request) {
+  const rejected = checkCsrf(request);
+  if (rejected) return rejected;
+
   let body;
   try {
     body = await request.json();
