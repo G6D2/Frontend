@@ -52,13 +52,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # checkout@v5, setup-node@v5 y upload-artifact@v6 ya corren sobre
+      # Node 24: las versiones v4 apuntaban a Node 20 (deprecado en los runners).
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      # Node 22 LTS: el mismo major que el Dockerfile y que engines en package.json.
+      # Node 20 llegó a fin de vida el 30/04/2026.
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -113,7 +117,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-frontend
           path: coverage/

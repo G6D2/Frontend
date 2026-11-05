@@ -53,11 +53,13 @@ describe("getStatusConfig", () => {
     expect(getStatusConfig("DISCARDED")).toMatchObject({ label: "DESCARTADA" });
   });
 
-  it("falls back to CREATED config for unknown status", () => {
+  it("falls back to the PENDIENTE config for unknown status", () => {
     expect(getStatusConfig("UNKNOWN_XYZ")).toMatchObject({ label: "PENDIENTE" });
   });
 
-  it("shows EN_ROUTE / ON_SITE labels without underscores", () => {
+  // ON_SCENE es el estado del backend; ON_SITE es un alias que el front
+  // todavía acepta pero el backend no emite.
+  it("shows EN_ROUTE / ON_SCENE (and the ON_SITE alias) labels without underscores", () => {
     expect(getStatusConfig("EN_ROUTE")).toMatchObject({ label: "EN CAMINO" });
     expect(getStatusConfig("en_camino")).toMatchObject({ label: "EN CAMINO" });
     expect(getStatusConfig("ON_SITE")).toMatchObject({ label: "EN LUGAR" });
@@ -95,9 +97,8 @@ describe("getStatusConfig", () => {
 });
 
 describe("isPendingStatus", () => {
-  it("returns true for PENDING, CREATED, pendiente", () => {
+  it("returns true for PENDING and the pendiente UI alias", () => {
     expect(isPendingStatus("PENDING")).toBe(true);
-    expect(isPendingStatus("CREATED")).toBe(true);
     expect(isPendingStatus("pendiente")).toBe(true);
   });
 
@@ -112,7 +113,6 @@ describe("canAssignOfficer", () => {
   it("solo VALIDATED puede asignarse", () => {
     expect(canAssignOfficer("VALIDATED")).toBe(true);
     expect(canAssignOfficer("PENDING")).toBe(false);
-    expect(canAssignOfficer("CREATED")).toBe(false);
     expect(canAssignOfficer("DISPATCHED")).toBe(false);
     expect(canAssignOfficer("validada")).toBe(false);
     expect(canAssignOfficer(null)).toBe(false);
@@ -120,7 +120,9 @@ describe("canAssignOfficer", () => {
 });
 
 describe("isActiveStatus", () => {
-  it("returns false for all terminal statuses", () => {
+  // En el backend RESOLVED todavía no es terminal (RESOLVED → CLOSED); el
+  // front igual lo trata como "no activo" para sacarlo de las vistas operativas.
+  it("returns false for terminal statuses and for RESOLVED", () => {
     const terminals = ["CANCELLED", "CLOSED", "DISCARDED", "RESOLVED", "cancelada", "resuelta"];
     for (const s of terminals) {
       expect(isActiveStatus(s)).toBe(false);
@@ -137,8 +139,8 @@ describe("isActiveStatus", () => {
 });
 
 describe("isCancelable", () => {
-  it("returns true for CREATED, PENDING, VALIDATED", () => {
-    expect(isCancelable("CREATED")).toBe(true);
+  // El backend solo cancela desde PENDING o VALIDATED (src/domain/emergency-status.js).
+  it("returns true for PENDING and VALIDATED", () => {
     expect(isCancelable("PENDING")).toBe(true);
     expect(isCancelable("VALIDATED")).toBe(true);
   });
@@ -147,6 +149,23 @@ describe("isCancelable", () => {
     expect(isCancelable("DISPATCHED")).toBe(false);
     expect(isCancelable("CLOSED")).toBe(false);
     expect(isCancelable("DISCARDED")).toBe(false);
+  });
+});
+
+// CREATED NO es un estado del backend: era el default de la columna en la
+// migración V1 y V5 lo cambió a PENDING. EMERGENCY_STATUSES no lo incluye y
+// cualquier transición desde CREATED responde 409 ("Unknown emergency status").
+// El front lo sigue aceptando para pintar filas viejas; estos tests documentan
+// esa tolerancia, no un estado válido.
+describe("CREATED (legado de V1, el backend no lo conoce)", () => {
+  it("se pinta como pendiente", () => {
+    expect(isPendingStatus("CREATED")).toBe(true);
+    expect(getStatusConfig("CREATED")).toMatchObject({ label: "PENDIENTE" });
+    expect(canAssignOfficer("CREATED")).toBe(false);
+  });
+
+  it("isCancelable lo da por cancelable, pero el backend respondería 409", () => {
+    expect(isCancelable("CREATED")).toBe(true);
   });
 });
 

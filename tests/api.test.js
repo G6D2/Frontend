@@ -33,13 +33,16 @@ import {
   clearSession,
 } from "../app/lib/api.js";
 
+// window, sessionStorage y navigator se stubbean con vi.stubGlobal y se
+// restauran con vi.unstubAllGlobals(): desde Node 21 `navigator` es un getter
+// sin setter y asignarlo directo tira TypeError (ver getCurrentLocation más
+// abajo). fetch se sigue pisando a mano porque en Node es una propiedad
+// escribible y se restaura en el afterEach.
 describe("api.js", () => {
-  let originalWindow;
   let originalFetch;
   let mockSessionStorage;
 
   beforeEach(() => {
-    originalWindow = global.window;
     originalFetch = global.fetch;
 
     const store = new Map();
@@ -50,20 +53,19 @@ describe("api.js", () => {
       clear: vi.fn(() => store.clear()),
     };
 
-    global.window = {
+    vi.stubGlobal("window", {
       location: {
         pathname: "/dashboard",
         replace: vi.fn(),
       },
       sessionStorage: mockSessionStorage,
-    };
-    global.sessionStorage = mockSessionStorage;
+    });
+    vi.stubGlobal("sessionStorage", mockSessionStorage);
   });
 
   afterEach(() => {
-    global.window = originalWindow;
     global.fetch = originalFetch;
-    delete global.sessionStorage;
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -551,16 +553,20 @@ describe("api.js", () => {
   });
 
   describe("Oficiales", () => {
+    // El backend solo conoce `disponible` y `ocupado` (CHECK officers_status_check
+    // de la migración V11) y filtra por igualdad exacta: cualquier otro valor
+    // (p. ej. "AVAILABLE") devuelve una lista vacía. AssignOfficerModal pide
+    // `disponible`.
     it("fetchOfficers: devuelve lista con o sin filtro de status", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({ data: [{ id: "of1" }] }),
+        json: async () => ({ data: [{ id: "of-001", status: "disponible" }] }),
       });
-      const officers = await fetchOfficers({ status: "AVAILABLE" });
-      expect(officers).toEqual([{ id: "of1" }]);
+      const officers = await fetchOfficers({ status: "disponible" });
+      expect(officers).toEqual([{ id: "of-001", status: "disponible" }]);
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/backend/api/officers?status=AVAILABLE",
+        "/api/backend/api/officers?status=disponible",
         expect.anything()
       );
 
@@ -592,19 +598,30 @@ describe("api.js", () => {
     });
   });
 
-  describe("Stubs 501", () => {
-    it("lanzan ApiError con status 501 indicando funcionalidad no implementada", async () => {
+  // Estos 501 los tira el FRONT sin llamar al backend (no hay fetch). Los
+  // tests fijan ese comportamiento local, no el estado del backend.
+  describe("Stubs 501 del front (no llaman al backend)", () => {
+    it("prioridad manual, observaciones y refuerzos: el backend tampoco tiene endpoint", async () => {
       await expect(overridePriority()).rejects.toThrow(ApiError);
       await expect(overridePriority()).rejects.toMatchObject({ status: 501 });
-
-      await expect(updateEmergencyStatus()).rejects.toThrow(ApiError);
-      await expect(updateEmergencyStatus()).rejects.toMatchObject({ status: 501 });
 
       await expect(addObservation()).rejects.toThrow(ApiError);
       await expect(addObservation()).rejects.toMatchObject({ status: 501 });
 
       await expect(requestReinforcements()).rejects.toThrow(ApiError);
       await expect(requestReinforcements()).rejects.toMatchObject({ status: 501 });
+    });
+
+    // El mensaje "TODO(back)" de updateEmergencyStatus quedó viejo: el backend
+    // ya expone PATCH /api/emergencies/:id/en-route, /on-scene y /resolve
+    // (grupo `officer`, sub === oficial asignado). Lo que falta es del front:
+    // no hay pantallas de oficial ni código que consuma esas rutas.
+    it("updateEmergencyStatus: deuda del front, el backend ya tiene en-route/on-scene/resolve", async () => {
+      global.fetch = vi.fn();
+
+      await expect(updateEmergencyStatus()).rejects.toThrow(ApiError);
+      await expect(updateEmergencyStatus()).rejects.toMatchObject({ status: 501 });
+      expect(global.fetch).not.toHaveBeenCalled();
     });
   });
 
@@ -655,7 +672,7 @@ describe("api.js", () => {
     });
 
     it("apiFetch: maneja redirectToLogin en ambiente SSR (window === undefined)", async () => {
-      global.window = undefined;
+      vi.stubGlobal("window", undefined);
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
@@ -666,16 +683,10 @@ describe("api.js", () => {
     });
   });
 
+  // navigator se restaura en el afterEach de arriba (vi.unstubAllGlobals).
   describe("getCurrentLocation & LocationError", () => {
-    const originalNavigator = global.navigator;
-
-    afterEach(() => {
-      global.navigator = originalNavigator;
-      delete global.window?.__lastCoords;
-    });
-
     it("rechaza con NOT_SUPPORTED si navigator.geolocation no existe", async () => {
-      global.navigator = {};
+      vi.stubGlobal("navigator", {});
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "NOT_SUPPORTED",
         message: expect.stringContaining("no soporta geolocalización"),
@@ -683,13 +694,13 @@ describe("api.js", () => {
     });
 
     it("case 1: rechaza con PERMISSION_DENIED y mensaje correspondiente cuando code es 1", async () => {
-      global.navigator = {
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 1, message: "User denied Geolocation" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "PERMISSION_DENIED",
@@ -698,13 +709,13 @@ describe("api.js", () => {
     });
 
     it("case 2: rechaza con POSITION_UNAVAILABLE y mensaje correspondiente cuando code es 2", async () => {
-      global.navigator = {
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 2, message: "Position unavailable" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "POSITION_UNAVAILABLE",
@@ -713,13 +724,13 @@ describe("api.js", () => {
     });
 
     it("case 3: rechaza con TIMEOUT y mensaje correspondiente cuando code es 3", async () => {
-      global.navigator = {
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 3, message: "Timeout" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "TIMEOUT",
@@ -728,13 +739,13 @@ describe("api.js", () => {
     });
 
     it("default / desconocido: rechaza con POSITION_UNAVAILABLE y err.message cuando code es no estándar", async () => {
-      global.navigator = {
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 99, message: "Fallo desconocido de sensor" });
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "POSITION_UNAVAILABLE",
@@ -743,13 +754,13 @@ describe("api.js", () => {
     });
 
     it("callback con err null: rechaza con mensaje y código por defecto", async () => {
-      global.navigator = {
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error(null);
           }),
         },
-      };
+      });
 
       await expect(getCurrentLocation()).rejects.toMatchObject({
         code: "POSITION_UNAVAILABLE",
@@ -758,7 +769,7 @@ describe("api.js", () => {
     });
 
     it("éxito: resuelve con coordenadas precisas y accuracy", async () => {
-      global.navigator = {
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((success) => {
             success({
@@ -766,7 +777,7 @@ describe("api.js", () => {
             });
           }),
         },
-      };
+      });
 
       const loc = await getCurrentLocation();
       expect(loc).toEqual({
@@ -778,9 +789,9 @@ describe("api.js", () => {
     });
 
     it("window.__lastCoords: resuelve inmediatamente si ya existen coordenadas cacheadas", async () => {
-      global.window = {
+      vi.stubGlobal("window", {
         __lastCoords: { latitude: -34.5, longitude: -58.4, precise: true, accuracy: 5 },
-      };
+      });
 
       const loc = await getCurrentLocation();
       expect(loc).toEqual({
