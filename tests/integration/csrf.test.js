@@ -14,6 +14,7 @@ import { cookies } from "next/headers";
 import { POST as login } from "../../app/api/auth/login/route.js";
 import { POST as register } from "../../app/api/auth/register/route.js";
 import { POST as logout } from "../../app/api/auth/logout/route.js";
+import { POST as refresh } from "../../app/api/auth/refresh/route.js";
 import { POST as forgotPassword } from "../../app/api/auth/forgot-password/route.js";
 import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
 
@@ -165,6 +166,43 @@ describe("CSRF en los POST de /api/auth", () => {
 
     expect(res.status).toBe(200);
     expect(res.cookies.get("citypass_session")?.maxAge).toBe(0);
+  });
+
+  it("refresh desde otro origen: 403, no llama al IdP y no toca las cookies", async () => {
+    mockNextCookies(cookies, { citypass_refresh: "refresh-viejo" });
+    const { calls } = mockBackend({});
+    const req = makeRequest("https://citypass.test/api/auth/refresh", {
+      method: "POST",
+      headers: EVIL_ORIGIN,
+    });
+
+    const res = await refresh(req);
+
+    expect(res.status).toBe(403);
+    expect(calls).toHaveLength(0);
+    expect(res.cookies.get("citypass_session")).toBeUndefined();
+    expect(res.cookies.get("citypass_refresh")).toBeUndefined();
+  });
+
+  it("refresh del mismo origen sin body ni Content-Type (como SessionRefreshManager): rota las cookies", async () => {
+    mockNextCookies(cookies, { citypass_refresh: "refresh-viejo" });
+    const { calls } = mockBackend({
+      "POST /auth/refresh": {
+        status: 200,
+        body: { access_token: TOKEN, refresh_token: "refresh-nuevo", expires_in: 900 },
+      },
+    });
+    const req = makeRequest("https://citypass.test/api/auth/refresh", {
+      method: "POST",
+      headers: SAME_ORIGIN,
+    });
+
+    const res = await refresh(req);
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(calls[0].body)).toEqual({ refreshToken: "refresh-viejo" });
+    expect(res.cookies.get("citypass_session")?.value).toBe(TOKEN);
+    expect(res.cookies.get("citypass_refresh")?.value).toBe("refresh-nuevo");
   });
 
   it("forgot-password desde otro origen: 403", async () => {
