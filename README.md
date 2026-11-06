@@ -171,11 +171,13 @@ Dos cosas a tener en cuenta:
 | Chip **JuanPanico** | Rellena `juanpanico@gmail.com` y la contraseña `abracadabra` | `POST /auth/login` |
 | Chip **LuciaTranquila** | Rellena `luciatranquila@gmail.com` y `abracadabra` | `POST /auth/login` |
 | **Iniciar con cuenta ciudadana** | Entra como `U000042` (ciudadano sin botón SOS) | `POST /auth/dev/login` con `sub` |
-| **Vista Dispatcher** | Entra como `DISP-Demo001` (dispatcher) | `POST /auth/dev/login` con `sub` |
+| Bloque **Demo · entrar sin contraseña** (debajo de la tarjeta) | Un botón por cuenta: `DISP-Demo001` (dispatcher, va a `/ops`), `of-001` y `of-002` (oficiales, van a `/inicio` porque no hay home de oficial) y `CIT-JuanPanico` (ciudadano con botón SOS). Salen de `DEMO_LOGIN_SHORTCUTS` en `app/lib/features.js` | `POST /auth/dev/login` con `sub` |
+| Panel de la llave → **Acceso Directo Demo** | Entra como `DISP-Demo001` (dispatcher) | `POST /auth/dev/login` con `sub` |
 
 - **La contraseña demo está en el bundle de JS.** `fillDemo` en `app/acceso/AccesoForm.js` tiene `"abracadabra"` escrito en el código, así que cualquiera que abra las DevTools la ve. Son cuentas públicas de demo, sembradas por la migración V16 del backend. No reutilizar esa contraseña en ningún lado.
 - `/auth/dev/login` exige `sub`. Con `NODE_ENV=production` o `DEV_LOGIN_STRICT=true` en el backend, solo acepta los `sub` de su allowlist demo (`U000042`, `CIT-JuanPanico`, `CIT-LuciaTranquila`, `DISP-Demo001`, `of-001` y `of-002`). Si no, acepta cualquiera.
 - `hasAntipanicButton` sale del backend (`GET /api/user`) porque `ANTIPANIC_MODE = "backend"` en `app/lib/features.js`. El modo `"mock"` es solo para demos locales sin backend.
+- Los atajos de `/auth/dev/login` (cuenta ciudadana y bloque Demo) no se muestran si el front se buildea con `NEXT_PUBLIC_AUTH_MODE=idp`.
 - `loginMethod` (`"sesion"` o `"anonima"`) existe solo en el front, en `sessionStorage`. No viaja al backend.
 
 ---
