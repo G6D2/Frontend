@@ -224,6 +224,52 @@ describe("POST /api/auth/login", () => {
     expect(json.user.hasAntipanicButton).toBeUndefined();
   });
 
+  it("login con email demo (404 en /auth/login): inyecta hasAntipanicButton desde DEMO_ACCOUNTS", async () => {
+    // Simula backend local: /auth/login → 404, /auth/dev/login → OK
+    mockBackend({
+      "POST /auth/login": { status: 404, body: { error: "Not Found" } },
+      "POST /auth/dev/login": {
+        status: 200,
+        body: { access_token: TOKEN, expires_in: 900 },
+      },
+      // /api/user no conoce el claim → no devuelve hasAntipanicButton
+      "GET /api/user": { status: 200, body: { data: { sub: "juanpanico" } } },
+    });
+
+    // juanpanico@gmail.com → hasAntipanicButton: true en DEMO_ACCOUNTS
+    const req = makeRequest(LOGIN_URL, {
+      method: "POST",
+      body: { email: "juanpanico@gmail.com", password: "abracadabra" },
+    });
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.user.hasAntipanicButton).toBe(true);
+  });
+
+  it("login con email demo sin boton antipanico: inyecta false desde DEMO_ACCOUNTS", async () => {
+    mockBackend({
+      "POST /auth/login": { status: 404, body: { error: "Not Found" } },
+      "POST /auth/dev/login": {
+        status: 200,
+        body: { access_token: TOKEN, expires_in: 900 },
+      },
+      "GET /api/user": { status: 200, body: { data: { sub: "luciatranquila" } } },
+    });
+
+    // luciatranquila@gmail.com → hasAntipanicButton: false en DEMO_ACCOUNTS
+    const req = makeRequest(LOGIN_URL, {
+      method: "POST",
+      body: { email: "luciatranquila@gmail.com", password: "abracadabra" },
+    });
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.user.hasAntipanicButton).toBe(false);
+  });
+
   it("sin sub: propaga el 400 del backend sin setear cookie", async () => {
     mockBackend({
       "POST /auth/dev/login": {
@@ -266,5 +312,45 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.user.sub).toBe("U000042");
+  });
+
+  it("login con loginType ldap: devuelve user con grupo dispatcher", async () => {
+    const DISPATCHER_TOKEN = jwtFor({
+      sub: "dispatcher1",
+      preferred_username: "dispatcher1",
+      groups: ["dispatcher"],
+      exp: Math.floor(Date.now() / 1000) + 900,
+    });
+
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (url.includes("api.citypass-login.pp.ua") || url.includes("/auth/login")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: DISPATCHER_TOKEN,
+            expires_in: 900,
+          }),
+        };
+      }
+      return originalFetch(url);
+    });
+
+    try {
+      const req = makeRequest(LOGIN_URL, {
+        method: "POST",
+        body: { username: "dispatcher1", password: "secretpassword", loginType: "ldap" },
+      });
+      const res = await POST(req);
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.user.sub).toBe("dispatcher1");
+      expect(json.user.groups).toContain("dispatcher");
+      expect(res.cookies.get("citypass_session")?.value).toBe(DISPATCHER_TOKEN);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

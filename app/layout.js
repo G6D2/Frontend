@@ -7,6 +7,7 @@ import { MantineProvider, ColorSchemeScript } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 
 import BackendWarmup from "./components/BackendWarmup";
+import SessionRefreshManager from "./components/SessionRefreshManager";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -46,6 +47,7 @@ export default function RootLayout({ children }) {
         <MantineProvider defaultColorScheme="light">
           <Notifications position="top-right" />
           <BackendWarmup />
+          <SessionRefreshManager />
           {children}
         </MantineProvider>
       </body>

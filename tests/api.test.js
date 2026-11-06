@@ -7,6 +7,7 @@ import {
   ApiError,
   loginDev,
   loginWithPassword,
+  loginWithLdap,
   registerAccount,
   logout,
   fetchCurrentUser,
@@ -196,6 +197,57 @@ describe("api.js", () => {
 
       await expect(
         loginWithPassword({ email: "x@y.com", password: "bad" })
+      ).rejects.toThrow(ApiError);
+    });
+
+    it("loginWithLdap: envía POST /api/auth/login con loginType ldap, guarda usuario y método", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          user: { sub: "ldap_1", username: "operador1", groups: ["dispatcher"] },
+        }),
+      });
+
+      const result = await loginWithLdap({
+        username: "  operador1  ",
+        password: "secretpassword",
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            username: "operador1",
+            email: "operador1",
+            password: "secretpassword",
+            loginType: "ldap",
+          }),
+        })
+      );
+      expect(result.user).toMatchObject({
+        sub: "ldap_1",
+        username: "operador1",
+        loginMethod: "ldap",
+      });
+      expect(getStoredUser()).toMatchObject({
+        sub: "ldap_1",
+        username: "operador1",
+        loginMethod: "ldap",
+      });
+    });
+
+    it("loginWithLdap: lanza ApiError si el login LDAP falla", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: "Usuario o contraseña inválidos en LDAP" }),
+      });
+
+      await expect(
+        loginWithLdap({ username: "bad", password: "bad" })
       ).rejects.toThrow(ApiError);
     });
 
@@ -641,6 +693,14 @@ describe("api.js", () => {
       });
       const all = await fetchOfficers();
       expect(all).toEqual([{ id: "of2" }]);
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      });
+      const empty = await fetchOfficers();
+      expect(empty).toEqual([]);
     });
 
     it("assignOfficer: asigna oficial mediante PATCH y formatea respuesta", async () => {
@@ -696,6 +756,70 @@ describe("api.js", () => {
         status: 401,
         json: async () => ({ message: "Token inválido" }),
       });
+
+      await expect(fetchEmergencyDetail("e1")).rejects.toThrow(ApiError);
+      expect(global.window.location.replace).toHaveBeenCalledWith("/acceso");
+    });
+
+    it("apiFetch: intenta refresh token ante 401 y reintenta la petición exitosamente", async () => {
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          json: async () => ({ message: "Token vencido" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { id: "e1", status: "PENDING" } }),
+        });
+
+      const detail = await fetchEmergencyDetail("e1");
+      expect(detail).toEqual({ id: "e1", status: "PENDING" });
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/auth/refresh",
+        expect.objectContaining({ method: "POST", credentials: "same-origin" })
+      );
+      expect(global.window.location.replace).not.toHaveBeenCalled();
+    });
+
+    it("apiFetch: si el refresh tiene éxito pero el retry falla, redirige a login", async () => {
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          json: async () => ({ message: "Token vencido" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          json: async () => ({ message: "Acceso denegado" }),
+        });
+
+      await expect(fetchEmergencyDetail("e1")).rejects.toThrow(ApiError);
+      expect(global.window.location.replace).toHaveBeenCalledWith("/acceso");
+    });
+
+    it("apiFetch: si el refresh lanza una excepción de red, continúa con redirectToLogin", async () => {
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          json: async () => ({ message: "Token vencido" }),
+        })
+        .mockRejectedValueOnce(new Error("Network failure"));
 
       await expect(fetchEmergencyDetail("e1")).rejects.toThrow(ApiError);
       expect(global.window.location.replace).toHaveBeenCalledWith("/acceso");

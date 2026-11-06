@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { BACKEND_URL, readAccessToken, SESSION_COOKIE } from "@/lib/session";
+import { BACKEND_URL, readAccessToken, SESSION_COOKIE, REFRESH_COOKIE } from "@/lib/session";
 import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
 
@@ -114,13 +114,14 @@ async function proxy(request, context) {
   });
 
   if (backendRes.status === 401) {
-    response.cookies.set(SESSION_COOKIE, "", {
+    const clearOpts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 0,
-    });
+    };
+    response.cookies.set(SESSION_COOKIE, "", clearOpts);
   }
 
   return response;

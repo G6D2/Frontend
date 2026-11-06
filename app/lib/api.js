@@ -131,15 +131,14 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
   // No strippear "/api": si no, termina en BACKEND_URL/panic-button (404).
   const url = auth ? `/api/backend${path}` : path;
 
+  const payload = body !== undefined ? JSON.stringify(body) : undefined;
+  const send = () =>
+    fetch(url, { method, headers, credentials: "same-origin", body: payload });
+
   let res;
   beginBackendCall();
   try {
-    res = await fetch(url, {
-      method,
-      headers,
-      credentials: "same-origin",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    res = await send();
   } finally {
     endBackendCall();
   }
@@ -147,11 +146,25 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
   const data = await parseJsonSafe(res);
 
   if (!res.ok) {
-    const message =
-      data?.message || data?.error || `Error HTTP ${res.status}`;
-    if (res.status === 401) {
+    if (res.status === 401 && auth) {
+      try {
+        const refreshRes = await fetch("/api/auth/refresh", {
+          method: "POST",
+          credentials: "same-origin",
+        });
+        if (refreshRes.ok) {
+          const retryRes = await send();
+          if (retryRes.ok) {
+            return await parseJsonSafe(retryRes);
+          }
+        }
+      } catch {
+        // Continuar con redirectToLogin
+      }
       redirectToLogin();
     }
+    const message =
+      data?.message || data?.error || `Error HTTP ${res.status}`;
     throw new ApiError(message, { status: res.status, body: data });
   }
 
@@ -202,6 +215,31 @@ export async function loginWithPassword({ email, password }) {
     );
   }
   const user = { ...data.user, loginMethod: "sesion" };
+  setStoredUser(user);
+  return { user };
+}
+
+/** Login institucional vía LDAP (POST /api/auth/login con loginType="ldap"). */
+export async function loginWithLdap({ username, password }) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      username: username?.trim(),
+      email: username?.trim(),
+      password,
+      loginType: "ldap",
+    }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || data?.error || `Error HTTP ${res.status}`,
+      { status: res.status, body: data }
+    );
+  }
+  const user = { ...data.user, loginMethod: "ldap" };
   setStoredUser(user);
   return { user };
 }
