@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# volcados de base (pg_dump) tirados en la raíz: el front no versiona SQL
+/*.sql
+
 # debug
 npm-debug.log*
 yarn-debug.log*

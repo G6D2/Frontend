@@ -11,10 +11,13 @@ import {
   ApiError,
   getHomePathForUser,
 } from "../lib/api";
-import { DEMO_ACCOUNTS, DISPATCHER_DEMO } from "../lib/features";
+import { DEMO_ACCOUNTS, DEMO_LOGIN_SHORTCUTS } from "../lib/features";
 
-// En modo idp real, se ocultan los atajos demo del ciudadano (el IdP no los admite).
+// En modo idp real, se ocultan los atajos demo (el IdP no los admite).
 const IS_IDP_MODE = process.env.NEXT_PUBLIC_AUTH_MODE === "idp";
+
+// El panel de atajos (llave) mantiene su propio acceso directo al dispatcher.
+const DISPATCHER_SHORTCUT = DEMO_LOGIN_SHORTCUTS.find((s) => s.id === "dispatcher");
 
 // ── Modo: "login" | "signup" | "forgot"
 export default function AccesoForm() {
@@ -43,6 +46,10 @@ export default function AccesoForm() {
   const [ldapLoading, setLdapLoading] = useState(false);
   const [ldapError, setLdapError] = useState("");
 
+  // Atajos demo sin contraseña (bloque "Demo" debajo de la tarjeta)
+  const [demoPendingId, setDemoPendingId] = useState(null);
+  const [demoError, setDemoError] = useState("");
+
   const isLogin = mode === "login";
   const isSignup = mode === "signup";
   const isForgot = mode === "forgot";
@@ -52,6 +59,7 @@ export default function AccesoForm() {
     setMode(next);
     setError("");
     setLdapError("");
+    setDemoError("");
     setForgotSent(false);
   }
 
@@ -63,6 +71,38 @@ export default function AccesoForm() {
       router.replace(target);
     }
   }
+
+  // Atajo demo: loginDev (POST /auth/dev/login con el sub) y home según el rol.
+  // El error va en el bloque Demo porque el de `error` solo se ve en la
+  // solapa ciudadana.
+  const loginWithDemoShortcut = async (shortcut) => {
+    setLoading(true);
+    setDemoPendingId(shortcut.id);
+    setError("");
+    setDemoError("");
+    try {
+      const { user } = await loginDev({ ...shortcut.account, loginMethod: "sesion" });
+      navigateToHome(user);
+    } catch (err) {
+      setDemoError(
+        err instanceof ApiError ? err.message : "No se pudo conectar con el backend."
+      );
+    } finally {
+      setLoading(false);
+      setDemoPendingId(null);
+    }
+  };
+
+  // Un solo handler para todos los botones del bloque Demo: el atajo sale del
+  // data-shortcut-id. Un closure por botón dentro del .map hace que el lint
+  // del React Compiler (react-hooks/immutability) marque el
+  // window.location.href de navigateToHome.
+  const handleDemoShortcutClick = (event) => {
+    const shortcut = DEMO_LOGIN_SHORTCUTS.find(
+      (s) => s.id === event.currentTarget.dataset.shortcutId
+    );
+    if (shortcut) loginWithDemoShortcut(shortcut);
+  };
 
   // Seed V16 — solo relleno de chips de presentación (cuenta pública de demo).
   function fillDemo(account) {
@@ -541,6 +581,57 @@ export default function AccesoForm() {
 
         </div>
 
+        {/* ── Atajos demo sin contraseña (dispatcher, oficiales y ciudadano con SOS) ──
+            Entran con loginDev → POST /auth/dev/login, que el backend solo acepta
+            para los sub de su allowlist demo. Ocultos con NEXT_PUBLIC_AUTH_MODE=idp. */}
+        {!IS_IDP_MODE && (
+          <section aria-labelledby="demo-atajos-titulo" className="mt-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-dashed border-outline-variant" />
+              </div>
+              <div className="relative flex justify-center">
+                <h2
+                  id="demo-atajos-titulo"
+                  className="px-3 bg-background text-xs font-bold tracking-widest uppercase text-amber-800"
+                >
+                  Demo · entrar sin contraseña
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {DEMO_LOGIN_SHORTCUTS.map((shortcut) => (
+                <button
+                  key={shortcut.id}
+                  id={`btn-demo-${shortcut.id}`}
+                  data-shortcut-id={shortcut.id}
+                  type="button"
+                  disabled={loading || ldapLoading}
+                  onClick={handleDemoShortcutClick}
+                  className="min-h-14 p-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/70 hover:bg-amber-100/70 hover:shadow-sm transition-all flex items-center gap-2 text-left cursor-pointer disabled:opacity-60 disabled:cursor-default"
+                >
+                  <MaterialIcon name={shortcut.icon} size={20} className="text-amber-800 shrink-0" />
+                  <span className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-amber-950 leading-tight">
+                      {demoPendingId === shortcut.id ? "Ingresando..." : shortcut.label}
+                    </span>
+                    <span className="text-[11px] font-mono text-amber-900/80 truncate">
+                      {shortcut.account.sub}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {demoError && (
+              <div role="alert" className="mt-2 p-3 rounded-lg bg-error-container text-on-error-container text-sm">
+                {demoError}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Footer */}
         <div className="mt-4 text-center">
           <p className="text-xs font-medium text-on-surface-variant flex items-center justify-center gap-1">
@@ -717,21 +808,9 @@ export default function AccesoForm() {
                   <button
                     type="button"
                     disabled={loading || ldapLoading}
-                    onClick={async () => {
+                    onClick={() => {
                       setShortcutsOpen(false);
-                      setLoading(true);
-                      setError("");
-                      try {
-                        const { user } = await loginDev({
-                          ...DISPATCHER_DEMO,
-                          loginMethod: "sesion",
-                        });
-                        navigateToHome(user);
-                      } catch (err) {
-                        setError(err instanceof ApiError ? err.message : "Error al conectar con backend.");
-                      } finally {
-                        setLoading(false);
-                      }
+                      loginWithDemoShortcut(DISPATCHER_SHORTCUT);
                     }}
                     className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >

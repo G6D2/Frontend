@@ -221,6 +221,12 @@ export async function POST(request) {
   response.cookies.set(SESSION_COOKIE, accessToken, sessionCookieOptions(accessToken));
   if (data?.refresh_token) {
     response.cookies.set(REFRESH_COOKIE, data.refresh_token, refreshCookieOptions());
+  } else {
+    // Login local (dev login o email/contraseña del backend): no hay refresh
+    // token. Se borra uno que haya quedado de un Login Federado anterior;
+    // si no, /api/auth/refresh lo canjearía en el IdP y pisaría esta sesión
+    // con un token que el backend en AUTH_MODE=local rechaza.
+    response.cookies.set(REFRESH_COOKIE, "", refreshCookieOptions(0));
   }
   return response;
 }

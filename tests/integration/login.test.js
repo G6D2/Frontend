@@ -17,6 +17,8 @@ vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
 import { cookies } from "next/headers";
 import { POST } from "../../app/api/auth/login/route.js";
+import { DEMO_LOGIN_SHORTCUTS } from "../../app/lib/features.js";
+import { getHomePathForUser } from "../../app/lib/auth-roles.js";
 import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
 
 const LOGIN_URL = "http://localhost/api/auth/login";
@@ -184,6 +186,52 @@ describe("POST /api/auth/login", () => {
       sub: "DISP-Demo001",
       groups: ["dispatcher"],
     });
+  });
+
+  // Atajos "Demo" de /acceso: el body es el que arma loginDev con cada cuenta.
+  it.each([
+    ["DISP-Demo001", ["dispatcher"], "/ops"],
+    ["of-001", ["officer"], "/inicio"],
+    ["of-002", ["officer"], "/inicio"],
+    ["CIT-JuanPanico", ["citizen"], "/inicio"],
+  ])("atajo demo %s: reenvía sub y grupos a /auth/dev/login y el user lleva a %s", async (sub, groups, home) => {
+    const { account } = DEMO_LOGIN_SHORTCUTS.find((s) => s.account.sub === sub);
+    const token = jwtFor({
+      sub,
+      preferred_username: account.preferred_username,
+      groups,
+      exp: Math.floor(Date.now() / 1000) + 900,
+    });
+    const { calls } = mockBackend({
+      "POST /auth/dev/login": { status: 200, body: { access_token: token, expires_in: 900 } },
+      "GET /api/user": {
+        status: 200,
+        body: { data: { hasAntipanicButton: account.hasAntipanicButton } },
+      },
+    });
+
+    const res = await POST(
+      makeRequest(LOGIN_URL, {
+        method: "POST",
+        body: {
+          sub: account.sub,
+          preferred_username: account.preferred_username,
+          groups: account.groups,
+          hasAntipanicButton: account.hasAntipanicButton,
+        },
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(res.cookies.get("citypass_session")?.value).toBe(token);
+    expect(JSON.parse(calls.find((c) => c.path === "/auth/dev/login").body)).toEqual({
+      sub,
+      preferred_username: account.preferred_username,
+      groups,
+    });
+    expect(json.user).toMatchObject({ sub, groups, hasAntipanicButton: account.hasAntipanicButton });
+    expect(getHomePathForUser(json.user)).toBe(home);
   });
 
   it("respeta hasAntipanicButton=false desde el perfil backend", async () => {
