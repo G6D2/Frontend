@@ -17,9 +17,9 @@ export default function EmergencyDetailPanel({ open, onClose, children }) {
 
   return (
     <>
-      {/* Mobile / tablet: bottom sheet modal con overlay */}
+      {/* Mobile / tablet: bottom sheet por encima de la bottom nav (z-1000). */}
       <div
-        className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center lg:hidden"
+        className="fixed inset-0 z-[1100] bg-black/40 flex items-end justify-center lg:hidden"
         onClick={onClose}
       >
         <div

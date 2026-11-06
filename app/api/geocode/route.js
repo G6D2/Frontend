@@ -1,14 +1,24 @@
 import { NextResponse } from "next/server";
 import { reverseGeocodeServer } from "@/lib/geocode-server";
+import { readAccessToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/geocode?lat=&lng= → { label: string|null }
  * Proxy con caché y cola hacia Nominatim (ver lib/geocode-server.js).
- * Requiere sesión: no es un geocoder público.
+ * Requiere sesión: no es un geocoder público. El middleware no cubre esta
+ * ruta, así que la sesión se valida acá (igual que el proxy /api/backend).
  */
 export async function GET(request) {
+  const token = await readAccessToken();
+  if (!token) {
+    return NextResponse.json(
+      { error: "Unauthorized", message: "Sin sesión" },
+      { status: 401 }
+    );
+  }
+
   const url = new URL(request.url);
   const latParam = url.searchParams.get("lat");
   const lngParam = url.searchParams.get("lng");

@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import GeoLabel from "../../components/civic/GeoLabel";
 import {
-  fetchEmergencies,
+  fetchOpsEmergencies,
+  isOpsStatus,
   POLLING_INTERVAL_MS,
 } from "../../lib/api";
+import { createPoller } from "../../lib/polling";
 import {
   priorityDotClass,
   getStatusConfig,
@@ -27,66 +29,31 @@ const OpsMap = dynamic(() => import("../../components/ops/OpsMap"), {
 
 export default function MapaOperativoPage() {
   const [emergencies, setEmergencies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
   const [error, setError] = useState("");
   const [flyTo, setFlyTo] = useState(null);
 
-  // requestSeq + AbortController: descarta respuestas viejas si una carga
-  // más nueva ya terminó (p. ej. al reanudar el polling tras volver a la
-  // pestaña). fetchEmergencies() (app/lib/api.js) todavía no acepta un
-  // AbortSignal, así que abort() no corta el fetch en la red, pero sirve de
-  // guarda para no pisar estado con datos obsoletos.
-  const requestSeqRef = useRef(0);
-  const controllerRef = useRef(null);
-
-  const load = useCallback(() => {
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    const seq = ++requestSeqRef.current;
-    fetchEmergencies()
-      .then((data) => {
-        if (controller.signal.aborted || seq !== requestSeqRef.current) return;
-        setEmergencies(data);
-        setError("");
-      })
-      .catch((err) => {
-        if (controller.signal.aborted || seq !== requestSeqRef.current) return;
-        setError(err.message || "No se pudo cargar el mapa");
-      });
+  // Solo las abiertas: fetchOpsEmergencies() ya filtra en el backend, y el
+  // filtro local cubre cualquier respuesta que no lo respete.
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchOpsEmergencies();
+      setEmergencies(data.filter((em) => isOpsStatus(em.status)));
+      setError("");
+    } catch (err) {
+      setError(err.message || "No se pudo cargar el mapa");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Pausa el polling cuando la pestaña no está visible y lo reanuda —con
-  // una carga inmediata— al volver.
+  // Polling con pausa en pestaña oculta y sin pedidos superpuestos (las
+  // respuestas llegan en orden, no hace falta descartar las viejas).
   useEffect(() => {
-    let interval = null;
-    const startPolling = () => {
-      if (interval) return;
-      interval = setInterval(load, POLLING_INTERVAL_MS);
-    };
-    const stopPolling = () => {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-    };
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        load();
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    };
-
-    load();
-    if (document.visibilityState === "visible") startPolling();
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      stopPolling();
-      document.removeEventListener("visibilitychange", handleVisibility);
-      controllerRef.current?.abort();
-    };
+    const poller = createPoller({ load, intervalMs: POLLING_INTERVAL_MS });
+    poller.start();
+    return () => poller.stop();
   }, [load]);
 
   const handleMyLocation = () => {
@@ -145,7 +112,12 @@ export default function MapaOperativoPage() {
         </div>
 
         <div className="shrink-0 flex gap-4 overflow-x-auto pb-2">
-          {emergencies.length === 0 && !error && (
+          {loading && (
+            <p role="status" className="text-xs text-on-surface-variant py-2">
+              Cargando emergencias…
+            </p>
+          )}
+          {!loading && emergencies.length === 0 && !error && (
             <p className="text-xs text-on-surface-variant py-2">
               No hay emergencias para mostrar en el mapa.
             </p>

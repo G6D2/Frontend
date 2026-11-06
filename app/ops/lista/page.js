@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 import {
-  fetchEmergencies,
+  fetchOpsEmergencies,
   getStoredUser,
   fetchCurrentUser,
   validateEmergency,
@@ -13,13 +13,14 @@ import {
   ApiError,
 } from "../../lib/api";
 import { isDispatcher } from "../../lib/auth";
+import { createPoller } from "../../lib/polling";
 import {
-  PRIORITY_CONFIG,
   getStatusConfig,
   formatTimeShort,
   elapsedMinutes,
   isPendingStatus,
   isActiveStatus,
+  canAssignOfficer,
   priorityTextClass,
   getEffectivePriority,
   TYPE_LABELS,
@@ -27,7 +28,11 @@ import {
 import GeoLabel from "../../components/civic/GeoLabel";
 import DiscardReasonModal from "../../components/DiscardReasonModal";
 import PageHeader from "../../components/PageHeader";
-import { PriorityBadge, StatusBadge } from "../../components/ops/OpsBadges";
+import {
+  PriorityBadge,
+  StatusBadge,
+  getPriorityPill,
+} from "../../components/ops/OpsBadges";
 import { IncidentBadge, IncidentDetailBlock } from "../../components/ops/IncidentInfo";
 import { BTN_BASE, BTN_PRIMARY, BTN_SECONDARY } from "../../components/ops/buttonStyles";
 import {
@@ -58,8 +63,8 @@ const STATUS_ORDER = {
   VALIDATED: 1, validada: 1,
   DISPATCHED: 2, despachada: 2,
   EN_ROUTE: 3, en_camino: 3,
-  ON_SITE: 4, en_lugar: 4,
-  CANCELLED: 5,
+  ON_SITE: 4, ON_SCENE: 4, en_lugar: 4,
+  RESOLVED: 5, resuelta: 5,
 };
 
 function getTypeLabel(em) {
@@ -159,12 +164,19 @@ function SortableHeader({ label, sortKey, currentKey, currentDir, onSort }) {
 
 // ── Constantes de filtro de métricas ──────────────────────────────────
 
+/** KPI "Críticas" y banner: misma prioridad efectiva que la columna de la
+ * tabla (antes usaban `severity` y no contaban las elevadas por incidente). */
+function isCriticalPending(e) {
+  return getEffectivePriority(e) === "critical" && isPendingStatus(e.status);
+}
+
+// Sin "Canceladas": fetchOpsEmergencies() trae solo las abiertas, así que esa
+// tarjeta quedaba siempre en 0. Las canceladas se ven en /ops/historial.
 const METRIC_FILTERS = {
   all: () => true,
   pending: (e) => isPendingStatus(e.status),
-  active: (e) => isActiveStatus(e.status) && e.status !== "CANCELLED",
-  critical: (e) => e.severity === "critical" && isPendingStatus(e.status),
-  cancelled: (e) => e.status === "CANCELLED",
+  active: (e) => isActiveStatus(e.status),
+  critical: isCriticalPending,
 };
 
 // ── Página principal ──────────────────────────────────────────────────
@@ -172,6 +184,7 @@ const METRIC_FILTERS = {
 export default function OpsPage() {
   const router = useRouter();
   const [emergencies, setEmergencies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [alertAcked, setAlertAcked] = useState(false);
   const [error, setError] = useState("");
@@ -191,17 +204,13 @@ export default function OpsPage() {
   const [sortKey, setSortKey] = useState("priority");
   const [sortDir, setSortDir] = useState("asc");
 
-  const requestSeqRef = useRef(0);
-  const controllerRef = useRef(null);
+  const pollerRef = useRef(null);
 
+  // createPoller no superpone pedidos, así que las respuestas llegan en
+  // orden y no hace falta descartar las viejas.
   const load = useCallback(async () => {
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    const seq = ++requestSeqRef.current;
     try {
-      const data = await fetchEmergencies();
-      if (controller.signal.aborted || seq !== requestSeqRef.current) return;
+      const data = await fetchOpsEmergencies();
       setEmergencies(data);
       setError("");
       setLastUpdated(Date.now());
@@ -212,50 +221,36 @@ export default function OpsPage() {
         return null;
       });
     } catch (err) {
-      if (controller.signal.aborted || seq !== requestSeqRef.current) return;
       setError(
         err instanceof ApiError
           ? err.message
           : "No se pudieron cargar las emergencias"
       );
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Guard de sesión + polling con visibilitychange
+  // Guard de sesión + polling (pausa con la pestaña oculta, ver createPoller)
   useEffect(() => {
     let cancelled = false;
-    let interval = null;
-
-    const startPolling = () => {
-      if (interval) return;
-      interval = setInterval(load, POLLING_INTERVAL_MS);
-    };
-    const stopPolling = () => {
-      if (interval) { clearInterval(interval); interval = null; }
-    };
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") { load(); startPolling(); }
-      else stopPolling();
-    };
+    const poller = createPoller({ load, intervalMs: POLLING_INTERVAL_MS });
+    pollerRef.current = poller;
 
     (async () => {
       try {
         const user = getStoredUser() || (await fetchCurrentUser());
         if (!isDispatcher(user)) { router.replace("/inicio"); return; }
-        if (!cancelled) await load();
       } catch {
         router.replace("/acceso");
         return;
       }
-      if (!cancelled && document.visibilityState === "visible") startPolling();
+      if (!cancelled) poller.start();
     })();
 
-    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       cancelled = true;
-      stopPolling();
-      document.removeEventListener("visibilitychange", handleVisibility);
-      controllerRef.current?.abort();
+      poller.stop();
     };
   }, [load, router]);
 
@@ -274,14 +269,9 @@ export default function OpsPage() {
 
   // ── Datos derivados ───────────────────────────────────────────────
 
-  const pending = emergencies.filter((e) => isPendingStatus(e.status));
-  const critical = emergencies.filter(
-    (e) => e.severity === "critical" && isPendingStatus(e.status)
-  );
-  const totalActive = emergencies.filter(
-    (e) => isActiveStatus(e.status) && e.status !== "CANCELLED"
-  );
-  const cancelled = emergencies.filter((e) => e.status === "CANCELLED");
+  const pending = emergencies.filter(METRIC_FILTERS.pending);
+  const critical = emergencies.filter(METRIC_FILTERS.critical);
+  const totalActive = emergencies.filter(METRIC_FILTERS.active);
   const showCriticalBanner = critical.length > 0 && !alertAcked;
 
   // Métricas de las tarjetas
@@ -290,7 +280,6 @@ export default function OpsPage() {
     { key: "pending",  label: "Pendientes",  value: pending.length,      critical: false },
     { key: "active",   label: "Total activas", value: totalActive.length, critical: false },
     { key: "critical", label: "Críticas",    value: critical.length,     critical: true  },
-    { key: "cancelled",label: "Canceladas",  value: cancelled.length,    critical: false },
   ];
 
   // Pipeline: filtro por métrica → búsqueda → sort
@@ -331,7 +320,7 @@ export default function OpsPage() {
     try {
       const updated = await validateEmergency(selected.id);
       setSelected(updated);
-      await load();
+      await pollerRef.current?.refresh();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "No se pudo validar");
     } finally {
@@ -347,7 +336,7 @@ export default function OpsPage() {
       const updated = await discardEmergency(selected.id, reason);
       setSelected(updated);
       setDiscardOpen(false);
-      await load();
+      await pollerRef.current?.refresh();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "No se pudo descartar");
     } finally {
@@ -359,16 +348,20 @@ export default function OpsPage() {
 
   function renderDetailPanelBody() {
     if (!selected) return null;
+
+    const canValidate = isPendingStatus(selected.status);
+    const canAssign = canAssignOfficer(selected.status);
+
     return (
       <>
-        <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start">
+        <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start shrink-0">
           <div>
             <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
               #{selected.id.slice(0, 8)}
             </h2>
             <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
               {getStatusConfig(selected.status).label} ·{" "}
-              {PRIORITY_CONFIG[getEffectivePriority(selected) || "critical"]?.label}
+              {getPriorityPill(getEffectivePriority(selected)).label}
             </span>
           </div>
           <button
@@ -381,7 +374,7 @@ export default function OpsPage() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 min-h-0">
           <div className="flex items-start gap-2">
             <MaterialIcon name="location_on" className="text-on-surface-variant mt-0.5 shrink-0" />
             <div>
@@ -420,20 +413,15 @@ export default function OpsPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setSelected(null)}
-            className={`${BTN_BASE} ${BTN_SECONDARY} w-full py-2 normal-case font-semibold text-xs`}
-          >
-            Cerrar detalle
-          </button>
           {actionError && (
             <div className="p-2 rounded bg-error-container text-on-error-container text-xs">
               {actionError}
             </div>
           )}
+
+          {/* Acciones arriba de "Cerrar": en mobile no quedan bajo el fold. */}
           <div className="flex flex-col gap-2">
-            {isPendingStatus(selected.status) && (
+            {canValidate && (
               <>
                 <button
                   type="button"
@@ -453,7 +441,7 @@ export default function OpsPage() {
                 </button>
               </>
             )}
-            {(selected.status === "VALIDATED" || selected.status === "validada") && (
+            {canAssign && (
               <button
                 type="button"
                 onClick={() => router.push(`/ops/asignar/${selected.id}`)}
@@ -462,6 +450,13 @@ export default function OpsPage() {
                 Asignar oficial
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className={`${BTN_BASE} ${BTN_SECONDARY} w-full py-2 normal-case font-semibold text-xs`}
+            >
+              Cerrar detalle
+            </button>
           </div>
         </div>
       </>
@@ -496,7 +491,7 @@ export default function OpsPage() {
       <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
 
         {/* ── Tarjetas de métricas clickeables ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 shrink-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 shrink-0">
           {METRIC_CARDS.map((s) => {
             const isActive = metricFilter === s.key;
             return (
@@ -527,7 +522,7 @@ export default function OpsPage() {
                     s.critical ? "text-priority-critical" : isActive ? "text-primary" : "text-on-surface"
                   }`}
                 >
-                  {s.value}
+                  {loading ? "—" : s.value}
                 </span>
                 {isActive && (
                   <span className="text-[10px] mt-1 font-semibold text-primary/70 flex items-center gap-0.5">
@@ -591,6 +586,10 @@ export default function OpsPage() {
           </div>
         )}
 
+        {loading && (
+          <p role="status" className="sr-only">Cargando emergencias…</p>
+        )}
+
         {error && (
           <div className="p-3 rounded bg-error-container text-on-error-container text-sm shrink-0">
             {error}
@@ -634,7 +633,15 @@ export default function OpsPage() {
                   </tr>
                 </thead>
                 <tbody className={TABLE_BODY}>
-                  {displayedEmergencies.length === 0 ? (
+                  {loading ? (
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse" aria-hidden="true">
+                        <td colSpan={6} className="p-2.5">
+                          <div className="h-5 rounded bg-surface-container" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : displayedEmergencies.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-on-surface-variant">
                         {emergencies.length === 0
@@ -658,7 +665,7 @@ export default function OpsPage() {
                       >
                         <td className={TABLE_CELL}>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <PriorityBadge severity={getEffectivePriority(em) || "critical"} />
+                            <PriorityBadge severity={getEffectivePriority(em)} />
                             <IncidentBadge emergency={em} />
                           </div>
                         </td>
@@ -693,7 +700,13 @@ export default function OpsPage() {
 
             {/* Mobile Card List */}
             <div className="sm:hidden flex-1 overflow-auto divide-y divide-outline-variant/40">
-              {displayedEmergencies.length === 0 ? (
+              {loading ? (
+                <div className="flex flex-col gap-2.5 p-3 animate-pulse" aria-hidden="true">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-20 rounded-lg bg-surface-container" />
+                  ))}
+                </div>
+              ) : displayedEmergencies.length === 0 ? (
                 <div className="p-8 text-center text-on-surface-variant text-xs">
                   {emergencies.length === 0
                     ? "No hay emergencias. Esperando botón de pánico…"
@@ -705,7 +718,7 @@ export default function OpsPage() {
                     key={em.id}
                     badges={
                       <>
-                        <PriorityBadge severity={getEffectivePriority(em) || "critical"} />
+                        <PriorityBadge severity={getEffectivePriority(em)} />
                         <StatusBadge status={em.status} />
                         <IncidentBadge emergency={em} />
                       </>

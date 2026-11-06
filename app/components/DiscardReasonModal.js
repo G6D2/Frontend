@@ -44,8 +44,10 @@ function DiscardReasonForm({ title, confirmLabel, busy, onClose, onConfirm }) {
   }, [busy, onClose]);
 
   return (
+    // Por encima del EmergencyDetailPanel mobile (z-[1100]); si no, el motivo
+    // queda debajo del sheet cuando se abre sin cerrar el detalle.
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40"
+      className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/40"
       role="dialog"
       aria-modal="true"
       aria-labelledby="discard-reason-title"

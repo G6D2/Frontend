@@ -1,630 +1,278 @@
-# CityPass+ — Frontend
+# CityPass+ Emergencias: frontend
 
-Responsive Web App de gestión de servicios urbanos y emergencias para la ciudad. El frontend funciona como **BFF (Backend For Frontend)** sobre Next.js App Router: las páginas cliente nunca hablan directamente al backend; todo pasa por Route Handlers que mantienen la sesión en una cookie `httpOnly`.
+Frontend del módulo **Emergencias y Seguridad** de CityPass+ (TPO de Desarrollo de Aplicaciones II, UADE, Grupo 6). Es una web app responsive en **Next.js 16.4.3 con App Router** que funciona como **BFF (Backend For Frontend)**: el navegador nunca le habla al backend directo. Todo pasa por los Route Handlers de `app/api/`, que guardan el JWT en una cookie `httpOnly` y lo reenvían al backend ([`G6D2/emergencias-backend`](https://github.com/G6D2/emergencias-backend)).
+
+Este README describe lo que hace `main` hoy. Si algo de acá no coincide con el código, manda el código.
 
 ---
 
 ## Inicio rápido
 
+Requisitos:
+
+- **Node 22** (`engines: "22.x"`). En Node 24 también corre, pero `npm ci` avisa `EBADENGINE`.
+- El backend corriendo en `http://localhost:3000` (su puerto por defecto), o `API_URL` apuntando a otro.
+
 ```bash
-npm install
-npm run dev        # http://localhost:3001
+npm ci
+npm run dev                                   # http://localhost:3001
+API_URL=http://otro-host:3000 npm run dev     # backend en otro lado
 ```
 
-> El backend (Express) debe estar corriendo en `http://localhost:3000` (o definir `API_URL`).
+| Script | Qué hace |
+|---|---|
+| `npm run dev` | Dev server en el puerto 3001 |
+| `npm run build` / `npm start` | Build de producción y `next start` en `$PORT` (3001 si no está definido) |
+| `npm run lint` | ESLint con `eslint-config-next` |
+| `npm test` | Tests unitarios, una corrida |
+| `npm run test:coverage` | Tests unitarios con cobertura y umbral del 80% |
+| `npm run test:integration` | Tests de integración del BFF |
+| `npm run test:watch` | Tests unitarios en modo watch |
 
 ---
 
-## Stack tecnológico
+## Stack
 
-| Tecnología | Uso |
-|---|---|
-| **Next.js 15 (App Router)** | Framework React — SSR, Route Handlers (BFF), middleware |
-| **React 19** | UI reactiva |
-| **Tailwind CSS v4** | Utilidades de estilo via `@theme` tokens |
-| **Material Symbols Outlined** | Iconografía (Google Fonts, variable font) |
-| **Vitest** | Tests unitarios (Quality Gate 80% sobre librerías) y de integración (BFF) |
+| Tecnología | Versión | Uso |
+|---|---|---|
+| Next.js (App Router) | 16.4.3 | Páginas, Route Handlers del BFF y `middleware.js` |
+| React | 19.2.8 | UI |
+| Mantine | 9.x | Layout, tablero kanban del dispatcher y notificaciones |
+| Tailwind CSS | 4.x | Pantallas del ciudadano y del dispatcher (tokens en `globals.css`) |
+| Leaflet | 1.9 | Mapa del dispatcher (`/ops/mapa`) |
+| @tabler/icons-react y Material Symbols | | Iconos |
+| Vitest | 4.x | Tests unitarios e integración del BFF (entorno `node`) |
 
 ---
 
 ## Arquitectura
 
 ```
-Browser  ──►  Next.js (BFF)  ──►  Express backend (puerto 3000)
-              /api/auth/*             /auth/dev/login
-              /api/backend/*          /api/emergencies
-                                      /api/officers
-                                      /api/user
+Navegador ──► Next.js (este repo) ──────────────────────► Backend Express (emergencias-backend)
+              │ middleware.js     guard de sesión y de rol
+              │ /api/auth/*       login, registro, sesión, logout ──► /auth/login, /auth/dev/login,
+              │                                                        /auth/register, /api/user
+              │ /api/backend/*    proxy con el JWT de la cookie ───► /api/*
+              │ /api/geocode      geocoding inverso con caché ─────► BigDataCloud, Nominatim de respaldo
+              └ /api/warmup       despierta al backend dormido ────► BACKEND_WARMUP_PATH
 ```
 
-- La cookie `citypass_session` (JWT, `httpOnly`, `sameSite: lax`) es emitida por el BFF y nunca queda expuesta al JS del cliente.
-- `middleware.js` actúa como **session guard** (valida existencia y vigencia de la sesión para redirigir a `/acceso` o al home correspondiente). **Toda la protección de roles y autorización reside en el backend**: el middleware del frontend no restringe rutas según el rol del usuario; la seguridad y control de acceso a los datos y operaciones se valida exclusivamente en el backend al verificar el JWT en cada petición.
-- `lib/backend-fetch.js` implementa **retry automático** (6 intentos, 4 s entre reintentos) para absorber el cold start de Render (502/503/504).
+- El JWT vive en la cookie `citypass_session` (`httpOnly`, `sameSite: lax`, `secure` en producción y vencimiento igual al `exp` del token). El JS del navegador no lo ve.
+- El backend es la autoridad: verifica la firma del JWT y los `groups` en cada request. El middleware del front no verifica la firma: decide redirecciones mirando solo `exp` y `groups` (ver [Middleware](#middleware)).
+- `lib/backend-fetch.js` reintenta 502, 503, 504 y errores de red hasta 6 veces, con 4 s entre intentos, para absorber el arranque en frío de Render.
 
 ---
 
-## Cuentas de demo
+## Variables de entorno
 
-Definidas en `app/lib/features.js` → `DEMO_ACCOUNTS` (solo email en el bundle). Contraseña unificada en el seed del backend (V16): **`abracadabra`**. Los chips del login rellenan el email; la pass se escribe a mano.
-
-| Email | Botón Antipánico | Rol |
+| Variable | Default | Para qué |
 |---|---|---|
-| `JuanPanico@gmail.com` | ✅ Sí | Ciudadano |
-| `LuciaTranquila@gmail.com` | ❌ No | Ciudadano |
+| `API_URL` | `http://localhost:3000` | URL base del backend, **sin `/api` y sin barra final**. El BFF le agrega el path completo: `/auth/login`, `/api/emergencies`, etc. (ver `lib/session.js`). Solo se lee en el servidor. |
+| `NODE_ENV` | | En `production` la cookie de sesión sale con `secure`. |
+| `PORT` | `3001` | Puerto de `npm start`. Render lo define solo. |
+| `BACKEND_WARMUP_PATH` | `/` | Path que pega `/api/warmup`. En Render es `/health`. |
+| `BACKEND_WARMUP` | | `off` desactiva `/api/warmup` (para cuando el backend sea always-on). |
 
-### Acceso rápido Dispatcher
-
-En la pantalla de login, debajo del card, hay un botón dorado **"Vista Dispatcher — Demo"** que hace login directo como dispatcher (`DISP-Demo001`) y redirige a `/ops` sin necesidad de ingresar credenciales.
-
-La cuenta dispatcher está definida en `DISPATCHER_DEMO` (también en `features.js`).
+`lib/session.js` todavía acepta `NEXT_PUBLIC_API_URL` como segundo fallback de `API_URL`. Es un resto viejo: no hace falta y no conviene usarlo.
 
 ---
 
-## Feature flags (`app/lib/features.js`)
+## Páginas
 
-| Flag | Valor actual | Descripción |
+`/` redirige a `/acceso`. Las columnas de acceso son las que aplica `middleware.js` (ver más abajo).
+
+| Ruta | Quién entra | Qué hay |
 |---|---|---|
-| `ANTIPANIC_MODE` | `"backend"` | `"mock"` → `hasAntipanicButton` de demo local; `"backend"` → de `GET /api/user` / JWT |
-| `DEMO_ACCOUNTS` | (ver archivo) | Cuentas ciudadanas de demostración |
-| `DISPATCHER_DEMO` | (ver archivo) | Cuenta dispatcher de acceso directo |
+| `/acceso` | Sin sesión (con sesión redirige al home del rol) | Login con email y contraseña, registro, recuperar contraseña y atajos demo |
+| `/inicio` | Ciudadano | Botón SOS (solo si `hasAntipanicButton`) y acceso a reportar |
+| `/reportar` | Ciudadano | Reporte de incidente por categoría: médica, incendio, infraestructura, disturbio o evento, otro |
+| `/mis-alertas` | Ciudadano | Mis emergencias, refresco cada 5 s |
+| `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados (refresco cada 5 s, pausado con la pestaña oculta) y cancelar con confirmación |
+| `/perfil`, `/perfil/datos`, `/perfil/ubicaciones`, `/perfil/ayuda` | Ciudadano | Cuenta, datos personales y ubicaciones guardadas (en el backend, cifrados) y ayuda |
+| `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar y asignar oficial |
+| `/ops/lista` | Dispatcher | Lista ordenada por prioridad, con métricas que filtran, búsqueda, orden por columna y panel de detalle |
+| `/ops/asignar/[id]` | Dispatcher | Elegir oficial disponible para una emergencia validada |
+| `/ops/mapa` | Dispatcher | Mapa Leaflet con las emergencias de `GET /api/emergencies` (hasta 100) |
+| `/ops/historial` | Dispatcher | Emergencias cerradas, canceladas, descartadas y resueltas, en una sola llamada |
+| `/ops/oficiales` | Dispatcher | Catálogo de oficiales y su estado |
+| `/ops/cuenta` | Dispatcher | Mi cuenta y logout |
+| `/ops/emergencias` | Dispatcher | Redirige a `/ops/lista` |
 
-> Con `ANTIPANIC_MODE = "backend"` (valor actual), `hasAntipanicButton` sale del JWT / `GET /api/user`. Solo usar `"mock"` para demos locales sin backend.
+Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
 
----
-
-## Endpoints BFF (`app/api/`)
-
-| Método | Ruta | Estado | Descripción |
-|---|---|---|---|
-| `POST` | `/api/auth/login` | ✅ Activo | Login email+password (`/auth/login`) o atajos demo (`/auth/dev/login`). Emite cookie de sesión. |
-| `POST` | `/api/auth/logout` | ✅ Activo | Borra la cookie de sesión. |
-| `GET` | `/api/auth/session` | ✅ Activo | Devuelve el usuario de la sesión actual (para hidratación cliente). |
-| `POST` | `/api/auth/register` | ✅ Activo | Registro email+password vía backend (`/auth/register`). |
-| `POST` | `/api/auth/forgot-password` | 🔲 Stub (200 mock) | Recuperación de contraseña. Siempre responde 200 (no revela si el email existe). |
-| `GET/POST/PATCH` | `/api/backend/*` | ✅ Activo | Proxy genérico al backend Express. Adjunta el JWT de la cookie. |
-| `GET` | `/api/warmup` | ✅ Activo | Pega al backend para despertarlo (Render free tier). |
-
-Los stubs tienen el contrato de request/response documentado en sus archivos para facilitar la integración futura.
+**No hay vistas de oficial.** El backend ya tiene el grupo `officer` y las rutas para que el oficial avance el estado (`en-route`, `on-scene`, `resolve`), pero el front no tiene pantallas ni código que las use. Un token de oficial cae en `/inicio`, como un ciudadano.
 
 ---
 
-## Rutas de la aplicación
+## BFF (`app/api/`)
 
-| Ruta | Quién accede | Descripción |
+| Método | Ruta | Qué hace |
 |---|---|---|
-| `/acceso` | Todos (sin sesión) | Login + signup + recuperación de contraseña |
-| `/inicio` | Ciudadano | Home con mapa de emergencias y botón antipánico |
-| `/mis-alertas` | Ciudadano | Listado de alertas propias con polling automático |
-| `/mis-alertas/[id]` | Ciudadano | Detalle de alerta con historial de estados en tiempo real |
-| `/perfil` | Ciudadano | Perfil, configuración, CTA de Sign Up |
-| `/emergencia/nueva` | Ciudadano | Formulario de nueva emergencia |
-| `/ops` | Dispatcher | Panel Kanban de gestión de emergencias ("Estados" restaurado) |
-| `/ops/lista` | Dispatcher | Vista lista con métricas clickeables, búsqueda y ordenamiento |
-| `/ops/mapa` | Dispatcher | Vista mapa de emergencias |
-| `/ops/historial` | Dispatcher | Historial de emergencias con búsqueda, filtros y ordenamiento |
-| `/ops/oficiales` | Dispatcher | Gestión de oficiales |
+| `POST` | `/api/auth/login` | Con `{email, password}` llama a `POST /auth/login`. Con `{sub, groups}` (atajos demo) llama a `POST /auth/dev/login`. Después completa el usuario con `GET /api/user` y setea la cookie. |
+| `POST` | `/api/auth/register` | `POST /auth/register` con email, contraseña y nombre. Setea la cookie. |
+| `GET` | `/api/auth/session` | Usuario de la sesión: `GET /api/user` o, si falla, los claims del JWT. |
+| `POST` | `/api/auth/logout` | Borra la cookie. |
+| `POST` | `/api/auth/forgot-password` | **Stub:** responde 200 siempre y no llama al backend. |
+| `GET` `POST` `PUT` `PATCH` `DELETE` | `/api/backend/[...path]` | Proxy al backend (ver abajo). |
+| `GET` | `/api/geocode?lat=&lng=` | Dirección legible de una coordenada (`lib/geocode-server.js`): caché de 24 h, agrupa pedidos iguales, BigDataCloud primero y Nominatim de respaldo. |
+| `GET` | `/api/warmup` | Pega a `BACKEND_WARMUP_PATH` para despertar al backend. Lo llama `BackendWarmup` al cargar la app. |
 
-La redirección al home correcta por rol está en `app/lib/auth-roles.js → getHomePathForUser`.
+### Proxy `/api/backend/[...path]`
 
-> **Aclaración sobre roles y seguridad:** La tabla anterior refleja la asignación de vistas prevista a nivel de navegación y UX. El frontend no restringe rutas según el rol del usuario; **toda la protección de roles y autorización reside de forma estricta en el backend**, que valida los claims del JWT en cada petición.
+- Exporta `GET`, `POST`, `PUT`, `PATCH` y `DELETE`. `HEAD` y `OPTIONS` no están exportados.
+- `/api/backend/<path>?<query>` va a `${API_URL}/<path>?<query>` sin tocar el path. Por eso el front llama a `/api/backend/api/emergencies`, que termina en `/api/emergencies` del backend.
+- Agrega `Authorization: Bearer <JWT de la cookie>` y reenvía `Content-Type`, `Idempotency-Key` y el body (salvo en GET y HEAD).
+- Si la cookie no está o venció, responde 401 sin llamar al backend. Si el backend responde 401, borra la cookie.
+- Reintenta 502, 503, 504 y errores de red en todos los métodos. En POST, PUT y PATCH genera un `Idempotency-Key` que se mantiene entre reintentos, pero **el backend hoy no lo usa**: si un POST llegó a procesarse antes del 502, el reintento puede duplicarlo.
 
----
+Lo que el front consume por el proxy:
 
-## Vistas principales
-
-### Ciudadano (`/inicio`, `/mis-alertas`)
-
-- **Botón Antipánico:** `POST /api/backend/api/panic-button` con coordenadas reales del dispositivo (o fallback CABA). Si `hasAntipanicButton = false`, no se renderiza.
-- **Mapa de emergencias:** Leaflet con marcadores de las emergencias propias del usuario.
-- **Historial de estados en tiempo real (`/mis-alertas/[id]`):** Polling cada 5 s (`CITIZEN_POLLING_INTERVAL_MS`) para sincronizar el historial de estados (`statusHistory`) inmediatamente tras las operaciones del despachador, sin requerir recarga manual. Se suspende en segundo plano con `visibilitychange`.
-
-### Dispatcher (`/ops`, `/ops/lista`, `/ops/historial`)
-
-- **Tablero "Estados" (`/ops`):** Tablero Kanban restaurado accesible desde el navbar, alternando entre vista por Estado (7 columnas) y por Criticidad (3 columnas).
-- **Polling optimizado:** Polling cada 60 s (`POLLING_INTERVAL_MS = 60_000`) en vistas operativas para prevenir sobrecarga innecesaria en el backend.
-- **Tarjetas de métricas interactivas (`/ops/lista` y `/ops/historial`):** Los indicadores superiores (Total, Pendientes/Cerradas, Activas/Canceladas, Críticas, Descartadas) son clickeables y aplican/quitan filtros rápidamente (comportamiento toggle).
-- **Controles de datos (Búsqueda y Ordenamiento):**
-  - Barra de búsqueda reactiva multi-criterio en `/ops/lista` (ID, usuario, tipo, ubicación, estado) y `/ops/historial`.
-  - Ordenamiento por columnas de 3 estados en `/ops/lista` y `/ops/historial`:
-    - 1er clic: Ascendente (`▲`)
-    - 2do clic: Descendente (`▼`)
-    - 3er clic: Estado original (`○` círculo sutil)
-- **Merge incremental:** solo agrega emergencias nuevas al estado local sin resetear.
-- **Animación "NUEVO":** pulso rojo durante 6 s en tarjetas recién llegadas.
-- **Asignar Oficial:** `GET /api/backend/api/officers` → modal de selección → `PATCH /api/backend/api/emergencies/:id`.
-- **Herramienta de simulación:** `window.simularNuevaEmergencia("descripción", "high")` disponible en consola.
-
----
-
-## Flujo de autenticación
-
-```
-[Login form]
-    │  POST /api/auth/login { sub, groups, hasAntipanicButton, loginMethod }
-    ▼
-[BFF /api/auth/login]
-    │  POST backend /auth/dev/login  →  { access_token }
-    │  GET  backend /api/user        →  enriquece user (si disponible)
-    │  Si ANTIPANIC_MODE="mock": sobrescribe hasAntipanicButton desde body
-    │  Set-Cookie: citypass_session=<JWT>  (httpOnly, sameSite: lax)
-    ▼
-[Client]  router.replace( getHomePathForUser(user) )
-    │      /inicio  →  ciudadano
-    │      /ops     →  dispatcher
-```
-
-El campo `loginMethod` (`"sesion"` | `"anonima"`) es un dato **solo del frontend** (mock): se guarda en `sessionStorage` vía `api.js → fetchCurrentUser` para que el perfil sepa si mostrar el CTA de Sign Up.
-
----
-
-## Perfil (`/perfil`) — lógica de Sign Up
-
-| `loginMethod` | Botón "Sign Up" |
+| Endpoint del backend | Desde |
 |---|---|
-| `"anonima"` (cuenta ciudadana sin email) | Activo — redirige a `/acceso?signup=1` |
-| `"sesion"` (login con credenciales) | Deshabilitado (gris) — ya tiene cuenta |
+| `POST /api/panic-button` | SOS de `/inicio` y reportes de `/reportar` |
+| `GET /api/emergencies` (con `status`, `page`, `limit`, `sortBy`, `order`) y `GET /api/emergencies/:id` | Ciudadano y dispatcher |
+| `PATCH /api/emergencies/:id/cancel` | Ciudadano, desde el detalle |
+| `PATCH /api/emergencies/:id/validate`, `/discard`, `/assign` | Dispatcher |
+| `GET /api/officers` (con `status=disponible` en el modal de asignar) | Dispatcher |
+| `GET`/`PUT /api/citizen/profile` y `GET`/`POST`/`PATCH`/`DELETE /api/citizen/saved-locations` | Perfil del ciudadano |
+
+El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencies/:id/close` y `/return` (dispatcher), `/en-route`, `/on-scene` y `/resolve` (oficial), `GET /api/incidents` y `GET /api/outbox-events`.
+
+### Middleware
+
+`middleware.js` corre en todas las rutas salvo `/_next/static`, `/_next/image` y las imágenes. Una sesión es válida si la cookie existe y el `exp` del JWT no venció (con 30 s de margen). No verifica la firma.
+
+| Caso | Respuesta |
+|---|---|
+| `/api/backend/*` o `/api/auth/session` sin sesión válida | 401 JSON `{ error: "Unauthorized" }`. Si la cookie estaba pero vencida, la borra. |
+| `/acceso` con sesión válida | Redirige al home del rol: `/ops` para el dispatcher y `/inicio` para cualquier otro grupo (ciudadano u oficial) |
+| Ruta de ciudadano o de `/ops` sin sesión válida | Redirige a `/acceso` y borra la cookie vencida |
+| `/ops/*` con sesión que no es de dispatcher (ciudadano, oficial o sin grupos) | Redirige a `/inicio` |
+| `/inicio`, `/reportar`, `/mis-alertas/*` o `/perfil/*` con sesión de dispatcher | Redirige a `/ops` |
+| Todo lo demás | Pasa |
+
+El filtro por rol es de navegación: evita que cada usuario caiga en pantallas que no son suyas. La autorización real la hace el backend en cada request.
+
+Dos cosas a tener en cuenta:
+
+- `/api/geocode` no exige sesión. El comentario del route dice que sí, pero ni el middleware ni el route lo chequean.
+- En Next 16 la convención `middleware` está deprecada en favor de `proxy` (`next build` lo avisa). Sigue funcionando y el renombre queda pendiente.
 
 ---
 
-## Desarrollo desde otra máquina
+## Login y sesión
 
-Si corrés el dev server en una PC y accedés desde otra:
+**Email y contraseña.** Es el login principal. `/acceso` llama a `/api/auth/login` con `{email, password}`, y el BFF lo manda a `POST /auth/login` del backend, que valida contra `auth_users` (contraseñas con bcrypt). El registro (`/api/auth/register`) crea el usuario y deja la sesión iniciada.
 
-```js
-// next.config.mjs
-experimental: {
-  allowedDevOrigins: ["192.168.X.X"],  // IP de la máquina desde la que accedés
-}
-```
+**Atajos demo** en `/acceso`:
 
-Sin esto, Next.js 15 devuelve **403** en los chunks `/_next/*`: la página carga el HTML pero React nunca hidrata (botones muertos, sin errores visibles).
-
----
-
-## Deploy
-
-### Producción (Render)
-
-El CD (`.github/workflows/cd.yml`) dispara el deploy hook en cada push a `main`.
-
-Variables de entorno requeridas:
-
-| Variable | Ejemplo | Descripción |
+| Atajo | Qué hace | Backend |
 |---|---|---|
-| `API_URL` | `https://emergencias-backend-34go.onrender.com` | URL del backend Express |
-| `NODE_ENV` | `production` | Activa cookies `Secure` y build optimizado |
-| `BACKEND_WARMUP_PATH` | `/health` | Ruta que pega `/api/warmup` para despertar el backend |
-| `BACKEND_WARMUP` | (vacío / `off`) | Poner `off` cuando el backend sea always-on |
+| Chip **JuanPanico** | Rellena `juanpanico@gmail.com` y la contraseña `abracadabra` | `POST /auth/login` |
+| Chip **LuciaTranquila** | Rellena `luciatranquila@gmail.com` y `abracadabra` | `POST /auth/login` |
+| **Iniciar con cuenta ciudadana** | Entra como `U000042` (ciudadano sin botón SOS) | `POST /auth/dev/login` con `sub` |
+| **Vista Dispatcher** | Entra como `DISP-Demo001` (dispatcher) | `POST /auth/dev/login` con `sub` |
 
-### Docker
-
-```bash
-docker build -t emergencias-frontend .
-docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergencias-frontend
-```
+- **La contraseña demo está en el bundle de JS.** `fillDemo` en `app/acceso/AccesoForm.js` tiene `"abracadabra"` escrito en el código, así que cualquiera que abra las DevTools la ve. Son cuentas públicas de demo, sembradas por la migración V16 del backend. No reutilizar esa contraseña en ningún lado.
+- `/auth/dev/login` exige `sub`. Con `NODE_ENV=production` o `DEV_LOGIN_STRICT=true` en el backend, solo acepta los `sub` de su allowlist demo (`U000042`, `CIT-JuanPanico`, `CIT-LuciaTranquila`, `DISP-Demo001`, `of-001` y `of-002`). Si no, acepta cualquiera.
+- `hasAntipanicButton` sale del backend (`GET /api/user`) porque `ANTIPANIC_MODE = "backend"` en `app/lib/features.js`. El modo `"mock"` es solo para demos locales sin backend.
+- `loginMethod` (`"sesion"` o `"anonima"`) existe solo en el front, en `sessionStorage`. No viaja al backend.
 
 ---
 
-## Tests y Calidad de Código
+## Ciudadano y dispatcher
 
-El frontend implementa una estrategia de pruebas que desacopla la lógica pura de la integración del BFF, aplicando un **Quality Gate del 80% exclusivamente sobre librerías unitarias**:
-
-```bash
-npm run test:coverage     # Tests unitarios con reporte (Quality Gate: 80% de cobertura sobre librerías)
-npm run test:integration  # Tests de integración del BFF (Route Handlers en tests/integration/)
-npm test                  # Tests unitarios en una sola corrida sin reporte de cobertura
-npm run test:watch        # Tests unitarios en modo interactivo (watch)
-```
-
-> 📌 **Detalle de la estrategia:** Para consultar el alcance exacto del umbral del 80%, la documentación separada de los tests de integración del BFF y la declaración formal de deuda técnica por ausencia de tests E2E, dirigirse a la sección [Estrategia de testing, Quality Gate y Deuda Técnica](#estrategia-de-testing-quality-gate-y-deuda-técnica).
-
----
-
-## Estructura de archivos clave
-
-```
-Frontend/
-├── middleware.js              # Guard de sesión activa (la autorización de roles reside en el backend)
-├── lib/
-│   ├── session.js             # JWT, cookie options, userFromJwt
-│   ├── backend-fetch.js       # fetch con retry (cold start Render)
-│   └── auth.js                # Re-exports de auth-roles
-└── app/
-    ├── acceso/
-    │   └── AccesoForm.js      # Login / signup / forgot-password
-    ├── api/
-    │   └── auth/
-    │       ├── login/         # POST — emite cookie de sesión
-    │       ├── logout/        # POST — borra cookie
-    │       ├── session/       # GET  — devuelve user actual
-    │       ├── register/      # POST — alta email+password (BFF → /auth/register)
-    │       └── forgot-password/ # POST — stub mock 200
-    ├── (citizen)/
-    │   ├── inicio/            # Home ciudadano + botón antipánico
-    │   ├── mis-alertas/       # Listado y detalle en tiempo real ([id])
-    │   └── perfil/            # Perfil + CTA Sign Up
-    ├── ops/                   # Vista dispatcher (Kanban "Estados", lista, mapa, historial)
-    ├── components/
-    │   ├── civic/             # MaterialIcon, PanicButton, etc.
-    │   └── DispatcherView.js  # Kanban completo del dispatcher
-    └── lib/
-        ├── api.js             # Todos los fetch al BFF (loginDev, fetchEmergencies…)
-        ├── auth-roles.js      # isDispatcher, isCitizen, getHomePathForUser
-        ├── features.js        # Feature flags + DEMO_ACCOUNTS + DISPATCHER_DEMO
-        └── emergencies.js     # Lógica de negocio pura (sin hooks)
-```
-
-
-
-
----
-
-<!-- ============================================================== -->
-<!-- DOCUMENTACIÓN DEL PROYECTO CITYPASS+ - FRONTEND                  -->
-<!-- ============================================================== -->
-
-# CityPass+ — Frontend
-
-Responsive Web App de gestión de servicios urbanos. Este repositorio contiene exclusivamente el **frontend**, construido con Next.js y Mantine UI.
-
-## Deploy y Docker
-
-### Producción (Render)
-
-El frontend corre en Render como web service Node (ver `render.yaml`). El CD
-(`.github/workflows/cd.yml`) dispara el deploy hook en cada push a `main`.
-
-Variables de entorno del servicio:
-
-| Variable | Valor | Para qué |
-|---|---|---|
-| `API_URL` | `https://emergencias-backend-34go.onrender.com` | URL del backend que usan el BFF y el login desde el servidor |
-| `NODE_ENV` | `production` | Cookies `secure`, build optimizado |
-| `BACKEND_WARMUP_PATH` | `/health` | Endpoint que pega `/api/warmup` para despertar el backend |
-| `BACKEND_WARMUP` | (vacío) | Poner `off` cuando el backend sea always-on |
-
-`next start` escucha en `$PORT` (Render lo define) y cae a 3001 en local.
-
-### Docker
-
-```bash
-docker build -t emergencias-frontend .
-docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergencias-frontend
-# http://localhost:3001
-```
-
-`host.docker.internal` apunta al backend corriendo en la máquina host; si el
-backend también está en Docker, usar el nombre del servicio de la red.
-
-## Stack tecnológico
-
-| Tecnología | Versión | Uso |
-|---|---|---|
-| **Next.js** | 16.3.3 | Framework React (App Router) |
-| **React** | 19.2.8 | UI library |
-| **Mantine** | latest | Sistema de componentes y CSS |
-| **@tabler/icons-react** | latest | Iconografía |
-| **PostCSS** | latest | Procesamiento CSS requerido por Mantine |
-
-## Estructura de archivos
-
-```
-Frontend/
-├── package.json               # Dependencias y scripts (npm run dev)
-├── package-lock.json
-├── next.config.mjs            # Configuración de Next.js
-├── postcss.config.mjs         # PostCSS requerido por Mantine
-├── eslint.config.mjs          # Configuración de ESLint
-├── jsconfig.json              # Alias de paths para JS
-├── AGENTS.md                  # Reglas para agentes IA (auto-generado por Next.js)
-├── CLAUDE.md
-├── README.md                  # Esta documentación
-│
-├── public/
-│   └── Images/                # Assets estáticos (logos e imágenes del navbar)
-│
-└── app/
-    ├── layout.js              # Root layout: MantineProvider (light), Notifications
-    ├── page.js                # Orquestador: maneja rol (usuario/dispatcher) y navegac    ├── components/
-    │   ├── Navbar.js             # Sidebar de navegación con secciones Servicios y Cuenta
-    │   ├── PanicButton.js        # Botón de pánico (vista Usuario)
-    │   ├── EmergencyCard.js      # Tarjeta individual de emergencia
-    │   ├── DispatcherView.js     # Vista Dispatcher: tablero Kanban (estados/criticidad) + polling
-    │   ├── ViewToggle.js         # Botón para alternar vistas (Estado vs Criticidad)
-    │   └── AssignOfficerModal.js # Modal de asignación de oficial a emergencias validadas
-    │
-    └── lib/
-        └── api.js                # Config backend, STATUS_CONFIG, SEVERITY_CONFIG, mocks, officers y fetch
-```
-
-## Vistas
-
-### Vista Usuario / Ciudadano (Botón de Pánico / SOS)
-
-- **Comportamiento demostrable visualmente en la interfaz:**
-  - El botón de pánico se ubica de forma central y destacada en `/inicio` (`app/(citizen)/inicio/InicioClient.js`).
-  - Al presionarse, inicia una cuenta regresiva visible de 3 segundos con efecto visual pulsante.
-  - El botón "Cancelar" se enfoca de inmediato en pantalla y permite interrumpir el conteo en cualquier momento (operable también mediante la tecla `Escape`).
-  - La UI exhibe claramente las transiciones de estado: cuenta regresiva activa, indicador de envío y toasts de confirmación o fallo.
-- **Geolocalización y despacho al backend:** Obtiene la posición real del dispositivo (con fallback CABA) y resuelve la dirección aproximada vía geocodificación inversa (`lib/geocoding.js`), enviando `POST /api/backend/api/panic-button` a través de `triggerPanicButton` en `app/lib/api.js`.
-- **Lógica desacoplada y testeable:** La máquina de estados y timers del SOS reside en `app/lib/sosController.js`, testeada con timers simulados en `tests/sos-controller.test.js`.
-- *(Alcance:* Se documentan únicamente los atributos observables y demostrables en la interfaz; no se declaran niveles de contraste certificados ni métricas formales de accesibilidad al no contar con mediciones automatizadas en el pipeline).*
-
-**Payload de emergencia enviado al backend:**
+**SOS (`/inicio`).** Al tocar el botón arranca una cuenta regresiva de 3 s, cancelable con el botón o con Escape (`app/lib/sosController.js`). Después pide la ubicación del dispositivo y busca la dirección, con un tope de 2,5 s para no demorar la alerta, y manda:
 
 ```json
+POST /api/backend/api/panic-button
 {
-  "latitude": -34.6037,
-  "longitude": -58.3816,
+  "location": { "latitude": -34.6037, "longitude": -58.3816 },
   "severity": "critical",
   "emergencyType": "panic",
   "address": "Av. Corrientes 1234, CABA"
 }
 ```
 
-### Vista Dispatcher
+- Si no hay geolocalización (sin permiso, sin soporte o timeout), la alerta se aborta y se avisa. Nunca se mandan coordenadas inventadas.
+- `/reportar` usa el mismo endpoint con `emergencyType` `medical`, `fire`, `infrastructure`, `disturbance` u `other`. El backend los normaliza a su catálogo (`MEDICA`, `INCENDIO`, ...) y deriva la severidad del tipo: ignora el `severity` que manda el front.
 
-- Se accede haciendo clic en **"Mi Cuenta"** en el navbar (alterna entre Usuario y Dispatcher), o mediante el botón demo de la pantalla de login.
-- **RF-01 (Polling periódico optimizado):** Implementa un `setInterval` que consulta periódicamente (cada 1 minuto / 60 segundos via `POLLING_INTERVAL_MS = 60_000`) las emergencias mediante `fetchEmergencies()` ejecutando un `GET /api/emergencies`.
-- **RF-02 (Merge incremental en memoria):** Al recibir los datos, compara los IDs entrantes contra el estado en memoria y agrega únicamente los casos nuevos (`[...newItems, ...currentList]`), sin resetear ni sobrescribir las emergencias existentes que el Dispatcher ya está visualizando.
-- **RF-03 (Re-render reactivo):** Al actualizarse el estado en memoria, la columna correspondiente (ej. *Pendientes*) y las métricas se re-renderizan automáticamente.
-- **RF-04 (Animación de atención visual):** Aplica una animación temporal de parpadeo/pulso con reborde rojo y badge `"NUEVO"` a las tarjetas recién agregadas durante 6 segundos.
-- **RF-05 (Botón Asignar Oficial):** Las tarjetas en estado `validada` renderizan exclusivamente un botón naranja *"Asignar Oficial"*.
-- **RF-06 (Consulta de oficiales y Modal):** Al presionar *"Asignar Oficial"*, se realiza una consulta `GET /api/officers` y se abre un modal con los oficiales disponibles, su ubicación y distancia.
-- **RF-07 (Confirmación y PATCH):** Al seleccionar un oficial y confirmar, se envía un `PATCH /api/emergencies/:id` con `{ officerId, status: "despachada", assignedOfficer }`.
-- **RF-08 (Transición a Despachada):** Con respuesta exitosa (HTTP 200), el estado local de la emergencia se actualiza a `despachada`, moviéndose automáticamente a la columna **Despachadas** y exhibiendo el badge del oficial asignado.
-- **Tarjetas de métricas interactivas y filtros (`/ops/lista` y `/ops/historial`):** Selección clickeable en métricas para filtrar emergencias y barra de búsqueda multi-campo reactiva.
-- **Ordenamiento por columnas de 3 estados:** En encabezados de tabla (Ascendente `▲`, Descendente `▼`, Sin ordenar `○`).
-- **Herramienta de simulación por consola:** Se expone `window.simularNuevaEmergencia(description, severity)` y `window.mockDatabase` para inyectar emergencias en vivo desde la consola del navegador y observar el flujo en tiempo real:
-  ```javascript
-  window.simularNuevaEmergencia("Incendio en depósito químico", "high");
-  ```
-- **Vistas Kanban alternables (RF-08, RF-09, RF-09.2):** Botón toggle para alternar entre **Emergencias por Estado** (7 columnas) y **Emergencias por Criticidad** (3 columnas con ancho 100%).
-- **Scroll vertical independiente:** Cada columna cuenta con scroll interno para soportar decenas de emergencias sin romper el diseño del tablero.
+**Estados.** Son los de la máquina de estados del backend (`src/domain/emergency-status.js`):
 
-## Integración con backend
-
-Toda la lógica de comunicación está centralizada en `app/lib/api.js`.
-
-### Configuración
-
-```js
-// app/lib/api.js
-export const USE_BACKEND = true;                 // false = todo mockeado (sin backend)
-export const POLLING_INTERVAL_MS = 60_000;       // intervalo de polling del dispatcher (1 min)
-export const CITIZEN_POLLING_INTERVAL_MS = 5_000; // intervalo de polling del ciudadano (5 s)
+```
+PENDING ──► VALIDATED ──► DISPATCHED ──► EN_ROUTE ──► ON_SCENE ──► RESOLVED ──► CLOSED
+   │            │              │
+   │            │              └──► VALIDATED   (devolver para reasignar)
+   ├──► CANCELLED ◄──┘   (el ciudadano cancela desde PENDING o VALIDATED)
+   └──► DISCARDED        (el dispatcher descarta desde PENDING)
 ```
 
-**Decisión arquitectónica de sincronización:** Se adoptó **Polling periódico** como la **decisión arquitectónica actual** para la sincronización de estado (60 s en vistas operativas del dispatcher y 5 s en el detalle de alertas del ciudadano, con suspensión en segundo plano vía `document.visibilitychange`). Esta arquitectura prioriza simplicidad de despliegue, tolerancia a caídas temporales y bajo consumo de infraestructura sin mantener conexiones abiertas permanentes. La adopción de **Server-Sent Events (SSE) o WebSockets queda documentada como una evolución futura** para etapas posteriores donde el volumen de despacho o la concurrencia requieran streaming bidireccional o eventos push con latencia sub-segundo.
-
-**URL del backend:** no está hardcodeada. Se asume que el backend corre en la **misma máquina que el front, puerto 4000**, y se arma con el hostname con el que abriste la página (`http://<hostname>:4000/api`). Para apuntar a otro lado: `NEXT_PUBLIC_API_URL=http://otro-host:4000/api npm run dev`.
-
-### Endpoints y Contratos
-
-#### 1. `GET /api/emergencies`
-Retorna el array de emergencias activas:
-```json
-[
-  {
-    "id": "em-001",
-    "userId": "user-101",
-    "description": "Accidente de tránsito en Av. Corrientes y Callao",
-    "severity": "high",
-    "status": "pendiente",
-    "location": { "lat": -34.6042, "lng": -58.3922 },
-    "timestamp": "2026-08-25T22:10:00-03:00"
-  }
-]
-```
-
-#### 2. `GET /api/officers`
-Retorna el listado de oficiales disponibles para asignación:
-```json
-[
-  {
-    "id": "of-001",
-    "name": "Oficial Carlos Gómez",
-    "badgeNumber": "CP-4021",
-    "location": "Av. 9 de Julio y Corrientes",
-    "distance": "350 m",
-    "status": "disponible"
-  }
-]
-```
-
-#### 3. `PATCH /api/emergencies/:id`
-Asigna un oficial a una emergencia validada y actualiza su estado:
-```json
-{
-  "officerId": "of-002",
-  "status": "despachada",
-  "assignedOfficer": "Oficial Mariana López"
-}
-```
-
-### Niveles de severidad (`severity`)
-
-| Clave | Color | Label |
-|---|---|---|
-| `high` | Naranja | Alta |
-| `medium` | Amarillo | Media |
-| `low` | Azul | Baja |
-
-### Estados (`status`)
-
-| Clave | Color | Label |
-|---|---|---|
-| `pendiente` | Rojo | Pendientes |
-| `validada` | Naranja | Validadas |
-| `despachada` | Amarillo | Despachadas |
-| `en_camino` | Cian | En Camino |
-| `en_lugar` | Índigo | En Lugar |
-| `resuelta` | Verde azulado | Resuelta |
-| `cerrada` | Gris | Cerrada |
-
-## Desarrollo: dev server accedido desde otra máquina
-
-Aprendizajes de correr el front en un server y abrirlo desde otra computadora:
-
-- **Puerto:** `npm run dev -- -p 4001` si el 3000 está ocupado.
-- **`allowedDevOrigins` es obligatorio para acceso por IP:** el dev server de Next 16 responde **403 en `/_next/*`** (los chunks de JS) cuando el host de la request no es `localhost`. El síntoma es traicionero: la página carga el HTML y se ve bien, pero React nunca hidrata — botones muertos, sin toasts, sin errores en pantalla; solo se ve en la consola del browser (`net::ERR_ABORTED 403` en los chunks y el websocket de HMR caído). La IP desde la que accedés tiene que estar en `allowedDevOrigins` en `next.config.mjs`.
-- Los cambios en `next.config.mjs` requieren reiniciar el dev server (no los toma el hot reload).
-
-## Estrategia de testing, Quality Gate y Deuda Técnica
-
-La arquitectura de pruebas del frontend está estructurada separando con claridad las responsabilidades de cada suite, estableciendo un **Quality Gate del 80% sobre librerías unitarias**, **documentando por separado los tests de integración del BFF** y **declarando formalmente la falta de tests E2E como deuda técnica**.
-
-| Nivel | Qué evalúa | Configuración | Quality Gate / Umbral | Comando |
-|---|---|---|---|---|
-| **Unitario** | Funciones puras de lógica y utilidades (`lib/**`, `app/lib/**`) | `vitest.config.mjs` | **80% sobre librerías unitarias** (Statements, Branches, Functions, Lines) | `npm run test:coverage` |
-| **Integración del BFF** | Route Handlers del BFF (`app/api/**/route.js`) con `Request` real | `vitest.integration.config.mjs` | Sin umbral de cobertura (validación funcional de endpoints) | `npm run test:integration` |
-| **E2E / UI** | Flujos completos de usuario en navegador real | *Pendiente (Playwright)* | **Deuda técnica declarada** (sin tests automatizados actualmente) | *(Manual por checklist)* |
-
-Ambas suites automatizadas corren en el pipeline de CI (`.github/workflows/ci.yml`, job `lint-and-test`): primero se ejecutan los tests unitarios verificando el cumplimiento estricto del umbral del 80%, y a continuación se ejecutan los tests de integración del BFF.
-
-> **Alcance:** los tests de "integración del BFF" no son integración end-to-end. Ejercitan los handlers de `app/api/**/route.js` con `Request` reales, pero mockean `global.fetch` (backend), `next/headers` (cookies) y no levantan servidor HTTP ni backend real. Prueban que el BFF arma bien los requests al backend y traduce respuestas correctamente. Integración real contra Render/backend real queda como deuda (Playwright o smoke E2E, ver la sección 3).
+Desde el front, el ciudadano cancela y el dispatcher valida, descarta y asigna oficial. `app/lib/emergencies.js` además acepta para mostrar algunos alias viejos que el backend no emite: `CREATED` (default de la tabla antes de la migración V5), `ON_SITE` y los nombres en minúscula y en castellano.
 
 ---
 
-### 1. Tests Unitarios y Quality Gate (80% sobre librerías unitarias)
+## Tests y cobertura
 
-> [!IMPORTANT]
-> **Definición del Quality Gate:** El umbral del 80% configurado en `vitest.config.mjs`, exigido en CI y reportado en SonarCloud aplica **exclusivamente sobre librerías unitarias** (`lib/**` y `app/lib/**`), **no sobre todo el frontend**.
->
-> Afirmar que el frontend tiene un 80% de cobertura global es un error conceptual: los componentes visuales de React, las páginas y los layouts no forman parte de este umbral.
-
-#### Scope del umbral 80%
-
-El threshold del 80% en las 4 métricas (Statements, Branches, Functions, Lines) cubre de forma estricta la lógica de negocio pura y utilidades contenidas en:
-- `lib/**/*.js`: funciones puras de servidor / utilidades de infraestructura (ej. decodificación de JWT y sesión en `session.js`, reintentos de cold start en `backend-fetch.js`, store reactivo en `backend-waiting-store.js`).
-- `app/lib/**/*.js`: funciones puras de cliente sin acoplamiento a React (ej. cálculo de criticidades y estados en `emergencies.js`, banderas y cuentas demo en `features.js`, gestión de datos personales y ubicaciones guardadas).
-
-#### Exclusiones del umbral de librerías
-Incluso dentro de las carpetas de librerías, quedan **excluidas por diseño** (`coverage.exclude` en `vitest.config.mjs`) aquellos módulos acoplados al navegador o que corresponden conceptualmente a integración:
-
-| Archivo excluido | Motivo de exclusión |
-|---|---|
-| `app/lib/auth.js` | Browser-only (`sessionStorage`, `window`), no unit-testable en entorno Node. |
-| `app/lib/api.js` | Cliente HTTP acoplado a redirecciones de `window.location`; su comportamiento se valida en integración. |
-| `app/lib/geocoding.js` | Fetch de cliente con caché en memoria del navegador; testeado mediante mocks de integración. |
-
-> **Nota:** `app/lib/features.js` estuvo inicialmente excluido mientras contenía solo constantes estáticas. Tras agregarse la función utilitaria `findDemoAccount()` (PR #38, Log-in-funcional), se retiró del exclude y quedó formalmente bajo el umbral del 80% junto a su suite `tests/features.test.js`.
-
-#### Elementos del frontend que NO están bajo el Quality Gate Unitario
-Para total claridad técnica, lo siguiente queda fuera del umbral del 80% de unit tests:
-- **Componentes React (`app/components/**`):** Botones, modales, vistas complejas (`DispatcherView.js`), tarjetas de emergencia. No cuentan con tests unitarios basados en DOM virtual.
-- **Páginas y Layouts (`app/**/page.js`, `app/**/layout.js`):** Enrutamiento y estructura visual del App Router de Next.js.
-- **Route Handlers (`app/api/**/route.js`):** Endpoints del BFF, cuya validación se realiza en la suite de integración sin cómputo de porcentaje de cobertura unitaria.
-- **Configuración SonarCloud:** La propiedad `sonar.sources=lib,app/lib` en `sonar-project.properties` formaliza que el análisis estático y de cobertura del repositorio audita exclusivamente las librerías unitarias.
-
----
-
-### 2. Tests de Integración del BFF (Documentados por separado)
-
-Los tests de integración viven en `tests/integration/` y se gestionan como una **suite completamente separada** de los tests unitarios.
-
-#### Propósito y diferenciación técnica
-A diferencia de los tests unitarios que aíslan funciones puras, los tests de integración evalúan el funcionamiento completo de los **Route Handlers del BFF** (`app/api/**/route.js`).
-Verifican:
-- El procesamiento de peticiones HTTP invocando directamente los handlers exportados (`GET`, `POST`) con instancias reales de `Request` de la Web API.
-- La lectura, emisión y borrado seguro de la cookie `citypass_session` (`httpOnly`, `sameSite: lax`).
-- El reenvío transparente de peticiones y headers hacia el backend de Express (incluyendo `Authorization: Bearer <token>` e `Idempotency-Key`).
-- La absorción de códigos de error y respuestas de contingencia (401 por sesión expirada, 502/503 por cold start de Render).
-
-#### Configuración separada (`vitest.integration.config.mjs`)
-Los tests de integración cuentan con su propia configuración dedicada:
-- **Aislamiento de métricas:** No se ejecutan con `--coverage` ni aportan al threshold del 80% de unit tests, evitando distorsionar las métricas de lógica pura.
-- **Resolución de alias `@/`:** Configura `resolve.alias` apuntando a la raíz del proyecto para resolver los imports absolutos de Next.js (`@/...`), necesario porque Vitest no utiliza el `jsconfig.json` del editor.
-- **Entorno `node`:** Se ejecutan en Node.js sin necesidad de levantar un servidor HTTP en un puerto real, logrando máxima velocidad y reproducibilidad en CI.
-
-Comando de ejecución:
 ```bash
-npm run test:integration
+npm run test:coverage     # unitarios + cobertura con umbral del 80%
+npm run test:integration  # integración del BFF
 ```
 
-#### Helpers de integración (`tests/integration/helpers.js`)
-Para testear los Route Handlers fuera del runtime de Next.js, se utilizan helpers especializados:
+| Suite | Qué cubre | Config | Umbral |
+|---|---|---|---|
+| Unitarios | `lib/**`, `app/lib/**` (menos `app/lib/auth.js`, que depende de `sessionStorage`) y `middleware.js` | `vitest.config.mjs` | 80% en statements, branches, functions y lines |
+| Integración del BFF | Route Handlers de `app/api/**` invocados con `Request` reales | `vitest.integration.config.mjs` | Sin umbral |
 
-1. **`mockNextCookies(cookiesFn, initial?)`:**
-   Mapea `cookies()` de `next/headers` a un jar de cookies en memoria. Permite verificar que el handler lea (`get`), guarde (`set`) o destruya (`delete`) cookies como `citypass_session` sin requerir una conexión HTTP activa.
-   > Se requiere declarar `vi.mock("next/headers", () => ({ cookies: vi.fn() }))` al tope del archivo de test.
-2. **`mockBackend(routes)`:**
-   Intercepta `global.fetch` para simular las respuestas del backend Express mediante un mapa `"METODO /path": respuesta`. Permite testear secuencias de respuestas (ej. `[502, 502, 200]` para comprobar los reintentos automáticos de `lib/backend-fetch.js`) y expone `{ calls }` para validar los headers, URLs y payloads enviados.
-3. **`makeRequest(url, { method, body, headers })`:**
-   Genera una instancia de `Request` estándar con body JSON y encabezados adecuados para pasarla directamente al Route Handler.
+Números al 05/11/2026 (Node 22): **259 tests unitarios** en 15 archivos y **29 de integración** en 5. Cobertura de unit: **97,28% statements, 88,86% branches, 97,98% functions y 99,14% lines**. `middleware.js` está al 100%.
 
-#### Cobertura actual de la suite de integración
-La suite de integración actual cubre los siguientes flujos clave del BFF:
-- **`login.test.js`:** Endpoint `POST /api/auth/login`. Valida la autenticación, la recepción del token del backend y la emisión de la cookie de sesión protegida.
-- **`session.test.js`:** Endpoint `GET /api/auth/session`. Valida la lectura de la cookie activa y la devolución del usuario autenticado.
-- **`backend-proxy.test.js`:** Proxy genérico `ALL /api/backend/[...path]`. Valida el reenvío de peticiones al backend agregando el token de sesión y tolerando fallos de red.
-- **`geocode.test.js`:** Endpoints de geocodificación del BFF. Valida la normalización y respuesta de coordenadas.
-
-#### Cómo agregar un caso de integración nuevo
-Ejemplo estándar para probar un Route Handler:
-
-```js
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
-import { cookies } from "next/headers";
-import { POST } from "../../app/api/auth/login/route.js";
-import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
-
-it("autentica con éxito y emite cookie de sesión", async () => {
-  mockNextCookies(cookies);
-  mockBackend({
-    "POST /auth/dev/login": { status: 200, body: { access_token: "jwt-de-prueba" } }
-  });
-
-  const res = await POST(makeRequest("http://localhost/api/auth/login", {
-    method: "POST",
-    body: { email: "ciudadano@demo.com", password: "pass" },
-  }));
-
-  expect(res.status).toBe(200);
-});
-```
+- Las dos suites corren en entorno `node` y pasan en Node 20, 22 y 24. Desde Node 21, `navigator` es un global de solo lectura: los tests que lo necesitan usan `vi.stubGlobal` y lo restauran con `vi.unstubAllGlobals()`.
+- Los tests de integración (`tests/integration/`) mockean `global.fetch` (el backend) y `next/headers` (las cookies) con los helpers de `tests/integration/helpers.js`. No levantan servidor ni backend real. Cubren login (email y contraseña, y atajos demo con `sub`), registro, sesión, el proxy y geocode. Quedan sin test `logout`, `warmup` y `forgot-password`.
+- El umbral del 80% es sobre las librerías y el middleware, no sobre todo el frontend. Los componentes React, las páginas y los layouts no tienen tests.
+- SonarCloud analiza `lib` y `app/lib` (`sonar.sources` en `sonar-project.properties`). Todavía no incluye `middleware.js`.
+- **Deuda declarada:** no hay tests E2E ni de componentes (ni Playwright ni Testing Library), ni smoke tests contra el deploy. Antes de cada demo se prueba a mano: login de cada rol, SOS, validar, asignar y descartar.
 
 ---
 
-### 3. Declaración de Deuda Técnica: Falta de Tests End-to-End (E2E)
+## CI/CD y deploy
 
-> [!CAUTION]
-> **Declaración formal de Deuda Técnica:**
-> El proyecto reconoce y documenta de forma explícita la **ausencia de tests automatizados End-to-End (E2E) y de pruebas de componentes en navegador** como una **deuda técnica asumida**.
+- **CI** (`.github/workflows/ci.yml`) corre en cada PR a `main` y en cada push a `main`, sobre **Node 22**. Valida que el PR tenga título y descripción, y después corre `npm ci`, lint, build, tests unitarios con cobertura y tests de integración. Publica la cobertura en el resumen del run y en un comentario del PR. SonarCloud corre si existe `SONAR_TOKEN` y no bloquea. Si algo falla, avisa por mail.
+- **CD** (`.github/workflows/cd.yml`) se dispara cuando termina un CI de un push a `main`. Si salió bien, llama al deploy hook de Render. No instala Node.
+- **Activate backup** (`.github/workflows/activate-backup.yml`) es manual: despliega el frontend de respaldo y espera a que `/api/warmup` responda `warmed: true`.
+- **Render** (`render.yaml`): build `npm ci && npm run build`, start `npm run start`, health check `/acceso`. Render toma la versión de Node de `engines` en `package.json` (`22.x`), salvo que el servicio tenga `NODE_VERSION` configurada.
 
-#### Justificación y contexto de la deuda
-Durante los sprints del MVP se priorizó asegurar la lógica pura de negocio mediante el Quality Gate del 80% en librerías unitarias y la estabilidad de la capa de transporte mediante tests de integración del BFF.
+Docker (la misma receta, con `node:22-alpine`):
 
-La automatización de pruebas E2E con navegadores reales (Playwright/Cypress) requiere desplegar y orquestar en CI el entorno completo (base de datos relacional, backend en Express, servicio de Next.js y navegadores headless con soporte de WebSockets/polling). Esta inversión de tiempo fue postergada conscientemente para priorizar la funcionalidad completa del sistema.
+```bash
+docker build -t emergencias-frontend .
+docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergencias-frontend
+```
 
-#### Matriz de alcance actual y Deuda Técnica
-
-| Nivel de prueba | ¿Está automatizado? | Situación en el repositorio |
-|---|---|---|
-| **Librerías Unitarias (funciones puras)** | ✅ Sí | Umbral obligatorio del 80% en CI sobre `lib/**` y `app/lib/**`. |
-| **Integración BFF (Route Handlers)** | ✅ Sí | Suite independiente `tests/integration/` con mocks de cookies y backend. |
-| **Componentes UI (React)** | ❌ No (**Deuda técnica**) | Sin `@testing-library/react` ni entorno `jsdom`/`happy-dom`. |
-| **E2E / Interfaz en Navegador** | ❌ No (**Deuda técnica**) | Sin Playwright ni Cypress. Sin script `test:e2e` en `package.json`. |
-| **Smoke test contra Producción** | ❌ No (**Deuda técnica**) | Sin scripts automáticos interactuando con la URL desplegada en Render. |
-| **Regresión Visual y Accesibilidad** | ❌ No (**Deuda técnica**) | Sin snapshots (Percy/Chromatic) ni auditorías axe en CI. |
-
-#### Mitigación actual (Validación Manual)
-Previo a demostraciones y entregas, la interfaz gráfica y los flujos integrados se validan **manualmente** mediante un checklist de humo:
-1. Verificación en entorno local (`npm run dev`): disparo del Botón Antipánico, visualización de alerta en el Kanban `/ops`, modal de asignación de oficial y descarte.
-2. Verificación en despliegue activo (Render): inicio de sesión de roles demo, renderizado de mapas interactivos con Leaflet y toasts de Mantine Notifications.
-
-#### Plan de pago de deuda técnica (Roadmap Playwright)
-Para saldar esta deuda técnica, el roadmap del equipo contempla:
-1. **Configuración de Playwright:** Incorporar `@playwright/test` y definir `playwright.config.js` con soporte para navegadores Chromium y Firefox.
-2. **Implementación de 3 flujos críticos automatizados:**
-   - **Flujo Ciudadano:** Inicio de sesión, activación del Botón Antipánico (SOS) y verificación de la alerta en `/mis-alertas`.
-   - **Flujo Despachador:** Acceso al tablero Kanban `/ops`, movimiento de columnas de incidentes y asignación de oficiales.
-   - **Flujo de Seguridad (Middleware):** Verificación de redirecciones al intentar acceder a rutas privadas sin cookie de sesión activa.
-3. **Pipeline en CI:** Ejecución de smoke tests E2E contra el entorno de staging de Render en cada merge a la rama `main`.
+`host.docker.internal` apunta al backend que corre en la máquina host. Si el backend también corre en Docker, usar el nombre del servicio en la red.
 
 ---
 
-### Resumen para revisiones técnicas y defensas
-- **Quality Gate:** El 80% aplica **sobre librerías unitarias** (`lib/**` + `app/lib/**` menos exclusiones), **nunca sobre todo el frontend**.
-- **Tests de Integración del BFF:** Se gestionan y documentan por separado; prueban el BFF sin estar atados al umbral de unit. Hoy cubren login, session, el proxy `/api/backend/[...path]` y geocode; quedan pendientes `logout` y `warmup`.
-- **Tests E2E:** No existen en esta etapa; su ausencia está formalmente registrada como **deuda técnica asumida**, con Playwright como tecnología elegida para su pago.
+## Dev server desde otra máquina
+
+El dev server de Next responde **403 en `/_next/*`** cuando el host del request no es `localhost`. La página carga el HTML pero React nunca hidrata: los botones no hacen nada y no aparecen errores en pantalla, solo en la consola del navegador. La IP desde la que se accede tiene que estar en `allowedDevOrigins` de `next.config.mjs`, que hoy tiene la IP de Tailscale y la de la LAN del equipo. Los cambios en `next.config.mjs` requieren reiniciar el dev server.
+
+---
+
+## Estructura
+
+```
+├── middleware.js             guard de sesión y de rol
+├── lib/                      solo servidor
+│   ├── session.js            cookie, API_URL, lectura del JWT
+│   ├── jwt.js                decode y vencimiento (sin verificar firma)
+│   ├── backend-fetch.js      reintentos e Idempotency-Key
+│   └── geocode-server.js     geocoding con caché y cola
+├── app/
+│   ├── acceso/               login, registro y atajos demo
+│   ├── (citizen)/            inicio, reportar, mis-alertas, perfil
+│   ├── ops/                  vistas del dispatcher
+│   ├── api/                  BFF: auth, backend (proxy), geocode, warmup
+│   ├── components/           componentes compartidos, civic/ y ops/
+│   └── lib/                  lógica de cliente sin React: api.js, emergencies.js,
+│                             features.js, sosController.js, auth-roles.js, ...
+└── tests/                    unitarios; tests/integration/ es el BFF
+```

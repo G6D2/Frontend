@@ -78,8 +78,8 @@ function normalizePath(url) {
  * reintentos de `fetchBackend` (ej. [502, 502, 200]).
  *
  * Devuelve `{ calls }`, un array que registra cada invocación
- * `{ method, url, path, headers, body }` para poder assertar sobre lo que el
- * BFF le mandó al backend.
+ * `{ method, url, path, headers, body, signal }` para poder assertar sobre lo
+ * que el BFF le mandó al backend.
  */
 export function mockBackend(routes) {
   const calls = [];
@@ -121,7 +121,7 @@ export function mockBackend(routes) {
       headers = { ...init.headers };
     }
 
-    calls.push({ method, url, path, headers, body: init.body });
+    calls.push({ method, url, path, headers, body: init.body, signal: init.signal });
 
     const table = routes[key];
     if (!table) {

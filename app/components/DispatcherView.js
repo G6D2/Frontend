@@ -1,21 +1,33 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ActionIcon, Badge, Group, ScrollArea, Text, Title } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Group,
+  ScrollArea,
+  Skeleton,
+  Text,
+  Title,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
+  IconAlertCircle,
   IconChevronLeft,
   IconChevronRight,
   IconArrowsHorizontal,
 } from "@tabler/icons-react";
 import {
-  fetchEmergencies,
+  fetchOpsEmergencies,
   assignOfficer,
   validateEmergency,
   discardEmergency,
   POLLING_INTERVAL_MS,
   STATUS_CONFIG,
 } from "../lib/api";
+import { getStatusConfig, isActiveStatus } from "../lib/emergencies";
+import { createPoller, mergeEmergencyPoll } from "../lib/polling";
 import EmergencyCard from "./EmergencyCard";
 import AssignOfficerModal from "./AssignOfficerModal";
 import DiscardReasonModal from "./DiscardReasonModal";
@@ -41,10 +53,19 @@ function columnKey(emergency) {
   return STATUS_TO_COLUMN[raw] || raw;
 }
 
+function shortId(id) {
+  return String(id).slice(0, 8);
+}
+
 export default function DispatcherView() {
   const [emergencies, setEmergencies] = useState([]);
   const [newEmergencyIds, setNewEmergencyIds] = useState(new Set());
-  const isInitialLoadRef = useRef(true);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  // Lista del poll anterior (null hasta la primera carga), para calcular los
+  // "nuevos" por diferencia de IDs.
+  const previousPollRef = useRef(null);
+  const pollerRef = useRef(null);
 
   // Estado para el modal de asignación de oficial (RF-05, RF-06)
   const [selectedEmergency, setSelectedEmergency] = useState(null);
@@ -59,52 +80,46 @@ export default function DispatcherView() {
   const isSwipingRef = useRef(false);
 
   // ── RF-01 & RF-02: Polling y comparación en memoria ──
+  // Cada poll reemplaza la lista entera: antes solo se agregaban IDs nuevos y
+  // una emergencia validada o despachada desde otra pestaña quedaba en su
+  // columna vieja hasta recargar.
   const loadEmergencies = useCallback(async () => {
     try {
-      const incomingData = await fetchEmergencies();
-      if (!incomingData || !Array.isArray(incomingData)) return;
+      const incoming = await fetchOpsEmergencies();
+      const { emergencies: next, newIds } = mergeEmergencyPoll(
+        previousPollRef.current,
+        incoming
+      );
+      previousPollRef.current = next;
+      setEmergencies(next);
+      setLoadError("");
 
-      setEmergencies((currentList) => {
-        if (isInitialLoadRef.current) {
-          isInitialLoadRef.current = false;
-          return incomingData;
-        }
-
-        const existingIdSet = new Set(currentList.map((e) => String(e.id)));
-        const newItems = incomingData.filter(
-          (item) => !existingIdSet.has(String(item.id))
-        );
-
-        if (newItems.length > 0) {
-          const newlyAddedIds = new Set(newItems.map((item) => String(item.id)));
+      if (newIds.length > 0) {
+        setNewEmergencyIds((prevNew) => new Set([...prevNew, ...newIds]));
+        setTimeout(() => {
           setNewEmergencyIds((prevNew) => {
             const updated = new Set(prevNew);
-            newlyAddedIds.forEach((id) => updated.add(id));
+            newIds.forEach((id) => updated.delete(id));
             return updated;
           });
-
-          setTimeout(() => {
-            setNewEmergencyIds((prevNew) => {
-              const updated = new Set(prevNew);
-              newlyAddedIds.forEach((id) => updated.delete(id));
-              return updated;
-            });
-          }, 6000);
-
-          return [...newItems, ...currentList];
-        }
-
-        return currentList;
-      });
+        }, 6000);
+      }
     } catch (error) {
-      console.error("Error fetching emergencies:", error);
+      setLoadError(error.message || "No se pudieron cargar las emergencias.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
+  // Polling con pausa en pestaña oculta y sin pedidos superpuestos.
   useEffect(() => {
-    loadEmergencies();
-    const interval = setInterval(loadEmergencies, POLLING_INTERVAL_MS);
-    return () => clearInterval(interval);
+    const poller = createPoller({
+      load: loadEmergencies,
+      intervalMs: POLLING_INTERVAL_MS,
+    });
+    pollerRef.current = poller;
+    poller.start();
+    return () => poller.stop();
   }, [loadEmergencies]);
 
   // ── Swipe handlers (estilo Tinder: izquierda siguiente, derecha anterior) ──
@@ -165,13 +180,12 @@ export default function DispatcherView() {
   const handleValidate = async (emergency) => {
     try {
       const updated = await validateEmergency(emergency.id);
-      patchLocalEmergency(emergency.id, {
-        status: updated?.status || "VALIDATED",
-        ...updated,
-      });
+      const status = updated?.status || "VALIDATED";
+      patchLocalEmergency(emergency.id, { status, ...updated });
+      pollerRef.current?.refresh();
       notifications.show({
         title: "Emergencia validada",
-        message: `${String(emergency.id).slice(0, 8)} pasó a VALIDATED.`,
+        message: `${shortId(emergency.id)} pasó a ${getStatusConfig(status).label}.`,
         color: "teal",
         autoClose: 3000,
       });
@@ -194,14 +208,13 @@ export default function DispatcherView() {
     setDiscardBusy(true);
     try {
       const updated = await discardEmergency(discardTarget.id, reason);
-      patchLocalEmergency(discardTarget.id, {
-        status: updated?.status || "DISCARDED",
-        ...updated,
-      });
+      const status = updated?.status || "DISCARDED";
+      patchLocalEmergency(discardTarget.id, { status, ...updated });
+      pollerRef.current?.refresh();
       setDiscardTarget(null);
       notifications.show({
         title: "Emergencia descartada",
-        message: `${String(discardTarget.id).slice(0, 8)} pasó a DISCARDED.`,
+        message: `${shortId(discardTarget.id)} pasó a ${getStatusConfig(status).label}.`,
         color: "gray",
         autoClose: 3000,
       });
@@ -221,23 +234,18 @@ export default function DispatcherView() {
   const handleAssignOfficer = async (emergencyId, officerId) => {
     try {
       const result = await assignOfficer(emergencyId, officerId);
+      const status = result.status || "DISPATCHED";
 
-      setEmergencies((prevList) =>
-        prevList.map((em) =>
-          String(em.id) === String(emergencyId)
-            ? {
-                ...em,
-                status: result.status || "DISPATCHED",
-                assignedOfficer: result.assignedOfficer,
-                assignedOfficerId: officerId,
-              }
-            : em
-        )
-      );
+      patchLocalEmergency(emergencyId, {
+        status,
+        assignedOfficer: result.assignedOfficer,
+        assignedOfficerId: officerId,
+      });
+      pollerRef.current?.refresh();
 
       notifications.show({
         title: "Oficial Asignado",
-        message: `La emergencia ${String(emergencyId).toUpperCase()} fue asignada a ${result.assignedOfficer} y pasó a estado DESPACHADA.`,
+        message: `La emergencia ${shortId(emergencyId)} fue asignada a ${result.assignedOfficer || "un oficial"} y pasó a ${getStatusConfig(status).label}.`,
         color: "teal",
         autoClose: 4000,
       });
@@ -252,6 +260,10 @@ export default function DispatcherView() {
     }
   };
 
+  // Las cerradas no vienen en el poll, pero una recién descartada queda en la
+  // lista local hasta el próximo: no cuenta como activa.
+  const activeCount = emergencies.filter((em) => isActiveStatus(em.status)).length;
+
   return (
     <div style={{ width: "100%", padding: "16px", overflow: "hidden" }}>
       {/* ── Header ── */}
@@ -261,10 +273,22 @@ export default function DispatcherView() {
             Emergencias por Estado
           </Title>
           <Badge size="md" variant="light" color="red">
-            {emergencies.length} activas
+            {loading ? "Cargando…" : `${activeCount} activas`}
           </Badge>
         </Group>
       </Group>
+
+      {loadError && (
+        <Alert
+          color="red"
+          variant="light"
+          icon={<IconAlertCircle size={16} />}
+          title="No se pudieron actualizar las emergencias"
+          mb="sm"
+        >
+          Se reintenta automáticamente ({loadError}).
+        </Alert>
+      )}
 
       {/* ── VISTA ESCRITORIO: Tablero Kanban Clásico Multi-Columna ── */}
       <div className={classes.desktopBoard}>
@@ -301,7 +325,9 @@ export default function DispatcherView() {
                   </div>
 
                   <div className={classes.boardColumnCards}>
-                    {items.length === 0 ? (
+                    {loading ? (
+                      <Skeleton height={120} radius="md" />
+                    ) : items.length === 0 ? (
                       <Text size="xs" c="dimmed" ta="center" py="md">
                         Sin emergencias
                       </Text>
@@ -471,7 +497,9 @@ export default function DispatcherView() {
                     </div>
 
                     <div className={classes.mobileCardsList}>
-                      {items.length === 0 ? (
+                      {loading ? (
+                        <Skeleton height={160} radius="md" />
+                      ) : items.length === 0 ? (
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 16px", color: "#94a3b8", gap: "8px" }}>
                           <IconArrowsHorizontal size={28} opacity={0.6} />
                           <Text size="sm" c="dimmed" ta="center">

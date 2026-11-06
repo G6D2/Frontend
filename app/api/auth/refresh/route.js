@@ -7,13 +7,18 @@ import {
   readRefreshToken,
   userFromJwt,
 } from "@/lib/session";
+import { checkCsrf } from "@/lib/csrf";
 
 /**
  * POST /api/auth/refresh
  * Canjea el refresh token actual por un nuevo access token y refresh token rotativo
  * según el contrato del IdP LDAP de CityPass+.
  */
-export async function POST() {
+export async function POST(request) {
+  // Sin body: solo se exige mismo origen (ver lib/csrf.js).
+  const rejected = checkCsrf(request, { json: false });
+  if (rejected) return rejected;
+
   const refreshToken = await readRefreshToken();
   if (!refreshToken) {
     return NextResponse.json(

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { reverseGeocodeServer, buildLabel, buildLabelBigDataCloud, cacheKey, _resetGeocodeState } from "../lib/geocode-server.js";
+import { reverseGeocodeServer, buildLabel, buildLabelBigDataCloud, cacheKey, _resetGeocodeState, CACHE_MAX_ENTRIES } from "../lib/geocode-server.js";
 
 function nominatimMock(responses = {}) {
   const calls = [];
@@ -82,5 +82,41 @@ describe("geocode-server", () => {
     const ok = nominatimMock();
     expect(await reverseGeocodeServer(-34.6, -58.3, fastDeps({ fetchImpl: ok.fetchImpl }))).toBe("Av. Corrientes, 1000, Buenos Aires");
     expect(ok.calls.nominatim()).toHaveLength(1);
+  });
+
+  it("la caché es LRU con tope: al pasar CACHE_MAX_ENTRIES descarta la menos usada", async () => {
+    const { fetchImpl, calls } = nominatimMock({ bdcStatus: 200 });
+    const deps = fastDeps({ fetchImpl });
+    const coord = (i) => [-34 - i / 10_000, -58];
+
+    await reverseGeocodeServer(...coord(0), deps);
+    await reverseGeocodeServer(...coord(1), deps);
+    for (let i = 2; i < CACHE_MAX_ENTRIES; i += 1) {
+      await reverseGeocodeServer(...coord(i), deps);
+    }
+    // Llena: tocar la 0 la deja como la más reciente; la 1 pasa a ser la más vieja.
+    await reverseGeocodeServer(...coord(0), deps);
+    expect(calls.bdc()).toHaveLength(CACHE_MAX_ENTRIES);
+
+    await reverseGeocodeServer(...coord(CACHE_MAX_ENTRIES), deps); // desaloja la 1
+    expect(calls.bdc()).toHaveLength(CACHE_MAX_ENTRIES + 1);
+
+    await reverseGeocodeServer(...coord(0), deps); // sigue cacheada
+    expect(calls.bdc()).toHaveLength(CACHE_MAX_ENTRIES + 1);
+
+    await reverseGeocodeServer(...coord(1), deps); // se fue: vuelve a pedirla
+    expect(calls.bdc()).toHaveLength(CACHE_MAX_ENTRIES + 2);
+  });
+
+  it("una entrada vencida (24 h) se vuelve a pedir", async () => {
+    const { fetchImpl, calls } = nominatimMock({ bdcStatus: 200 });
+    let clock = 1_000_000;
+    const deps = fastDeps({ fetchImpl, now: () => clock });
+
+    await reverseGeocodeServer(-34.6, -58.3, deps);
+    clock += 24 * 60 * 60 * 1000;
+    await reverseGeocodeServer(-34.6, -58.3, deps);
+
+    expect(calls.bdc()).toHaveLength(2);
   });
 });

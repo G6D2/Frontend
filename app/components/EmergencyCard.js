@@ -3,8 +3,13 @@
 import { Badge, Button, Card, Group, Text } from "@mantine/core";
 import { IconAlertTriangle, IconUserCheck, IconShield } from "@tabler/icons-react";
 import { SEVERITY_CONFIG } from "../lib/api";
+import { getEffectivePriority } from "../lib/emergencies";
 import GeoLabel from "./civic/GeoLabel";
+import { NO_PRIORITY_LABEL } from "./ops/OpsBadges";
 import classes from "../styles.module.css";
+
+// Mismo fallback que las pills de lista/mapa/asignar (ver OpsBadges).
+const NO_PRIORITY = { color: "gray", label: NO_PRIORITY_LABEL };
 
 export default function EmergencyCard({
   emergency,
@@ -13,7 +18,7 @@ export default function EmergencyCard({
   onValidate,
   onDiscard,
 }) {
-  const sev = SEVERITY_CONFIG[emergency.severity] || SEVERITY_CONFIG.medium;
+  const sev = SEVERITY_CONFIG[getEffectivePriority(emergency)] || NO_PRIORITY;
   const isValidated =
     emergency.status === "validada" || emergency.status === "VALIDATED";
   const isPending =

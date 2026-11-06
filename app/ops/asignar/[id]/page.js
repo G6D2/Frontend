@@ -12,13 +12,16 @@ import {
 } from "../../../lib/api";
 import { isDispatcher } from "../../../lib/auth";
 import {
-  PRIORITY_CONFIG,
   getStatusConfig,
   getEffectivePriority,
 } from "../../../lib/emergencies";
 import GeoLabel from "../../../components/civic/GeoLabel";
 import PageHeader from "../../../components/PageHeader";
 import { BTN_BASE, BTN_PRIMARY } from "../../../components/ops/buttonStyles";
+import {
+  PriorityBadge,
+  officerStatusLabel,
+} from "../../../components/ops/OpsBadges";
 import { IncidentBadge, IncidentDetailBlock } from "../../../components/ops/IncidentInfo";
 
 export default function AsignarOficialPage() {
@@ -26,6 +29,7 @@ export default function AsignarOficialPage() {
   const router = useRouter();
   const [emergency, setEmergency] = useState(null);
   const [officers, setOfficers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
 
@@ -50,14 +54,14 @@ export default function AsignarOficialPage() {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : err.message);
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [params.id, router]);
-
-  const priority = PRIORITY_CONFIG[getEffectivePriority(emergency) || "critical"];
 
   async function handleAssign(officerId) {
     if (!emergency || busyId) return;
@@ -83,6 +87,13 @@ export default function AsignarOficialPage() {
           </div>
         )}
 
+        {loading && (
+          <div
+            className="h-28 mb-6 rounded border border-outline-variant bg-surface-container-lowest animate-pulse"
+            aria-hidden="true"
+          />
+        )}
+
         {emergency && (
           <div className="bg-surface-container-lowest border border-outline-variant rounded p-4 mb-6">
             <div className="flex items-center justify-between mb-2 gap-2">
@@ -90,11 +101,7 @@ export default function AsignarOficialPage() {
                 Emergencia
               </h2>
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${priority.badgeClass}`}
-                >
-                  {priority.label}
-                </span>
+                <PriorityBadge severity={getEffectivePriority(emergency)} />
                 <IncidentBadge emergency={emergency} />
               </div>
             </div>
@@ -116,7 +123,11 @@ export default function AsignarOficialPage() {
         </h2>
 
         <div className="flex flex-col gap-2">
-          {officers.length === 0 ? (
+          {loading ? (
+            <p role="status" className="text-sm text-on-surface-variant">
+              Cargando oficiales…
+            </p>
+          ) : officers.length === 0 ? (
             <p className="text-sm text-on-surface-variant">
               No hay oficiales en el catálogo.
             </p>
@@ -159,7 +170,7 @@ export default function AsignarOficialPage() {
                       ? "Asignando…"
                       : available
                         ? "Asignar"
-                        : officer.status}
+                        : officerStatusLabel(officer.status)}
                   </button>
                 </div>
               );

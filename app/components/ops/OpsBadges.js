@@ -13,8 +13,27 @@ import { PRIORITY_CONFIG, getStatusConfig } from "../../lib/emergencies";
  * de esos componentes; ese refactor queda con el resto de la deuda técnica
  * del tablero duplicado (ver PR).
  */
+
+/**
+ * Único fallback para una emergencia sin prioridad reconocida (severity null
+ * o desconocida). Antes cada vista caía en otra: CRÍTICA en la lista, el mapa
+ * y asignar, MEDIA en el kanban.
+ */
+export const NO_PRIORITY_LABEL = "Sin prioridad";
+
+const NO_PRIORITY_PILL = {
+  key: null,
+  label: NO_PRIORITY_LABEL.toUpperCase(),
+  badgeClass: "bg-gray-100 text-gray-700",
+};
+
+/** Config de la pill de prioridad: PRIORITY_CONFIG o el fallback gris. */
+export function getPriorityPill(severity) {
+  return PRIORITY_CONFIG[severity] || NO_PRIORITY_PILL;
+}
+
 export function PriorityBadge({ severity }) {
-  const cfg = PRIORITY_CONFIG[severity] || PRIORITY_CONFIG.medium;
+  const cfg = getPriorityPill(severity);
   return (
     <span
       className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${cfg.badgeClass}`}
@@ -41,14 +60,28 @@ const OFFICER_STATUS_BADGE_CLASS = {
   no_disponible: "bg-gray-100 text-gray-700",
 };
 
+// El backend solo usa disponible | ocupado (CHECK de la migración V11).
+// Cualquier otro valor no se puede asignar, así que se muestra como
+// "No disponible" en vez del valor crudo.
+const OFFICER_STATUS_LABELS = {
+  disponible: "Disponible",
+  ocupado: "Ocupado",
+  no_disponible: "No disponible",
+};
+
+export function officerStatusLabel(status) {
+  return OFFICER_STATUS_LABELS[status] || OFFICER_STATUS_LABELS.no_disponible;
+}
+
 /** Pill de disponibilidad de oficiales (no es un estado de emergencia). */
 export function OfficerStatusBadge({ status }) {
-  const cls = OFFICER_STATUS_BADGE_CLASS[status] || "bg-amber-100 text-amber-900";
+  const cls =
+    OFFICER_STATUS_BADGE_CLASS[status] || OFFICER_STATUS_BADGE_CLASS.no_disponible;
   return (
     <span
       className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase inline-block ${cls}`}
     >
-      {(status || "—").replace(/_/g, " ")}
+      {officerStatusLabel(status)}
     </span>
   );
 }

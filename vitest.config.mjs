@@ -1,4 +1,8 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
@@ -11,7 +15,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html", "json-summary"],
-      include: ["lib/**/*.js", "app/lib/**/*.js"],
+      include: ["lib/**/*.js", "app/lib/**/*.js", "middleware.js"],
       exclude: [
         // Browser-only (sessionStorage / window) — not unit-testable in node
         "app/lib/auth.js",
@@ -22,6 +26,13 @@ export default defineConfig({
         branches: 80,
         statements: 80,
       },
+    },
+  },
+  resolve: {
+    // middleware.js importa con el alias "@/..." (igual que el resto de la
+    // app); vitest no lee jsconfig.json, así que hay que declararlo acá.
+    alias: {
+      "@": rootDir,
     },
   },
 });

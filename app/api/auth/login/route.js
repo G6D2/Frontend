@@ -9,6 +9,7 @@ import {
 } from "@/lib/session";
 import { ANTIPANIC_MODE, findDemoAccount } from "@/app/lib/features";
 import { fetchBackend } from "@/lib/backend-fetch";
+import { checkCsrf } from "@/lib/csrf";
 
 /**
  * POST /api/auth/login
@@ -23,11 +24,17 @@ import { fetchBackend } from "@/lib/backend-fetch";
  *   - email+password → POST /auth/login. Si devuelve 404 (backend local sin
  *     ese endpoint), deriva a POST /auth/dev/login con sub inferido del email.
  *   - sub (+ groups) → POST /auth/dev/login directamente (atajos demo).
+ *
+ * Solo acepta JSON del mismo origen (ver lib/csrf.js): sin eso, otro sitio
+ * podía loguear a la víctima con una cuenta ajena.
  */
 
 const IS_IDP_MODE = process.env.NEXT_PUBLIC_AUTH_MODE === "idp";
 
 export async function POST(request) {
+  const rejected = checkCsrf(request);
+  if (rejected) return rejected;
+
   let body;
   try {
     body = await request.json();

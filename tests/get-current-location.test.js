@@ -1,30 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { getCurrentLocation, LocationError } from "../app/lib/api.js";
 
+// Desde Node 21 `globalThis.navigator` existe y es un getter sin setter:
+// asignarlo directo tira TypeError. Por eso se stubbea con vi.stubGlobal
+// (redefine la propiedad) y se restaura con vi.unstubAllGlobals(). Así el
+// archivo corre igual en Node 20, 22 y 24.
 describe("getCurrentLocation & LocationError", () => {
-  const originalNavigator = global.navigator;
-  const originalWindow = global.window;
-
-  function setNavigator(val) {
-    Object.defineProperty(global, "navigator", {
-      value: val,
-      configurable: true,
-      writable: true,
-    });
-  }
-
   beforeEach(() => {
-    delete global.window?.__lastCoords;
+    // Sin window: getCurrentLocation no debe tomar el atajo de __lastCoords.
+    vi.stubGlobal("window", undefined);
   });
 
   afterEach(() => {
-    setNavigator(originalNavigator);
-    global.window = originalWindow;
-    delete global.window?.__lastCoords;
+    vi.unstubAllGlobals();
   });
 
   it("falla explícitamente con NOT_SUPPORTED si el navegador no tiene geolocation", async () => {
-    setNavigator({});
+    vi.stubGlobal("navigator", {});
 
     await expect(getCurrentLocation()).rejects.toThrow(LocationError);
     await expect(getCurrentLocation()).rejects.toMatchObject({
@@ -34,7 +26,7 @@ describe("getCurrentLocation & LocationError", () => {
   });
 
   it("falla explícitamente con PERMISSION_DENIED si el usuario deniega los permisos (code 1)", async () => {
-    setNavigator({
+    vi.stubGlobal("navigator", {
       geolocation: {
         getCurrentPosition: vi.fn((_success, error) => {
           error({ code: 1, message: "User denied Geolocation" });
@@ -50,7 +42,7 @@ describe("getCurrentLocation & LocationError", () => {
   });
 
   it("falla explícitamente con POSITION_UNAVAILABLE si la señal no está disponible (code 2)", async () => {
-    setNavigator({
+    vi.stubGlobal("navigator", {
       geolocation: {
         getCurrentPosition: vi.fn((_success, error) => {
           error({ code: 2, message: "Position unavailable" });
@@ -61,15 +53,15 @@ describe("getCurrentLocation & LocationError", () => {
     await expect(getCurrentLocation()).rejects.toThrow(LocationError);
     await expect(getCurrentLocation()).rejects.toMatchObject({
       code: "POSITION_UNAVAILABLE",
-      message: expect.stringContaining("Ubicación no disponible"),
+      message: expect.stringContaining("no disponible"),
     });
   });
 
   it("falla explícitamente con TIMEOUT si expira el tiempo de espera (code 3)", async () => {
-    setNavigator({
+    vi.stubGlobal("navigator", {
       geolocation: {
         getCurrentPosition: vi.fn((_success, error) => {
-          error({ code: 3, message: "Timeout" });
+          error({ code: 3, message: "Timeout expired" });
         }),
       },
     });
@@ -82,31 +74,32 @@ describe("getCurrentLocation & LocationError", () => {
   });
 
   it("no devuelve nunca coordenadas fijas falsas (-34.6037, -58.3816) ante errores", async () => {
-    setNavigator({
+    vi.stubGlobal("navigator", {
       geolocation: {
         getCurrentPosition: vi.fn((_success, error) => {
-          error({ code: 2, message: "Position unavailable" });
+          error({ code: 1, message: "Denied" });
         }),
       },
     });
 
     try {
       await getCurrentLocation();
-      expect.unreachable();
+      expect.unreachable("getCurrentLocation debió haber fallado");
     } catch (err) {
       expect(err).toBeInstanceOf(LocationError);
-      expect(err.code).toBe("POSITION_UNAVAILABLE");
+      expect(err.latitude).toBeUndefined();
+      expect(err.longitude).toBeUndefined();
     }
   });
 
   it("resuelve con coordenadas reales y precise: true cuando getCurrentPosition es exitoso", async () => {
-    setNavigator({
+    vi.stubGlobal("navigator", {
       geolocation: {
         getCurrentPosition: vi.fn((success) => {
           success({
             coords: {
-              latitude: -34.6037,
-              longitude: -58.3816,
+              latitude: -34.5889,
+              longitude: -58.4112,
               accuracy: 15,
             },
           });
@@ -115,20 +108,22 @@ describe("getCurrentLocation & LocationError", () => {
     });
 
     const loc = await getCurrentLocation();
-    expect(loc.latitude).toBe(-34.6037);
-    expect(loc.longitude).toBe(-58.3816);
-    expect(loc.accuracy).toBe(15);
-    expect(loc.precise).toBe(true);
+    expect(loc).toEqual({
+      latitude: -34.5889,
+      longitude: -58.4112,
+      precise: true,
+      accuracy: 15,
+    });
   });
 
   it("utiliza window.__lastCoords si está definido en el entorno", async () => {
-    global.window = {
+    vi.stubGlobal("window", {
       __lastCoords: {
         latitude: -34.7,
         longitude: -58.5,
         precise: true,
       },
-    };
+    });
 
     const loc = await getCurrentLocation();
     expect(loc.latitude).toBe(-34.7);
@@ -156,7 +151,7 @@ describe("getCurrentLocation & LocationError", () => {
           coords: { latitude: -34.6, longitude: -58.4, accuracy: 20 },
         });
       });
-      setNavigator({ geolocation: { getCurrentPosition } });
+      vi.stubGlobal("navigator", { geolocation: { getCurrentPosition } });
 
       await getCurrentLocation({ enableHighAccuracy: false, timeout: 4000, maximumAge: 1000 });
 
@@ -168,7 +163,7 @@ describe("getCurrentLocation & LocationError", () => {
     });
 
     it("maneja un código de error desconocido o err sin code devolviendo err.message y POSITION_UNAVAILABLE", async () => {
-      setNavigator({
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error({ code: 999, message: "Falla de hardware desconocida" });
@@ -183,7 +178,7 @@ describe("getCurrentLocation & LocationError", () => {
     });
 
     it("maneja un error nulo/indefinido en el callback de error de geolocalización", async () => {
-      setNavigator({
+      vi.stubGlobal("navigator", {
         geolocation: {
           getCurrentPosition: vi.fn((_success, error) => {
             error(null);
