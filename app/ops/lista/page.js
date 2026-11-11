@@ -33,7 +33,12 @@ import {
   StatusBadge,
   getPriorityPill,
 } from "../../components/ops/OpsBadges";
-import { IncidentBadge, IncidentDetailBlock } from "../../components/ops/IncidentInfo";
+import {
+  IncidentBadge,
+  IncidentDetailBlock,
+  ZoneContextBadge,
+  ZoneContextNotice,
+} from "../../components/ops/IncidentInfo";
 import { BTN_BASE, BTN_PRIMARY, BTN_SECONDARY } from "../../components/ops/buttonStyles";
 import {
   TABLE_HEAD,
@@ -388,6 +393,7 @@ export default function OpsPage() {
           </div>
 
           <IncidentDetailBlock emergency={selected} />
+          <ZoneContextNotice emergency={selected} />
 
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
@@ -667,6 +673,7 @@ export default function OpsPage() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <PriorityBadge severity={getEffectivePriority(em)} />
                             <IncidentBadge emergency={em} />
+                            <ZoneContextBadge emergency={em} />
                           </div>
                         </td>
                         <td className={TABLE_CELL}>
@@ -721,6 +728,7 @@ export default function OpsPage() {
                         <PriorityBadge severity={getEffectivePriority(em)} />
                         <StatusBadge status={em.status} />
                         <IncidentBadge emergency={em} />
+                        <ZoneContextBadge emergency={em} />
                       </>
                     }
                     headline={elapsedMinutes(em.createdAt)}

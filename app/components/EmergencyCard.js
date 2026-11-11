@@ -3,7 +3,7 @@
 import { Badge, Button, Card, Group, Text } from "@mantine/core";
 import { IconAlertTriangle, IconUserCheck, IconShield } from "@tabler/icons-react";
 import { SEVERITY_CONFIG } from "../lib/api";
-import { getEffectivePriority } from "../lib/emergencies";
+import { getEffectivePriority, getZoneContext } from "../lib/emergencies";
 import GeoLabel from "./civic/GeoLabel";
 import { NO_PRIORITY_LABEL } from "./ops/OpsBadges";
 import classes from "../styles.module.css";
@@ -19,6 +19,8 @@ export default function EmergencyCard({
   onDiscard,
 }) {
   const sev = SEVERITY_CONFIG[getEffectivePriority(emergency)] || NO_PRIORITY;
+  // Contexto de zona vigente (p. ej. evento en el barrio) que eleva la prioridad.
+  const zoneContext = getZoneContext(emergency);
   const isValidated =
     emergency.status === "validada" || emergency.status === "VALIDATED";
   const isPending =
@@ -43,6 +45,11 @@ export default function EmergencyCard({
           {isNew && (
             <Badge color="red" variant="filled" size="sm">
               NUEVO
+            </Badge>
+          )}
+          {zoneContext && (
+            <Badge color="yellow" variant="light" size="sm" title={zoneContext.reason}>
+              {zoneContext.label}
             </Badge>
           )}
           <Badge color={sev.color}>{sev.label}</Badge>

@@ -16,7 +16,7 @@ import {
   getEffectivePriority,
 } from "../../lib/emergencies";
 import PageHeader from "../../components/PageHeader";
-import { IncidentBadge } from "../../components/ops/IncidentInfo";
+import { IncidentBadge, ZoneContextBadge } from "../../components/ops/IncidentInfo";
 
 const OpsMap = dynamic(() => import("../../components/ops/OpsMap"), {
   ssr: false,
@@ -151,6 +151,7 @@ export default function MapaOperativoPage() {
                   {getStatusConfig(em.status).label}
                 </div>
                 <IncidentBadge emergency={em} />
+                <ZoneContextBadge emergency={em} />
               </button>
             );
           })}

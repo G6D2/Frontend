@@ -16,6 +16,7 @@ import {
   priorityDotClass,
   priorityTextClass,
   getEffectivePriority,
+  getZoneContext,
   isPriorityElevatedByIncident,
   getIncidentSummary,
   translateIncidentReasonCode,
@@ -378,11 +379,74 @@ describe("getEffectivePriority", () => {
   it("returns null when neither field is present", () => {
     expect(getEffectivePriority({})).toBeNull();
   });
+
+  it("prefers dispatchPriority (zone context) over effectivePriority and severity", () => {
+    expect(
+      getEffectivePriority({
+        severity: "medium",
+        effectivePriority: "high",
+        dispatchPriority: "critical",
+      })
+    ).toBe("critical");
+  });
+});
+
+describe("getZoneContext", () => {
+  it("returns null without a priorityContext (the normal case)", () => {
+    expect(getZoneContext(null)).toBeNull();
+    expect(getZoneContext({})).toBeNull();
+    expect(getZoneContext({ priorityContext: null })).toBeNull();
+    expect(getZoneContext({ priorityContext: "x" })).toBeNull();
+    expect(getZoneContext({ priorityContext: {} })).toBeNull();
+  });
+
+  it("describes a public-event context with barrio and event name", () => {
+    const context = getZoneContext({
+      priorityContext: {
+        tipo: "EVENTO_ESPACIO_PUBLICO",
+        barrio: "VILLA DEL PARQUE",
+        descripcion: "Recital en la plaza",
+        vigenteHasta: "2026-11-21T23:00:00.000Z",
+      },
+    });
+    expect(context).toEqual({
+      tipo: "EVENTO_ESPACIO_PUBLICO",
+      label: "Evento en la zona",
+      barrio: "Villa del Parque",
+      descripcion: "Recital en la plaza",
+      vigenteHasta: "2026-11-21T23:00:00.000Z",
+      reason: "Prioridad elevada: evento en la zona (Villa del Parque) · Recital en la plaza",
+    });
+  });
+
+  it("is null-safe with missing barrio, description and unknown type", () => {
+    expect(getZoneContext({ priorityContext: { tipo: "ALERTA_CLIMATICA" } })).toEqual({
+      tipo: "ALERTA_CLIMATICA",
+      label: "Alerta climática",
+      barrio: null,
+      descripcion: null,
+      vigenteHasta: null,
+      reason: "Prioridad elevada: alerta climática",
+    });
+    expect(getZoneContext({ priorityContext: { tipo: "OTRO", barrio: 7 } }).label).toBe(
+      "Contexto de zona"
+    );
+  });
 });
 
 describe("isPriorityElevatedByIncident", () => {
   it("returns false for a null emergency", () => {
     expect(isPriorityElevatedByIncident(null)).toBe(false);
+  });
+
+  it("does not count a zone-context raise as an incident raise", () => {
+    expect(
+      isPriorityElevatedByIncident({
+        severity: "medium",
+        effectivePriority: "medium",
+        dispatchPriority: "high",
+      })
+    ).toBe(false);
   });
 
   it("returns false when there is no effectivePriority (backend actual)", () => {

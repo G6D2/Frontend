@@ -255,31 +255,94 @@ export function locationLabel(emergency) {
 const PRIORITY_RANK = { low: 0, medium: 1, high: 2, critical: 3 };
 
 /**
- * Prioridad "efectiva" de una emergencia: la que calculó el Risk Engine de
- * detección de incidentes (`effectivePriority`) si el backend ya la manda,
- * o si no la `severity` original. Úsala en vez de `emergency.severity` en
- * cualquier badge/orden de prioridad de las vistas del dispatcher.
+ * Prioridad que muestran y ordenan las vistas del dispatcher. En orden:
+ *  1. `dispatchPriority`: la prioridad de despacho del backend, que suma un
+ *     nivel mientras hay un contexto de zona vigente en el barrio (p. ej. un
+ *     evento en un espacio público en curso).
+ *  2. `effectivePriority`: la del Risk Engine de detección de incidentes.
+ *  3. `severity`: la original.
+ * Úsala en vez de `emergency.severity` en cualquier badge/orden de prioridad
+ * de las vistas del dispatcher.
  */
 export function getEffectivePriority(emergency) {
   if (!emergency) return null;
-  return emergency.effectivePriority || emergency.severity || null;
+  return (
+    emergency.dispatchPriority ||
+    emergency.effectivePriority ||
+    emergency.severity ||
+    null
+  );
 }
 
 /**
- * true si la prioridad efectiva quedó por encima de la severity original
- * (el Risk Engine la subió por señales de incidente: varios reportes,
- * proximidad, etc.). Sirve para aclarar "Prioridad elevada por incidente
- * (era Media)" en el detalle.
+ * true si el Risk Engine dejó la prioridad por encima de la severity
+ * original por señales de incidente (varios reportes, proximidad, etc.).
+ * Sirve para aclarar "Prioridad elevada por incidente (era Media)" en el
+ * detalle. No cuenta la suba por contexto de zona: esa la informa
+ * getZoneContext.
  */
 export function isPriorityElevatedByIncident(emergency) {
   if (!emergency) return false;
-  const effective = getEffectivePriority(emergency);
+  const effective = emergency.effectivePriority || emergency.severity;
   const original = emergency.severity;
   if (!effective || !original || effective === original) return false;
   const effectiveRank = PRIORITY_RANK[effective];
   const originalRank = PRIORITY_RANK[original];
   if (effectiveRank === undefined || originalRank === undefined) return false;
   return effectiveRank > originalRank;
+}
+
+const ZONE_CONTEXT_LABELS = {
+  EVENTO_ESPACIO_PUBLICO: "Evento en la zona",
+  ALERTA_CLIMATICA: "Alerta climática",
+};
+
+/** "PALERMO" → "Palermo", "VILLA DEL PARQUE" → "Villa del Parque". */
+function formatBarrio(barrio) {
+  const minor = new Set(["de", "del", "la", "las", "los", "y"]);
+  return barrio
+    .toLowerCase()
+    .split(" ")
+    .map((word, index) =>
+      index > 0 && minor.has(word)
+        ? word
+        : word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join(" ");
+}
+
+/**
+ * Contexto de zona que está elevando la prioridad de despacho de la
+ * emergencia (`priorityContext` del backend), normalizado para mostrar:
+ * `label` corto para un pill y `reason` con el motivo completo. Devuelve
+ * null si no hay ninguno vigente, que es el caso normal.
+ */
+export function getZoneContext(emergency) {
+  const context = emergency?.priorityContext;
+  if (!context || typeof context !== "object" || !context.tipo) return null;
+
+  const label = ZONE_CONTEXT_LABELS[context.tipo] || "Contexto de zona";
+  const barrio =
+    typeof context.barrio === "string" && context.barrio
+      ? formatBarrio(context.barrio)
+      : null;
+  const descripcion =
+    typeof context.descripcion === "string" && context.descripcion
+      ? context.descripcion
+      : null;
+
+  let reason = `Prioridad elevada: ${label.toLowerCase()}`;
+  if (barrio) reason += ` (${barrio})`;
+  if (descripcion) reason += ` · ${descripcion}`;
+
+  return {
+    tipo: context.tipo,
+    label,
+    barrio,
+    descripcion,
+    vigenteHasta: context.vigenteHasta ?? null,
+    reason,
+  };
 }
 
 /**
