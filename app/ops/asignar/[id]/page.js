@@ -22,7 +22,12 @@ import {
   PriorityBadge,
   officerStatusLabel,
 } from "../../../components/ops/OpsBadges";
-import { IncidentBadge, IncidentDetailBlock } from "../../../components/ops/IncidentInfo";
+import {
+  IncidentBadge,
+  IncidentDetailBlock,
+  ZoneContextBadge,
+  ZoneContextNotice,
+} from "../../../components/ops/IncidentInfo";
 
 export default function AsignarOficialPage() {
   const params = useParams();
@@ -103,6 +108,7 @@ export default function AsignarOficialPage() {
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
                 <PriorityBadge severity={getEffectivePriority(emergency)} />
                 <IncidentBadge emergency={emergency} />
+                <ZoneContextBadge emergency={emergency} />
               </div>
             </div>
             <p className="text-sm text-on-surface-variant">
@@ -114,6 +120,7 @@ export default function AsignarOficialPage() {
             </p>
             <div className="mt-3">
               <IncidentDetailBlock emergency={emergency} />
+              <ZoneContextNotice emergency={emergency} />
             </div>
           </div>
         )}

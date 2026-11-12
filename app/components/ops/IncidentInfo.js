@@ -1,6 +1,7 @@
 import MaterialIcon from "../civic/MaterialIcon";
 import {
   getIncidentSummary,
+  getZoneContext,
   isPriorityElevatedByIncident,
   translateIncidentReasonCode,
   PRIORITY_CONFIG,
@@ -24,6 +25,41 @@ export function IncidentBadge({ emergency, className = "" }) {
       Incidente · {incident.reportCount}{" "}
       {incident.reportCount === 1 ? "reporte" : "reportes"}
     </span>
+  );
+}
+
+/**
+ * Pill "Evento en la zona" para una emergencia cuya prioridad está elevada
+ * por un contexto de zona vigente en su barrio (hoy, un evento en un espacio
+ * público en curso). El motivo completo va en el tooltip. Null-safe: no
+ * renderiza nada sin contexto, que es el caso normal.
+ */
+export function ZoneContextBadge({ emergency, className = "" }) {
+  const context = getZoneContext(emergency);
+  if (!context) return null;
+  return (
+    <span
+      title={context.reason}
+      className={`px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 whitespace-nowrap bg-amber-100 text-amber-900 ${className}`}
+    >
+      <MaterialIcon name="trending_up" size={12} />
+      {context.label}
+    </span>
+  );
+}
+
+/**
+ * Línea con el motivo completo de la suba por contexto de zona, para los
+ * paneles de detalle. Null-safe.
+ */
+export function ZoneContextNotice({ emergency }) {
+  const context = getZoneContext(emergency);
+  if (!context) return null;
+  return (
+    <p className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs font-bold text-amber-900 flex items-center gap-2">
+      <MaterialIcon name="trending_up" size={16} />
+      {context.reason}
+    </p>
   );
 }
 
