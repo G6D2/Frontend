@@ -701,16 +701,16 @@ export default function AccesoForm() {
                 </div>
                 <div className="text-xs text-on-surface-variant flex flex-col gap-1 bg-surface-container-lowest p-2.5 rounded-lg font-mono border border-outline-variant/60">
                   <div><span className="font-semibold text-on-surface font-sans">usuario:</span> juan-trabaja</div>
-                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> trabaja123</div>
+                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> pedila por privado</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     switchMode("ldap");
                     setLdapUsername("juan-trabaja");
-                    setLdapPassword("trabaja123");
+                    setLdapPassword("");
                     setLdapError("");
-                    setShortcutFeedback("Credenciales de juan-trabaja cargadas ✓");
+                    setShortcutFeedback("Usuario juan-trabaja cargado: falta la contraseña");
                     setTimeout(() => {
                       setShortcutsOpen(false);
                       setShortcutFeedback("");
@@ -719,7 +719,7 @@ export default function AccesoForm() {
                   className="w-full py-2 px-3 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <MaterialIcon name="login" size={16} />
-                  <span>Cargar credenciales</span>
+                  <span>Cargar usuario</span>
                 </button>
               </div>
 
@@ -736,16 +736,16 @@ export default function AccesoForm() {
                 </div>
                 <div className="text-xs text-on-surface-variant flex flex-col gap-1 bg-surface-container-lowest p-2.5 rounded-lg font-mono border border-outline-variant/60">
                   <div><span className="font-semibold text-on-surface font-sans">usuario:</span> delegado-emer</div>
-                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> changeit123</div>
+                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> pedila por privado</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     switchMode("ldap");
                     setLdapUsername("delegado-emer");
-                    setLdapPassword("changeit123");
+                    setLdapPassword("");
                     setLdapError("");
-                    setShortcutFeedback("Credenciales de delegado cargadas ✓");
+                    setShortcutFeedback("Usuario delegado-emer cargado: falta la contraseña");
                     setTimeout(() => {
                       setShortcutsOpen(false);
                       setShortcutFeedback("");
@@ -754,7 +754,7 @@ export default function AccesoForm() {
                   className="w-full py-2 px-3 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <MaterialIcon name="login" size={16} />
-                  <span>Cargar credenciales</span>
+                  <span>Cargar usuario</span>
                 </button>
               </div>
 
