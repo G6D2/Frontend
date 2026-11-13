@@ -72,6 +72,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `PORT` | `3001` | Puerto de `npm start`. Render lo define solo. |
 | `BACKEND_WARMUP_PATH` | `/` | Path que pega `/api/warmup`. En Render es `/health`. |
 | `BACKEND_WARMUP` | | `off` desactiva `/api/warmup` (para cuando el backend sea always-on). |
+| `DEV_ALLOWED_ORIGINS` | | Solo `npm run dev`: hosts extra desde los que se abre el dev server, separados por coma (ej. `100.88.28.30,192.168.100.246`). Ver [Dev server desde otra máquina](#dev-server-desde-otra-máquina). |
 
 `lib/session.js` todavía acepta `NEXT_PUBLIC_API_URL` como segundo fallback de `API_URL`. Es un resto viejo: no hace falta y no conviene usarlo.
 
@@ -259,7 +260,7 @@ docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergen
 
 ## Dev server desde otra máquina
 
-El dev server de Next responde **403 en `/_next/*`** cuando el host del request no es `localhost`. La página carga el HTML pero React nunca hidrata: los botones no hacen nada y no aparecen errores en pantalla, solo en la consola del navegador. La IP desde la que se accede tiene que estar en `allowedDevOrigins` de `next.config.mjs`, que hoy tiene la IP de Tailscale y la de la LAN del equipo. Los cambios en `next.config.mjs` requieren reiniciar el dev server.
+El dev server de Next responde **403 en `/_next/*`** cuando el host del request no es `localhost`. La página carga el HTML pero React nunca hidrata: los botones no hacen nada y no aparecen errores en pantalla, solo en la consola del navegador. La IP desde la que se accede tiene que estar en `DEV_ALLOWED_ORIGINS` (por ejemplo en `.env.local`: `DEV_ALLOWED_ORIGINS=100.88.28.30,192.168.100.246`), que `next.config.mjs` pasa a `allowedDevOrigins`. Hay que reiniciar el dev server después de cambiarla.
 
 ---
 

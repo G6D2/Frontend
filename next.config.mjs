@@ -39,9 +39,13 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // El dev server de Next bloquea con 403 los assets (/_next/*) cuando se accede
-  // con un host distinto de localhost. Estas son las IPs del server (Tailscale y LAN)
-  // desde las que el equipo abre el front en desarrollo.
-  allowedDevOrigins: ["100.88.28.30", "192.168.100.246"],
+  // con un host distinto de localhost. Los hosts extra (IP de Tailscale, de la
+  // LAN, etc.) se pasan por DEV_ALLOWED_ORIGINS, separados por coma, para no
+  // dejar direcciones de la red de cada uno en el repo. Solo afecta a `next dev`.
+  allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
