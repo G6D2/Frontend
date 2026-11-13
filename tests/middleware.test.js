@@ -178,10 +178,22 @@ describe("middleware: rutas públicas y no protegidas", () => {
     }
   );
 
-  // Hoy el middleware no corta /api/geocode: el comentario del route dice que
-  // requiere sesión, pero ni el middleware ni el route lo chequean.
-  it("/api/geocode sin sesión: pasa", () => {
-    expectNext(run("/api/geocode?lat=-34.6&lng=-58.4"));
+  // /api/geocode exige sesión en el route y también en el middleware.
+  it("/api/geocode sin sesión: 401 JSON, sin llegar al route", async () => {
+    const res = run("/api/geocode?lat=-34.6&lng=-58.4");
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "Unauthorized" });
+  });
+
+  it("/api/geocode con sesión vencida: 401 y borra la cookie", () => {
+    const res = run("/api/geocode?lat=-34.6&lng=-58.4", tokens.expired());
+    expect(res.status).toBe(401);
+    expectCookieCleared(res);
+  });
+
+  it("/api/geocode con sesión de cualquier rol: pasa", () => {
+    expectNext(run("/api/geocode?lat=-34.6&lng=-58.4", tokens.citizen()));
+    expectNext(run("/api/geocode?lat=-34.6&lng=-58.4", tokens.officer()));
   });
 
   it("los prefijos matchean por segmento: /opsx o /inicio-demo no son rutas protegidas", () => {
