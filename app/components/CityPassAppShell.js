@@ -21,7 +21,21 @@ const DISPATCHER_ROUTES = {
   "Mi Cuenta": "/ops/cuenta",
 };
 
+const OFFICER_ROUTES = {
+  Asignaciones: "/oficial",
+  "Mi Cuenta": "/oficial/cuenta",
+};
+
+const ROUTES_BY_ROLE = {
+  dispatcher: DISPATCHER_ROUTES,
+  officer: OFFICER_ROUTES,
+};
+
 function resolveActive(pathname, role) {
+  if (role === "officer") {
+    return pathname.startsWith("/oficial/cuenta") ? "Mi Cuenta" : "Asignaciones";
+  }
+
   if (role === "dispatcher") {
     if (pathname.startsWith("/ops/cuenta")) return "Mi Cuenta";
     if (pathname.startsWith("/ops/lista")) return "Lista";
@@ -39,7 +53,7 @@ function resolveActive(pathname, role) {
 }
 
 /**
- * Shell CityPass+ (Navbar lateral de OfficerView) para citizen y dispatcher.
+ * Shell CityPass+ (Navbar lateral) para citizen, dispatcher y oficial.
  */
 export default function CityPassAppShell({ role = "usuario", children }) {
   const router = useRouter();
@@ -48,7 +62,7 @@ export default function CityPassAppShell({ role = "usuario", children }) {
   const active = resolveActive(pathname, role);
 
   const handleNavClick = (label) => {
-    const map = role === "dispatcher" ? DISPATCHER_ROUTES : CITIZEN_ROUTES;
+    const map = ROUTES_BY_ROLE[role] || CITIZEN_ROUTES;
     const href = map[label];
     if (href) {
       router.push(href);

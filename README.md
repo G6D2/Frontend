@@ -98,7 +98,8 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/ops/oficiales` | Dispatcher | Catálogo de oficiales y su estado |
 | `/ops/cuenta` | Dispatcher | Mi cuenta y logout |
 | `/ops/emergencias` | Dispatcher | Redirige a `/ops/lista` |
-| `/oficial` | Oficial | MVP: emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver** (con confirmación). Refresco cada 5 s |
+| `/oficial` | Oficial | MVP: emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver** (con confirmación). Refresco cada 5 s. Mismo panel lateral (y barra inferior en celular) que ciudadano y dispatcher: **Asignaciones** y **Mi cuenta** |
+| `/oficial/cuenta` | Oficial | Mi cuenta y logout (misma vista que ciudadano y dispatcher) |
 
 Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
 

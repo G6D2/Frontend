@@ -1,17 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import MaterialIcon from "../components/civic/MaterialIcon";
 import GeoLabel from "../components/civic/GeoLabel";
-import BackendWaitingIndicator from "../components/civic/BackendWaitingIndicator";
+import PageHeader from "../components/PageHeader";
+import CitizenPageContainer from "../components/civic/CitizenPageContainer";
 import {
   fetchOfficerEmergencies,
   advanceOfficerStatus,
   OFFICER_NEXT_STEP,
   CITIZEN_POLLING_INTERVAL_MS,
-  getStoredUser,
-  logout,
 } from "../lib/api";
 import {
   emergencyTitle,
@@ -103,8 +101,6 @@ function AssignmentCard({ emergency, busy, onAdvance }) {
 }
 
 export default function OficialPage() {
-  const router = useRouter();
-  const [userName, setUserName] = useState("");
   const [emergencies, setEmergencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -123,9 +119,7 @@ export default function OficialPage() {
   }, []);
 
   useEffect(() => {
-    const stored = getStoredUser();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setUserName(stored?.preferred_username || stored?.username || "");
     load();
     const interval = setInterval(load, CITIZEN_POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
@@ -143,34 +137,12 @@ export default function OficialPage() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/acceso");
-  };
-
   return (
-    <div className="min-h-screen bg-background text-on-background flex flex-col">
-      <BackendWaitingIndicator />
-      <header className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 h-14 bg-surface border-b border-outline-variant pt-safe">
-        <div className="flex items-center gap-2 min-w-0">
-          <MaterialIcon name="local_police" className="text-primary" />
-          <span className="font-semibold text-on-surface truncate">
-            {userName || "Oficial"}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="min-h-touch flex items-center gap-1 px-3 rounded-lg text-error font-semibold text-sm hover:bg-surface-container"
-        >
-          <MaterialIcon name="logout" size={18} />
-          Salir
-        </button>
-      </header>
-
-      <main className="mx-auto w-full max-w-3xl p-4 md:p-8 flex-1 flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-primary">Mis asignaciones</h1>
-
+    <>
+      {/* Header y contenedor compartidos con las demás vistas; el panel
+          lateral y la navegación móvil vienen de app/oficial/layout.js. */}
+      <PageHeader title="Mis asignaciones" />
+      <CitizenPageContainer className="gap-4">
         {error && (
           <p role="alert" className="rounded-lg bg-error-container text-on-error-container p-3 text-sm">
             {error}
@@ -191,7 +163,7 @@ export default function OficialPage() {
             />
           ))
         )}
-      </main>
-    </div>
+      </CitizenPageContainer>
+    </>
   );
 }
