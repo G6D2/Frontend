@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/geocode?lat=&lng= → { label: string|null }
  * Proxy con caché y cola hacia Nominatim (ver lib/geocode-server.js).
- * Requiere sesión: no es un geocoder público. El middleware no cubre esta
- * ruta, así que la sesión se valida acá (igual que el proxy /api/backend).
+ * Requiere sesión: no es un geocoder público. El middleware ya corta sin
+ * sesión (401); el chequeo de acá queda como segunda barrera.
  */
 export async function GET(request) {
   const token = await readAccessToken();

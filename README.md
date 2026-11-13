@@ -116,7 +116,7 @@ Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_I
 | `POST` | `/api/auth/logout` | Borra la cookie. |
 | `POST` | `/api/auth/forgot-password` | **Stub:** responde 200 siempre y no llama al backend. |
 | `GET` `POST` `PUT` `PATCH` `DELETE` | `/api/backend/[...path]` | Proxy al backend (ver abajo). |
-| `GET` | `/api/geocode?lat=&lng=` | Dirección legible de una coordenada (`lib/geocode-server.js`): caché de 24 h, agrupa pedidos iguales, BigDataCloud primero y Nominatim de respaldo. |
+| `GET` | `/api/geocode?lat=&lng=` | Dirección legible de una coordenada (`lib/geocode-server.js`). Exige sesión (401 sin ella, en el middleware y en el route). Caché de 24 h, agrupa pedidos iguales, BigDataCloud primero y Nominatim de respaldo. |
 | `GET` | `/api/warmup` | Pega a `BACKEND_WARMUP_PATH` para despertar al backend. Lo llama `BackendWarmup` al cargar la app. |
 
 ### Proxy `/api/backend/[...path]`
@@ -147,7 +147,7 @@ El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencie
 
 | Caso | Respuesta |
 |---|---|
-| `/api/backend/*` o `/api/auth/session` sin sesión válida | 401 JSON `{ error: "Unauthorized" }`. Si la cookie estaba pero vencida, la borra. |
+| `/api/backend/*`, `/api/auth/session` o `/api/geocode` sin sesión válida | 401 JSON `{ error: "Unauthorized" }`. Si la cookie estaba pero vencida, la borra. |
 | `/acceso` con sesión válida | Redirige al home del rol: `/ops` para el dispatcher, `/oficial` para el oficial e `/inicio` para cualquier otro grupo |
 | Ruta de ciudadano o de `/ops` sin sesión válida | Redirige a `/acceso` y borra la cookie vencida |
 | Cualquier ruta protegida que no sea `/oficial` con sesión de oficial | Redirige a `/oficial` |
@@ -158,9 +158,8 @@ El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencie
 
 El filtro por rol es de navegación: evita que cada usuario caiga en pantallas que no son suyas. La autorización real la hace el backend en cada request.
 
-Dos cosas a tener en cuenta:
+A tener en cuenta:
 
-- `/api/geocode` no exige sesión. El comentario del route dice que sí, pero ni el middleware ni el route lo chequean.
 - En Next 16 la convención `middleware` está deprecada en favor de `proxy` (`next build` lo avisa). Sigue funcionando y el renombre queda pendiente.
 
 ---

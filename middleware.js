@@ -88,7 +88,11 @@ export function middleware(request) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const valid = Boolean(token) && !isTokenExpired(token);
 
-  if (pathname.startsWith("/api/backend") || pathname.startsWith("/api/auth/session")) {
+  // Rutas del BFF que exigen sesión: 401 JSON en vez de redirect. /api/geocode
+  // también lo chequea en el route; acá queda como segunda barrera.
+  if (
+    matchesAny(pathname, ["/api/backend", "/api/auth/session", "/api/geocode"])
+  ) {
     if (!valid) {
       const res = NextResponse.json(
         { error: "Unauthorized", message: "Sin sesión" },
