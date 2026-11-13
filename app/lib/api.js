@@ -542,16 +542,45 @@ export async function assignOfficer(emergencyId, officerId) {
 }
 
 /**
- * @deprecated Stub 501: el backend todavía no expone estados de oficial
- * EN_ROUTE/ON_SITE/RESOLVED (HU-08). Ver Task Tracker issue #21. No debe
- * invocarse ni mostrarse ninguna acción que dependa de esto en pantallas del
- * ciudadano.
+ * Estados en los que el oficial todavía tiene algo que hacer. RESOLVED sale
+ * de su lista: el cierre definitivo (CLOSED) lo hace el dispatcher.
  */
-export async function updateEmergencyStatus() {
-  throw new ApiError(
-    "TODO(back): PATCH estado EN_ROUTE/ON_SITE/RESOLVED (HU-08)",
-    { status: 501 }
-  );
+export const OFFICER_STATUSES = ["DISPATCHED", "EN_ROUTE", "ON_SCENE"];
+
+/**
+ * Emergencias asignadas al oficial logueado. El backend fuerza el filtro
+ * assignedOfficerId = sub del token: acá no se manda.
+ */
+export async function fetchOfficerEmergencies() {
+  const { data } = await fetchEmergenciesPage({
+    status: OFFICER_STATUSES.join(","),
+    limit: 100,
+    sortBy: "priority",
+    order: "desc",
+  });
+  return data;
+}
+
+/**
+ * Próximo paso del oficial según el estado (máquina de estados del backend:
+ * DISPATCHED → EN_ROUTE → ON_SCENE → RESOLVED). null si no hay acción.
+ */
+export const OFFICER_NEXT_STEP = {
+  DISPATCHED: { action: "en-route", label: "En camino", icon: "directions_car" },
+  EN_ROUTE: { action: "on-scene", label: "Llegué al lugar", icon: "location_on" },
+  ON_SCENE: { action: "resolve", label: "Resolver", icon: "task_alt" },
+};
+
+/** PATCH /api/emergencies/:id/{en-route|on-scene|resolve} (solo oficial asignado). */
+export async function advanceOfficerStatus(id, action) {
+  if (!["en-route", "on-scene", "resolve"].includes(action)) {
+    throw new ApiError(`Acción de oficial desconocida: ${action}`, { status: 400 });
+  }
+  const res = await apiFetch(`/api/emergencies/${id}/${action}`, {
+    method: "PATCH",
+    body: {},
+  });
+  return res?.data;
 }
 
 /**

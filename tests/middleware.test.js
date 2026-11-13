@@ -101,8 +101,8 @@ describe("middleware: /acceso", () => {
     expectRedirect(run("/acceso", tokens.dispatcher()), "/ops");
   });
 
-  it("con sesión de officer: redirige a /inicio (no hay home de oficial)", () => {
-    expectRedirect(run("/acceso", tokens.officer()), "/inicio");
+  it("con sesión de officer: redirige a /oficial", () => {
+    expectRedirect(run("/acceso", tokens.officer()), "/oficial");
   });
 });
 
@@ -138,12 +138,23 @@ describe("middleware: guard de rol", () => {
     }
   );
 
-  it("officer en /ops: redirige a /inicio (solo dispatcher entra a /ops)", () => {
-    expectRedirect(run("/ops/lista", tokens.officer()), "/inicio");
+  it("officer en /ops: redirige a /oficial (solo dispatcher entra a /ops)", () => {
+    expectRedirect(run("/ops/lista", tokens.officer()), "/oficial");
   });
 
-  it("officer en /inicio: pasa (se lo trata como no-dispatcher)", () => {
-    expectNext(run("/inicio", tokens.officer()));
+  it("officer en pantallas de ciudadano: redirige a /oficial (le darían 403)", () => {
+    expectRedirect(run("/inicio", tokens.officer()), "/oficial");
+    expectRedirect(run("/mis-alertas/abc", tokens.officer()), "/oficial");
+  });
+
+  it("officer en /oficial: pasa", () => {
+    expectNext(run("/oficial", tokens.officer()));
+  });
+
+  it("/oficial sin sesión redirige a /acceso; con otro rol, a su home", () => {
+    expectRedirect(run("/oficial"), "/acceso");
+    expectRedirect(run("/oficial", tokens.citizen()), "/inicio");
+    expectRedirect(run("/oficial", tokens.dispatcher()), "/ops");
   });
 
   it("token sin groups: se trata como no-dispatcher", () => {
