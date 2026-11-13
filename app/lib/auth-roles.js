@@ -36,7 +36,6 @@ export function isCitizen(user) {
   return getUserRoleTokens(user).includes("citizen");
 }
 
-// TODO(back): grupo `officer` + guards de pantallas de terreno (HU-08/09/10)
 export function isOfficer(user) {
   return getUserRoleTokens(user).includes("officer");
 }
@@ -46,5 +45,6 @@ export function getHomePathForUser(user) {
     return process.env.NEXT_PUBLIC_LDAP_PANEL_URL || "https://citypass-login.pp.ua";
   }
   if (isDispatcher(user)) return "/ops";
+  if (isOfficer(user)) return "/oficial";
   return "/inicio";
 }

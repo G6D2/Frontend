@@ -97,10 +97,11 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/ops/oficiales` | Dispatcher | Catálogo de oficiales y su estado |
 | `/ops/cuenta` | Dispatcher | Mi cuenta y logout |
 | `/ops/emergencias` | Dispatcher | Redirige a `/ops/lista` |
+| `/oficial` | Oficial | MVP: emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver** (con confirmación). Refresco cada 5 s |
 
 Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
 
-**No hay vistas de oficial.** El backend ya tiene el grupo `officer` y las rutas para que el oficial avance el estado (`en-route`, `on-scene`, `resolve`), pero el front no tiene pantallas ni código que las use. Un token de oficial cae en `/inicio`, como un ciudadano.
+**Vista de oficial (MVP).** `/oficial` lista lo asignado al oficial (`GET /api/emergencies`, que el backend filtra por `assignedOfficerId` = `sub`) y avanza el estado con `PATCH /api/emergencies/:id/en-route`, `/on-scene` y `/resolve`. Todavía no tiene observaciones, refuerzos ni causas relacionadas al resolver. Un oficial no entra a las pantallas de ciudadano ni a `/ops`: el middleware lo manda a `/oficial`.
 
 ---
 
@@ -133,10 +134,11 @@ Lo que el front consume por el proxy:
 | `GET /api/emergencies` (con `status`, `page`, `limit`, `sortBy`, `order`) y `GET /api/emergencies/:id` | Ciudadano y dispatcher |
 | `PATCH /api/emergencies/:id/cancel` | Ciudadano, desde el detalle |
 | `PATCH /api/emergencies/:id/validate`, `/discard`, `/assign` | Dispatcher |
+| `GET /api/emergencies` (filtrado por el backend) y `PATCH /api/emergencies/:id/en-route`, `/on-scene`, `/resolve` | Oficial, en `/oficial` |
 | `GET /api/officers` (con `status=disponible` en el modal de asignar) | Dispatcher |
 | `GET`/`PUT /api/citizen/profile` y `GET`/`POST`/`PATCH`/`DELETE /api/citizen/saved-locations` | Perfil del ciudadano |
 
-El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencies/:id/close` y `/return` (dispatcher), `/en-route`, `/on-scene` y `/resolve` (oficial), `GET /api/incidents` y `GET /api/outbox-events`.
+El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencies/:id/close` y `/return` (dispatcher), `GET /api/incidents` y `GET /api/outbox-events`.
 
 ### Middleware
 
@@ -145,9 +147,11 @@ El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencie
 | Caso | Respuesta |
 |---|---|
 | `/api/backend/*` o `/api/auth/session` sin sesión válida | 401 JSON `{ error: "Unauthorized" }`. Si la cookie estaba pero vencida, la borra. |
-| `/acceso` con sesión válida | Redirige al home del rol: `/ops` para el dispatcher y `/inicio` para cualquier otro grupo (ciudadano u oficial) |
+| `/acceso` con sesión válida | Redirige al home del rol: `/ops` para el dispatcher, `/oficial` para el oficial e `/inicio` para cualquier otro grupo |
 | Ruta de ciudadano o de `/ops` sin sesión válida | Redirige a `/acceso` y borra la cookie vencida |
-| `/ops/*` con sesión que no es de dispatcher (ciudadano, oficial o sin grupos) | Redirige a `/inicio` |
+| Cualquier ruta protegida que no sea `/oficial` con sesión de oficial | Redirige a `/oficial` |
+| `/oficial` con sesión que no es de oficial | Redirige a `/ops` (dispatcher) o `/inicio` |
+| `/ops/*` con sesión que no es de dispatcher (ciudadano o sin grupos) | Redirige a `/inicio` |
 | `/inicio`, `/reportar`, `/mis-alertas/*` o `/perfil/*` con sesión de dispatcher | Redirige a `/ops` |
 | Todo lo demás | Pasa |
 
@@ -171,7 +175,7 @@ Dos cosas a tener en cuenta:
 | Chip **JuanPanico** | Rellena `juanpanico@gmail.com` y la contraseña `abracadabra` | `POST /auth/login` |
 | Chip **LuciaTranquila** | Rellena `luciatranquila@gmail.com` y `abracadabra` | `POST /auth/login` |
 | **Iniciar con cuenta ciudadana** | Entra como `U000042` (ciudadano sin botón SOS) | `POST /auth/dev/login` con `sub` |
-| Bloque **Demo · entrar sin contraseña** (debajo de la tarjeta) | Un botón por cuenta: `DISP-Demo001` (dispatcher, va a `/ops`), `of-001` y `of-002` (oficiales, van a `/inicio` porque no hay home de oficial) y `CIT-JuanPanico` (ciudadano con botón SOS). Salen de `DEMO_LOGIN_SHORTCUTS` en `app/lib/features.js` | `POST /auth/dev/login` con `sub` |
+| Bloque **Demo · entrar sin contraseña** (debajo de la tarjeta) | Un botón por cuenta: `DISP-Demo001` (dispatcher, va a `/ops`), `of-001` y `of-002` (oficiales, van a `/oficial`) y `CIT-JuanPanico` (ciudadano con botón SOS). Salen de `DEMO_LOGIN_SHORTCUTS` en `app/lib/features.js` | `POST /auth/dev/login` con `sub` |
 | Panel de la llave → **Acceso Directo Demo** | Entra como `DISP-Demo001` (dispatcher) | `POST /auth/dev/login` con `sub` |
 
 - **La contraseña demo está en el bundle de JS.** `fillDemo` en `app/acceso/AccesoForm.js` tiene `"abracadabra"` escrito en el código, así que cualquiera que abra las DevTools la ve. Son cuentas públicas de demo, sembradas por la migración V16 del backend. No reutilizar esa contraseña en ningún lado.

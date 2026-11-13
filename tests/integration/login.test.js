@@ -191,8 +191,8 @@ describe("POST /api/auth/login", () => {
   // Atajos "Demo" de /acceso: el body es el que arma loginDev con cada cuenta.
   it.each([
     ["DISP-Demo001", ["dispatcher"], "/ops"],
-    ["of-001", ["officer"], "/inicio"],
-    ["of-002", ["officer"], "/inicio"],
+    ["of-001", ["officer"], "/oficial"],
+    ["of-002", ["officer"], "/oficial"],
     ["CIT-JuanPanico", ["citizen"], "/inicio"],
   ])("atajo demo %s: reenvía sub y grupos a /auth/dev/login y el user lleva a %s", async (sub, groups, home) => {
     const { account } = DEMO_LOGIN_SHORTCUTS.find((s) => s.account.sub === sub);
