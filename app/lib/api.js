@@ -499,6 +499,14 @@ export async function validateEmergency(id) {
   return res.data;
 }
 
+export async function closeEmergency(id) {
+  const res = await apiFetch(`/api/emergencies/${id}/close`, {
+    method: "PATCH",
+    body: {},
+  });
+  return res.data;
+}
+
 export async function discardEmergency(id, reason) {
   const res = await apiFetch(`/api/emergencies/${id}/discard`, {
     method: "PATCH",

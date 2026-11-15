@@ -1,7 +1,12 @@
 "use client";
 
 import { Badge, Button, Card, Group, Text } from "@mantine/core";
-import { IconAlertTriangle, IconUserCheck, IconShield } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconCircleCheck,
+  IconUserCheck,
+  IconShield,
+} from "@tabler/icons-react";
 import { SEVERITY_CONFIG } from "../lib/api";
 import { getEffectivePriority, getZoneContext } from "../lib/emergencies";
 import GeoLabel from "./civic/GeoLabel";
@@ -17,6 +22,7 @@ export default function EmergencyCard({
   onAssignOfficer,
   onValidate,
   onDiscard,
+  onCloseEmergency,
 }) {
   const sev = SEVERITY_CONFIG[getEffectivePriority(emergency)] || NO_PRIORITY;
   // Contexto de zona vigente (p. ej. evento en el barrio) que eleva la prioridad.
@@ -27,6 +33,9 @@ export default function EmergencyCard({
     emergency.status === "pendiente" ||
     emergency.status === "PENDING" ||
     emergency.status === "CREATED";
+  const isResolved = ["RESOLVED", "RESUELTA"].includes(
+    String(emergency.status || "").toUpperCase()
+  );
 
   return (
     <Card
@@ -115,6 +124,20 @@ export default function EmergencyCard({
           onClick={() => onAssignOfficer?.(emergency)}
         >
           Asignar Oficial
+        </Button>
+      )}
+
+      {isResolved && (
+        <Button
+          variant="light"
+          color="teal"
+          size="xs"
+          fullWidth
+          mt="sm"
+          leftSection={<IconCircleCheck size={16} />}
+          onClick={() => onCloseEmergency?.(emergency)}
+        >
+          Cerrar Emergencia
         </Button>
       )}
     </Card>

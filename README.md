@@ -90,7 +90,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/mis-alertas` | Ciudadano | Mis emergencias, refresco cada 5 s |
 | `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados (refresco cada 5 s, pausado con la pestaña oculta) y cancelar con confirmación |
 | `/perfil`, `/perfil/datos`, `/perfil/ubicaciones`, `/perfil/ayuda` | Ciudadano | Cuenta, datos personales y ubicaciones guardadas (en el backend, cifrados) y ayuda |
-| `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar y asignar oficial |
+| `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar, asignar oficial y cerrar emergencias resueltas |
 | `/ops/lista` | Dispatcher | Lista ordenada por prioridad, con métricas que filtran, búsqueda, orden por columna y panel de detalle |
 | `/ops/asignar/[id]` | Dispatcher | Elegir oficial disponible para una emergencia validada |
 | `/ops/mapa` | Dispatcher | Mapa Leaflet con las emergencias de `GET /api/emergencies` (hasta 100) |
@@ -102,6 +102,8 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/oficial/cuenta` | Oficial | Mi cuenta y logout (misma vista que ciudadano y dispatcher) |
 
 Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
+
+En `/ops`, el dispatcher puede cerrar una emergencia desde la columna **Resuelta**. La acción pide confirmación y solo se ofrece para registros en `RESOLVED`; el backend los pasa a `CLOSED`.
 
 **Vista de oficial (MVP).** `/oficial` lista lo asignado al oficial (`GET /api/emergencies`, que el backend filtra por `assignedOfficerId` = `sub`) y avanza el estado con `PATCH /api/emergencies/:id/en-route`, `/on-scene` y `/resolve`. Al resolver puede registrar `VIA`, `ESPACIO_PUBLICO` o `RESIDUOS`; `descripcionProblema` es obligatoria solo si selecciona `VIA`. Todavía no tiene observaciones ni refuerzos. Un oficial no entra a las pantallas de ciudadano ni a `/ops`: el middleware lo manda a `/oficial`.
 
