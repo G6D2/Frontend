@@ -771,6 +771,26 @@ describe("api.js", () => {
       );
     });
 
+    it("advanceOfficerStatus manda las causas relacionadas al resolver", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { id: "e1" } }),
+      });
+
+      await advanceOfficerStatus("e1", "resolve", {
+        causasRelacionadas: ["RESIDUOS"],
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/backend/api/emergencies/e1/resolve",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ causasRelacionadas: ["RESIDUOS"] }),
+        })
+      );
+    });
+
     it("advanceOfficerStatus rechaza una acción desconocida sin llamar al backend", async () => {
       global.fetch = vi.fn();
       await expect(advanceOfficerStatus("e1", "close")).rejects.toThrow(ApiError);
