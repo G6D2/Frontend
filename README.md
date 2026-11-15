@@ -98,12 +98,12 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/ops/oficiales` | Dispatcher | Catálogo de oficiales y su estado |
 | `/ops/cuenta` | Dispatcher | Mi cuenta y logout |
 | `/ops/emergencias` | Dispatcher | Redirige a `/ops/lista` |
-| `/oficial` | Oficial | MVP: emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver** (con confirmación). Refresco cada 5 s. Mismo panel lateral (y barra inferior en celular) que ciudadano y dispatcher: **Asignaciones** y **Mi cuenta** |
+| `/oficial` | Oficial | Emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver**. Al resolver permite seleccionar causas relacionadas; `VIA` requiere una descripción de hasta 280 caracteres. Refresco cada 5 s. Mismo panel lateral (y barra inferior en celular) que ciudadano y dispatcher: **Asignaciones** y **Mi cuenta** |
 | `/oficial/cuenta` | Oficial | Mi cuenta y logout (misma vista que ciudadano y dispatcher) |
 
 Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
 
-**Vista de oficial (MVP).** `/oficial` lista lo asignado al oficial (`GET /api/emergencies`, que el backend filtra por `assignedOfficerId` = `sub`) y avanza el estado con `PATCH /api/emergencies/:id/en-route`, `/on-scene` y `/resolve`. Todavía no tiene observaciones, refuerzos ni causas relacionadas al resolver. Un oficial no entra a las pantallas de ciudadano ni a `/ops`: el middleware lo manda a `/oficial`.
+**Vista de oficial (MVP).** `/oficial` lista lo asignado al oficial (`GET /api/emergencies`, que el backend filtra por `assignedOfficerId` = `sub`) y avanza el estado con `PATCH /api/emergencies/:id/en-route`, `/on-scene` y `/resolve`. Al resolver puede registrar `VIA`, `ESPACIO_PUBLICO` o `RESIDUOS`; `descripcionProblema` es obligatoria solo si selecciona `VIA`. Todavía no tiene observaciones ni refuerzos. Un oficial no entra a las pantallas de ciudadano ni a `/ops`: el middleware lo manda a `/oficial`.
 
 ---
 

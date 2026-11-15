@@ -572,13 +572,13 @@ export const OFFICER_NEXT_STEP = {
 };
 
 /** PATCH /api/emergencies/:id/{en-route|on-scene|resolve} (solo oficial asignado). */
-export async function advanceOfficerStatus(id, action) {
+export async function advanceOfficerStatus(id, action, resolution = {}) {
   if (!["en-route", "on-scene", "resolve"].includes(action)) {
     throw new ApiError(`Acción de oficial desconocida: ${action}`, { status: 400 });
   }
   const res = await apiFetch(`/api/emergencies/${id}/${action}`, {
     method: "PATCH",
-    body: {},
+    body: action === "resolve" ? resolution : {},
   });
   return res?.data;
 }
