@@ -36,8 +36,12 @@ export function isCitizen(user) {
   return getUserRoleTokens(user).includes("citizen");
 }
 
+// `poli` es el grupo LDAP de los oficiales en el Login Federado. El backend
+// lo traduce a `officer`, pero el middleware decide la ruta con los grupos
+// crudos del token, así que el front también tiene que reconocerlo.
 export function isOfficer(user) {
-  return getUserRoleTokens(user).includes("officer");
+  const list = getUserRoleTokens(user);
+  return list.some((g) => g === "officer" || g === "poli");
 }
 
 export function getHomePathForUser(user) {

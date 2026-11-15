@@ -103,7 +103,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 
 Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
 
-**Vista de oficial (MVP).** `/oficial` lista lo asignado al oficial (`GET /api/emergencies`, que el backend filtra por `assignedOfficerId` = `sub`) y avanza el estado con `PATCH /api/emergencies/:id/en-route`, `/on-scene` y `/resolve`. Todavía no tiene observaciones, refuerzos ni causas relacionadas al resolver. Un oficial no entra a las pantallas de ciudadano ni a `/ops`: el middleware lo manda a `/oficial`.
+**Vista de oficial (MVP).** `/oficial` lista lo asignado al oficial (`GET /api/emergencies`, que el backend filtra por `assignedOfficerId` = `sub`) y avanza el estado con `PATCH /api/emergencies/:id/en-route`, `/on-scene` y `/resolve`. Todavía no tiene observaciones, refuerzos ni causas relacionadas al resolver. Un oficial no entra a las pantallas de ciudadano ni a `/ops`: el middleware lo manda a `/oficial`. Es oficial quien trae el grupo `officer` o `poli` (el grupo LDAP de los oficiales en el Login Federado).
 
 ---
 

@@ -25,6 +25,8 @@ const tokens = {
   citizen: () => jwtFor({ sub: "CIT-JuanPanico", groups: ["citizen"], exp: inOneHour() }),
   dispatcher: () => jwtFor({ sub: "DISP-Demo001", groups: ["dispatcher"], exp: inOneHour() }),
   officer: () => jwtFor({ sub: "of-001", groups: ["officer"], exp: inOneHour() }),
+  // Oficial del Login Federado: el token trae el grupo LDAP crudo.
+  ldapOfficer: () => jwtFor({ sub: "U000099", groups: ["poli"], exp: inOneHour() }),
   noGroups: () => jwtFor({ sub: "U1", exp: inOneHour() }),
   expired: () => jwtFor({ sub: "CIT-JuanPanico", groups: ["citizen"], exp: anHourAgo() }),
 };
@@ -104,6 +106,10 @@ describe("middleware: /acceso", () => {
   it("con sesión de officer: redirige a /oficial", () => {
     expectRedirect(run("/acceso", tokens.officer()), "/oficial");
   });
+
+  it("con sesión de oficial LDAP (grupo poli): redirige a /oficial, no a /ops", () => {
+    expectRedirect(run("/acceso", tokens.ldapOfficer()), "/oficial");
+  });
 });
 
 describe("middleware: rutas protegidas sin sesión", () => {
@@ -149,6 +155,12 @@ describe("middleware: guard de rol", () => {
 
   it("officer en /oficial: pasa", () => {
     expectNext(run("/oficial", tokens.officer()));
+  });
+
+  it("oficial LDAP (grupo poli): pasa en /oficial y no entra a /ops ni a ciudadano", () => {
+    expectNext(run("/oficial", tokens.ldapOfficer()));
+    expectRedirect(run("/ops", tokens.ldapOfficer()), "/oficial");
+    expectRedirect(run("/inicio", tokens.ldapOfficer()), "/oficial");
   });
 
   it("/oficial sin sesión redirige a /acceso; con otro rol, a su home", () => {
