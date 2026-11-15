@@ -10,6 +10,8 @@ import {
   Skeleton,
   Text,
   Title,
+  Button,
+  Modal,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
@@ -23,6 +25,7 @@ import {
   assignOfficer,
   validateEmergency,
   discardEmergency,
+  closeEmergency,
   POLLING_INTERVAL_MS,
   STATUS_CONFIG,
 } from "../lib/api";
@@ -72,6 +75,8 @@ export default function DispatcherView() {
   const [modalOpened, setModalOpened] = useState(false);
   const [discardTarget, setDiscardTarget] = useState(null);
   const [discardBusy, setDiscardBusy] = useState(false);
+  const [closeTarget, setCloseTarget] = useState(null);
+  const [closeBusy, setCloseBusy] = useState(false);
 
   // ── Modo celular: Índice del estado activo (tipo Tinder swipe) ──
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
@@ -230,6 +235,31 @@ export default function DispatcherView() {
     }
   };
 
+  const confirmClose = async () => {
+    if (!closeTarget || closeBusy) return;
+    setCloseBusy(true);
+    try {
+      await closeEmergency(closeTarget.id);
+      setCloseTarget(null);
+      pollerRef.current?.refresh();
+      notifications.show({
+        title: "Emergencia cerrada",
+        message: `${shortId(closeTarget.id)} pasó a CERRADA.`,
+        color: "teal",
+        autoClose: 3000,
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Error al cerrar",
+        message: error.message || "No se pudo cerrar la emergencia.",
+        color: "red",
+        autoClose: 4000,
+      });
+    } finally {
+      setCloseBusy(false);
+    }
+  };
+
   // ── RF-07 & RF-08: Confirmar asignación vía PATCH y mover a DESPACHADA ──
   const handleAssignOfficer = async (emergencyId, officerId) => {
     try {
@@ -340,6 +370,7 @@ export default function DispatcherView() {
                           onAssignOfficer={handleOpenAssignModal}
                           onValidate={handleValidate}
                           onDiscard={handleDiscard}
+                          onCloseEmergency={setCloseTarget}
                         />
                       ))
                     )}
@@ -518,6 +549,7 @@ export default function DispatcherView() {
                             onAssignOfficer={handleOpenAssignModal}
                             onValidate={handleValidate}
                             onDiscard={handleDiscard}
+                            onCloseEmergency={setCloseTarget}
                           />
                         ))
                       )}
@@ -545,6 +577,32 @@ export default function DispatcherView() {
         }}
         onConfirm={confirmDiscard}
       />
+      <Modal
+        opened={Boolean(closeTarget)}
+        onClose={() => {
+          if (!closeBusy) setCloseTarget(null);
+        }}
+        title="Cerrar emergencia"
+        centered
+      >
+        <Text size="sm">
+          ¿Confirmás el cierre definitivo de la emergencia{" "}
+          <strong>#{closeTarget ? shortId(closeTarget.id) : ""}</strong>? Solo
+          se puede cerrar una emergencia resuelta.
+        </Text>
+        <Group justify="flex-end" mt="lg">
+          <Button
+            variant="default"
+            disabled={closeBusy}
+            onClick={() => setCloseTarget(null)}
+          >
+            Cancelar
+          </Button>
+          <Button color="teal" loading={closeBusy} onClick={confirmClose}>
+            Confirmar cierre
+          </Button>
+        </Group>
+      </Modal>
     </div>
   );
 }

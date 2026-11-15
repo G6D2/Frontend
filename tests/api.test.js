@@ -22,6 +22,7 @@ import {
   cancelEmergency,
   reportIncident,
   validateEmergency,
+  closeEmergency,
   discardEmergency,
   overridePriority,
   fetchOfficers,
@@ -667,6 +668,25 @@ describe("api.js", () => {
       });
       const discarded = await discardEmergency("e1", "duplicada");
       expect(discarded.status).toBe("DISCARDED");
+    });
+
+    it("closeEmergency: envía PATCH /api/emergencies/:id/close sin body", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { id: "e1", status: "CLOSED" } }),
+      });
+
+      const closed = await closeEmergency("e1");
+
+      expect(closed).toEqual({ id: "e1", status: "CLOSED" });
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/backend/api/emergencies/e1/close",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({}),
+        })
+      );
     });
   });
 
