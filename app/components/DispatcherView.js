@@ -32,6 +32,7 @@ import {
 import { getStatusConfig, isActiveStatus } from "../lib/emergencies";
 import { createPoller, mergeEmergencyPoll } from "../lib/polling";
 import EmergencyCard from "./EmergencyCard";
+import { boardGridStyle } from "../lib/boardLayout";
 import AssignOfficerModal from "./AssignOfficerModal";
 import DiscardReasonModal from "./DiscardReasonModal";
 import classes from "../styles.module.css";
@@ -293,6 +294,12 @@ export default function DispatcherView() {
   // Las cerradas no vienen en el poll, pero una recién descartada queda en la
   // lista local hasta el próximo: no cuenta como activa.
   const activeCount = emergencies.filter((em) => isActiveStatus(em.status)).length;
+  // Tablero de escritorio: las emergencias de cada columna, agrupadas una vez
+  // por render (de acá salen también los anchos de la grilla).
+  const boardColumns = STATUS_CONFIG.map((col) => ({
+    col,
+    items: emergencies.filter((em) => columnKey(em) === col.key),
+  }));
 
   return (
     <div style={{ width: "100%", padding: "16px", overflow: "hidden" }}>
@@ -323,23 +330,28 @@ export default function DispatcherView() {
       {/* ── VISTA ESCRITORIO: Tablero Kanban Clásico Multi-Columna ── */}
       <div className={classes.desktopBoard}>
         <ScrollArea type="auto" offsetScrollbars className={classes.boardScrollArea}>
-          <div className={classes.boardStatus}>
-            {STATUS_CONFIG.map((col) => {
-              const items = emergencies.filter(
-                (em) => columnKey(em) === col.key
-              );
+          <div
+            className={classes.boardStatus}
+            style={boardGridStyle(
+              boardColumns.map(({ items }) => items.length),
+              { loading }
+            )}
+          >
+            {boardColumns.map(({ col, items }) => {
               return (
                 <div key={col.key} className={classes.boardColumnStatus}>
                   <div className={classes.boardColumnHeader}>
-                    <Group justify="space-between" align="center">
-                      <Group gap="xs">
+                    {/* Sin wrap: en una columna vacía (angosta) el contador
+                        de "Despachadas" bajaba a una segunda línea. */}
+                    <Group justify="space-between" align="center" wrap="nowrap" gap={6}>
+                      <Group gap="xs" wrap="nowrap">
                         <div
                           className={classes.boardColumnDot}
                           style={{
                             backgroundColor: `var(--mantine-color-${col.color}-6)`,
                           }}
                         />
-                        <Text fw={600} size="sm" c="dark">
+                        <Text fw={600} size="sm" c="dark" style={{ whiteSpace: "nowrap" }}>
                           {col.label}
                         </Text>
                       </Group>
