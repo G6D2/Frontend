@@ -10,7 +10,10 @@ import CitizenPageContainer from "../../components/civic/CitizenPageContainer";
 
 export default function OpsCuentaPage() {
   const router = useRouter();
-  const [user, setUser] = useState(getStoredUser());
+  // Arranca en null también en el cliente para que el primer render coincida
+  // con el HTML del server (sin sessionStorage); el efecto de abajo lee el
+  // guardado al montar.
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
