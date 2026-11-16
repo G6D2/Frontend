@@ -1,18 +1,16 @@
-// Integración: /api/analytics/[[...path]] (app/api/analytics/[[...path]]/route.js)
+// Integración: /api/analytics (app/api/analytics/route.js)
 //
-// Proxy del embed de analítica: agrega `Authorization: Bearer <cookie>` (el
-// iframe no puede mandar headers), solo para dispatchers, solo GET/HEAD, y
-// reescribe las URLs del HTML para que sigan pasando por el proxy.
+// Proxy del tablero de analítica: agrega `Authorization: Bearer <cookie>` (el
+// iframe no puede mandar headers), solo para dispatchers (el backend de
+// analítica no valida roles) y solo para la URL fija del tablero.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
 import { cookies } from "next/headers";
-import { GET } from "../../app/api/analytics/[[...path]]/route.js";
+import { GET, HEAD } from "../../app/api/analytics/route.js";
 import { DEFAULT_ANALYTICS_EMBED_URL } from "../../app/lib/analytics.js";
 import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
-
-const ORIGIN = new URL(DEFAULT_ANALYTICS_EMBED_URL).origin;
 
 function jwtFor(payload) {
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
@@ -23,91 +21,86 @@ function jwtFor(payload) {
 const exp = Math.floor(Date.now() / 1000) + 900;
 const DISPATCHER = jwtFor({ sub: "D1", groups: ["dispatcher"], exp });
 const CITIZEN = jwtFor({ sub: "C1", groups: ["citizen"], exp });
+const OFFICER = jwtFor({ sub: "of-001", groups: ["officer"], exp });
+const DELEGADO = jwtFor({ sub: "X1", groups: ["delegados"], exp });
 
-const ctxFor = (path) => ({ params: Promise.resolve({ path }) });
+const EMBED_PATH = new URL(DEFAULT_ANALYTICS_EMBED_URL).pathname;
+const req = () => makeRequest("http://localhost/api/analytics");
+const htmlResponse = (status = 200, html = "<html><body>tablero</body></html>") =>
+  new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } });
 
-describe("/api/analytics/[[...path]]", () => {
+describe("/api/analytics", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("apunta por defecto al tablero de emergencias", () => {
+    expect(EMBED_PATH).toBe("/embed/emergencias");
+  });
 
   it("sin cookie: 401 y no llama al servicio de analítica", async () => {
     mockNextCookies(cookies);
     const { calls } = mockBackend({});
-    const res = await GET(makeRequest("http://localhost/api/analytics/embed/"), ctxFor(["embed"]));
+    const res = await GET(req());
     expect(res.status).toBe(401);
     expect(calls).toHaveLength(0);
   });
 
-  it("usuario que no es dispatcher: 403", async () => {
-    mockNextCookies(cookies, { citypass_session: CITIZEN });
+  it.each([
+    ["ciudadano", CITIZEN],
+    ["oficial", OFFICER],
+    ["delegado", DELEGADO],
+  ])("%s: 403 y no llama al servicio de analítica (el único filtro de rol es este)", async (_, token) => {
+    mockNextCookies(cookies, { citypass_session: token });
     const { calls } = mockBackend({});
-    const res = await GET(makeRequest("http://localhost/api/analytics/embed/"), ctxFor(["embed"]));
+    const res = await GET(req());
     expect(res.status).toBe(403);
     expect(calls).toHaveLength(0);
   });
 
-  it("dispatcher: manda el Bearer al host de analítica y reescribe las URLs del HTML", async () => {
+  it("dispatcher: pide el tablero con el Bearer y devuelve el HTML sin tocar", async () => {
     mockNextCookies(cookies, { citypass_session: DISPATCHER });
-    const html =
-      `<link href="/static/app.css"><script src="${ORIGIN}/static/app.js"></script>` +
-      `<img src="logo.png"><a href="//cdn.example.com/x">x</a>`;
-    const { calls } = mockBackend({
-      "GET /embed/": { status: 200, body: html, headers: { "content-type": "text/html; charset=utf-8" } },
-    });
+    const html = '<html><script>var d={"a":1}</script><link href="/x.css"></html>';
+    const { calls } = mockBackend({ [`GET ${EMBED_PATH}`]: htmlResponse(200, html) });
 
-    const res = await GET(makeRequest("http://localhost/api/analytics/embed/?range=7d"), ctxFor(["embed"]));
-    const text = await res.text();
+    const res = await GET(req());
 
     expect(res.status).toBe(200);
-    expect(calls[0].url).toBe(`${ORIGIN}/embed/?range=7d`);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(DEFAULT_ANALYTICS_EMBED_URL);
     expect(calls[0].headers.Authorization).toBe(`Bearer ${DISPATCHER}`);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(res.headers.get("cache-control")).toBe("private, no-store");
-    expect(text).toContain('href="/api/analytics/static/app.css"');
-    expect(text).toContain('src="/api/analytics/static/app.js"');
-    expect(text).toContain('src="logo.png"');
-    expect(text).toContain('href="//cdn.example.com/x"');
+    expect(await res.text()).toBe(html);
   });
 
-  it("Next saca la barra final: igual pide /embed/ y ancla las URLs relativas con <base>", async () => {
+  it("propaga el status del servicio de analítica (p. ej. 401 si rechaza el token)", async () => {
     mockNextCookies(cookies, { citypass_session: DISPATCHER });
-    const { calls } = mockBackend({
-      "GET /embed/": { status: 200, body: "<html><head><title>x</title></head></html>", headers: { "content-type": "text/html" } },
-    });
-    const res = await GET(makeRequest("http://localhost/api/analytics/embed"), ctxFor(["embed"]));
-    expect(calls[0].url).toBe(`${ORIGIN}/embed/`);
-    expect(await res.text()).toContain('<head><base href="/api/analytics/embed/">');
+    mockBackend({ [`GET ${EMBED_PATH}`]: htmlResponse(401, '{"detail":"Invalid token"}') });
+    const res = await GET(req());
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain("Invalid token");
   });
 
-  it("rechaza segmentos con '..'", async () => {
-    mockNextCookies(cookies, { citypass_session: DISPATCHER });
-    const { calls } = mockBackend({});
-    const res = await GET(makeRequest("http://localhost/api/analytics/x"), ctxFor(["..", "etc"]));
-    expect(res.status).toBe(400);
-    expect(calls).toHaveLength(0);
-  });
-
-  it("redirect a otro host: no lo sigue (no filtra el Bearer)", async () => {
+  it("no sigue redirects (no manda el Bearer a otro host)", async () => {
     mockNextCookies(cookies, { citypass_session: DISPATCHER });
     mockBackend({
-      "GET /old": { status: 302, body: "", headers: { location: "https://evil.example.com/" } },
+      [`GET ${EMBED_PATH}`]: new Response(null, { status: 302, headers: { location: "https://evil.example.com/" } }),
     });
-    const res = await GET(makeRequest("http://localhost/api/analytics/old"), ctxFor(["old"]));
+    const res = await GET(req());
     expect(res.status).toBe(502);
-  });
-
-  it("redirect dentro del host: lo reescribe al proxy", async () => {
-    mockNextCookies(cookies, { citypass_session: DISPATCHER });
-    mockBackend({
-      "GET /old": { status: 301, body: "", headers: { location: "/embed/" } },
-    });
-    const res = await GET(makeRequest("http://localhost/api/analytics/old"), ctxFor(["old"]));
-    expect(res.status).toBe(301);
-    expect(res.headers.get("location")).toBe("/api/analytics/embed/");
   });
 
   it("servicio caído: 502", async () => {
     mockNextCookies(cookies, { citypass_session: DISPATCHER });
-    mockBackend({ "GET /embed/": "network-error" });
-    const res = await GET(makeRequest("http://localhost/api/analytics/embed/"), ctxFor(["embed"]));
+    mockBackend({ [`GET ${EMBED_PATH}`]: "network-error" });
+    const res = await GET(req());
     expect(res.status).toBe(502);
+  });
+
+  it("HEAD: sin body", async () => {
+    mockNextCookies(cookies, { citypass_session: DISPATCHER });
+    mockBackend({ [`HEAD ${EMBED_PATH}`]: htmlResponse() });
+    const res = await HEAD(makeRequest("http://localhost/api/analytics", { method: "HEAD" }));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("");
   });
 });

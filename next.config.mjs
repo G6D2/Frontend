@@ -12,8 +12,8 @@ const isDev = process.env.NODE_ENV === "development";
 //   JetBrains Mono los sirve next/font desde el propio sitio.
 // - img-src: tiles de OpenStreetMap ({s}.tile.openstreetmap.org en OpsMap.js)
 //   y data: para el GIF vacío con el que Leaflet descarga tiles.
-// - frame-src 'self': el iframe de /ops/analitica carga el embed de analítica
-//   a través del proxy /api/analytics (mismo origen).
+// - frame-src 'self': el iframe de /ops/analitica carga el tablero de
+//   analítica a través del proxy /api/analytics (mismo origen).
 // - connect-src 'self': el browser solo habla con el BFF; el geocoding y el
 //   backend van del lado del servidor.
 const csp = [
@@ -39,29 +39,27 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
 ];
 
-// Respuestas del proxy de analítica (/api/analytics/**, el HTML embebido en
-// /ops/analitica y sus assets). Es contenido del backend de analítica, no
-// nuestro: se puede enmarcar solo desde nuestro origen y se le permiten
-// scripts/estilos/imágenes de CDNs https (no sabemos cuáles usa), pero
-// connect-src queda en 'self' para que solo hable con el proxy.
+// Respuesta de /api/analytics: el tablero de analítica, un HTML autocontenido
+// (JS, CSS y datos inline; no carga nada externo ni hace fetch). Se puede
+// enmarcar solo desde nuestro origen, y la directiva `sandbox` lo aísla en un
+// origen opaco aunque se abra fuera del iframe de /ops/analitica.
 const analyticsCsp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https:",
-  "style-src 'self' 'unsafe-inline' https:",
-  "font-src 'self' data: https:",
-  "img-src 'self' data: blob: https:",
-  "connect-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  "img-src data: blob:",
+  "font-src data:",
   "frame-ancestors 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "sandbox allow-scripts",
 ].join("; ");
 
 const analyticsHeaders = [
   { key: "Content-Security-Policy", value: analyticsCsp },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "same-origin" },
+  { key: "Referrer-Policy", value: "no-referrer" },
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
 ];
 
@@ -79,8 +77,7 @@ const nextConfig = {
   async headers() {
     return [
       // Todo menos el proxy de analítica (que no se puede enmarcar con DENY).
-      { source: "/((?!api/analytics(?:/|$)).*)", headers: securityHeaders },
-      { source: "/api/analytics/:path*", headers: analyticsHeaders },
+      { source: "/((?!api/analytics$).*)", headers: securityHeaders },
       { source: "/api/analytics", headers: analyticsHeaders },
     ];
   },

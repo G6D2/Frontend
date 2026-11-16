@@ -1,33 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredUser, fetchCurrentUser } from "../../lib/api";
 import { isDispatcher } from "../../lib/auth";
-import { analyticsProxyUrl } from "../../lib/analytics";
-
-// Pasa por el BFF, que agrega el Bearer del IdP (ver app/lib/analytics.js).
-const EMBED_SRC = analyticsProxyUrl();
+import { ANALYTICS_PROXY_PATH } from "../../lib/analytics";
 import PageHeader from "../../components/PageHeader";
-import MaterialIcon from "../../components/civic/MaterialIcon";
+
+const noopSubscribe = () => () => {};
 
 export default function OpsAnaliticaPage() {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
-
-  // La página es estática: el iframe puede terminar de cargar antes de que
-  // React enganche onLoad. Como el embed es mismo origen (vía proxy), al
-  // montarlo se mira si su documento ya está completo.
-  const checkAlreadyLoaded = useCallback((el) => {
-    try {
-      const doc = el?.contentDocument;
-      if (doc && doc.readyState === "complete" && doc.URL !== "about:blank") {
-        setLoaded(true);
-      }
-    } catch {
-      // sin acceso al documento: queda onLoad
-    }
-  }, []);
+  // El iframe se monta recién en el cliente (false en el prerender, true al
+  // hidratar): así onLoad siempre está enganchado cuando termina de cargar.
+  // Con sandbox no se puede mirar su contentDocument para saberlo después.
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
 
   // Mismo guard de rol que el resto de /ops (el middleware ya filtra; esto
   // cubre sesiones cuyo user cacheado no sea dispatcher).
@@ -48,35 +36,25 @@ export default function OpsAnaliticaPage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-64px-env(safe-area-inset-bottom,0px))] md:h-dvh">
-      <PageHeader
-        title="Analítica"
-        right={
-          <a
-            href={EMBED_SRC}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Abrir analítica en una pestaña nueva"
-            title="Abrir en una pestaña nueva"
-            className="min-w-touch min-h-touch flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition-colors"
-          >
-            <MaterialIcon name="open_in_new" />
-          </a>
-        }
-      />
+      <PageHeader title="Analítica" />
       <div className="relative flex-1 min-h-0">
         {!loaded && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-on-surface-variant">
             Cargando analítica…
           </div>
         )}
-        <iframe
-          ref={checkAlreadyLoaded}
-          src={EMBED_SRC}
-          title="Analítica de emergencias"
-          className="absolute inset-0 w-full h-full border-0"
-          onLoad={() => setLoaded(true)}
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
+        {mounted && (
+          <iframe
+            src={ANALYTICS_PROXY_PATH}
+            title="Analítica de emergencias"
+            // Sin allow-same-origin: el tablero se sirve desde nuestro origen
+            // y sin sandbox su JS podría llamar a /api/backend con la sesión
+            // del dispatcher. Lo pidió Analítica y el tablero renderiza así.
+            sandbox="allow-scripts"
+            className={`absolute inset-0 w-full h-full border-0 ${loaded ? "" : "invisible"}`}
+            onLoad={() => setLoaded(true)}
+          />
+        )}
       </div>
     </div>
   );
