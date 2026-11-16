@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import CitizenTopBar from "../../../components/civic/CitizenTopBar";
@@ -13,10 +13,12 @@ import {
   ApiError,
   CITIZEN_POLLING_INTERVAL_MS,
 } from "../../../lib/api";
+import { createPoller } from "../../../lib/polling";
 import {
   getStatusConfig,
   isCancelable,
   isActiveStatus,
+  isTerminalStatus,
   formatTime,
   formatTimeShort,
 } from "../../../lib/emergencies";
@@ -30,66 +32,40 @@ export default function AlertDetailPage() {
   const [error, setError] = useState("");
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
-  // Carga inicial (con spinner) + polling silencioso cada CITIZEN_POLLING_INTERVAL_MS.
-  // La actualización silenciosa no pisa el spinner ni el mensaje de error
-  // si la emergencia ya se cargó: solo actualiza status y statusHistory.
-  const loadDetail = useCallback(
-    async ({ silent = false } = {}) => {
+  // Sube cada vez que el usuario cancela (ver handleCancel).
+  const cancelSeqRef = useRef(0);
+
+  // Primera carga (con "Cargando…" y mensaje de error) y después un refresco
+  // cada CITIZEN_POLLING_INTERVAL_MS con createPoller: no superpone pedidos, se
+  // pausa con la pestaña oculta y se corta al desmontar. Con la emergencia ya
+  // en pantalla el refresco es silencioso: si falla, no muestra error.
+  useEffect(() => {
+    let loaded = false;
+    let poller = null;
+
+    const load = async () => {
+      const cancelSeq = cancelSeqRef.current;
       try {
         const data = await fetchEmergencyDetail(params.id);
-        setEmergency((prev) => {
-          // Mantener campos locales optimistas (ej. cancelación en vuelo)
-          if (!prev) return data;
-          return { ...data };
-        });
-        if (!silent) setError("");
+        // Este pedido salió antes de que el usuario cancelara: trae el estado
+        // viejo y pisaría la cancelación. Se descarta; el próximo trae el nuevo.
+        if (cancelSeq !== cancelSeqRef.current) return;
+        loaded = true;
+        setEmergency(data);
+        setError("");
+        // En un estado terminal la emergencia ya no cambia: se deja de consultar.
+        if (isTerminalStatus(data?.status)) poller.stop();
       } catch (err) {
-        if (!silent) {
-          setError(err.message || "No se pudo cargar la emergencia");
-        }
+        if (!loaded) setError(err.message || "No se pudo cargar la emergencia");
       } finally {
-        if (!silent) setLoading(false);
+        setLoading(false);
       }
-    },
-    [params.id]
-  );
-
-  // Carga inicial
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!cancelled) await loadDetail({ silent: false });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadDetail]);
-
-  // Polling silencioso: se inicia después de la carga inicial, se pausa
-  // cuando la pestaña no está visible para ahorrar peticiones innecesarias.
-  useEffect(() => {
-    if (loading) return; // Esperar a que termine la carga inicial
-    let interval = null;
-
-    const start = () => {
-      if (interval) return;
-      interval = setInterval(() => loadDetail({ silent: true }), CITIZEN_POLLING_INTERVAL_MS);
-    };
-    const stop = () => {
-      if (interval) { clearInterval(interval); interval = null; }
-    };
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") { loadDetail({ silent: true }); start(); }
-      else stop();
     };
 
-    if (document.visibilityState === "visible") start();
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [loading, loadDetail]);
+    poller = createPoller({ load, intervalMs: CITIZEN_POLLING_INTERVAL_MS });
+    poller.start();
+    return () => poller.stop();
+  }, [params.id]);
 
   const handleCancel = async (reason) => {
     if (!emergency || !isCancelable(emergency.status)) return;
@@ -97,6 +73,8 @@ export default function AlertDetailPage() {
     try {
       const cancelReason = reason || "Ya no necesito asistencia";
       const updated = await cancelEmergency(emergency.id, cancelReason);
+      // Invalida los refrescos que estén en vuelo: se pidieron antes de cancelar.
+      cancelSeqRef.current += 1;
       setEmergency((prev) => ({
         ...prev,
         ...updated,

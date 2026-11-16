@@ -234,6 +234,27 @@ describe("createPoller", () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
+  // Lo usa el detalle de /mis-alertas/[id]: deja de consultar cuando la
+  // emergencia llega a un estado terminal.
+  it("stop() llamado desde load() no agenda el siguiente ni vuelve con la pestaña", async () => {
+    const doc = createFakeDocument();
+    let poller = null;
+    const load = vi.fn(async () => {
+      poller.stop();
+    });
+    poller = createPoller({ load, intervalMs: INTERVAL, doc });
+
+    poller.start();
+    await vi.advanceTimersByTimeAsync(INTERVAL * 3);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(doc.listenerCount()).toBe(0);
+
+    doc.setVisibility("hidden");
+    doc.setVisibility("visible");
+    await vi.advanceTimersByTimeAsync(INTERVAL * 3);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
   it("sin document (SSR/tests) se comporta como pestaña visible", async () => {
     const load = vi.fn().mockResolvedValue(undefined);
     const poller = createPoller({ load, intervalMs: INTERVAL });
