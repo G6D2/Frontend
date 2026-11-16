@@ -37,9 +37,13 @@ export default function RootLayout({ children }) {
     >
       <head>
         <ColorSchemeScript defaultColorScheme="light" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        {/* display=block y no swap: cada ícono es texto ("location_on") y con
+            swap se leían las palabras hasta que bajaba la fuente. La regla
+            google-font-display desaconseja block pensando en fuentes de
+            texto; acá es una fuente de íconos. */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font, @next/next/google-font-display */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block"
           rel="stylesheet"
         />
       </head>

@@ -39,8 +39,11 @@ export async function GET(request) {
     return NextResponse.json({ error: "Bad Request", message: "lat/lng inválidos" }, { status: 400 });
   }
   const label = await reverseGeocodeServer(lat, lng);
+  // Sin dirección (el proveedor falló o tardó) no se cachea: si no, el
+  // navegador guardaba el `label: null` una hora y los reintentos del cliente
+  // (app/lib/geocoding.js) ni llegaban al BFF.
   return NextResponse.json(
     { label },
-    { headers: { "Cache-Control": "private, max-age=3600" } }
+    { headers: { "Cache-Control": label ? "private, max-age=3600" : "no-store" } }
   );
 }

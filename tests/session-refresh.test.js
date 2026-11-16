@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   createSessionRefresher,
+  isAuthScreen,
   SESSION_REFRESH_INTERVAL_MS,
 } from "../app/lib/sessionRefresh.js";
 
@@ -167,5 +168,67 @@ describe("createSessionRefresher", () => {
 
     expect(await first).toBe("refreshed");
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  // SessionRefreshManager monta el timer una sola vez (antes lo reiniciaba
+  // cada navegación y, navegando seguido, el refresh no corría nunca) y en
+  // cada disparo pasa la ruta actual: la decisión de no refrescar en las
+  // pantallas de autenticación está acá.
+  describe("pantallas de autenticación", () => {
+    it.each([
+      ["/acceso", true],
+      ["/logout", true],
+      ["/", false],
+      ["/inicio", false],
+      ["/ops/mapa", false],
+      ["/acceso/otra", false],
+      [undefined, false],
+      [null, false],
+    ])("isAuthScreen(%s) → %s", (pathname, expected) => {
+      expect(isAuthScreen(pathname)).toBe(expected);
+    });
+
+    it.each(["/acceso", "/logout"])("en %s el timer no pide refresh", async (pathname) => {
+      const { refresher, refresh, onExpired } = setup([response(200)]);
+
+      expect(await refresher.tick(pathname)).toBe("skipped");
+
+      expect(refresh).not.toHaveBeenCalled();
+      expect(onExpired).not.toHaveBeenCalled();
+    });
+
+    it.each(["/acceso", "/logout"])("en %s la vuelta a la pestaña no pide refresh", async (pathname) => {
+      const { refresher, refresh, advance } = setup([response(200)]);
+
+      advance(SESSION_REFRESH_INTERVAL_MS * 2);
+      expect(await refresher.onVisible(pathname)).toBe("skipped");
+
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("el mismo timer refresca en cuanto el usuario está en otra pantalla", async () => {
+      const { refresher, refresh, advance } = setup([response(200)]);
+
+      // Timer montado una sola vez: tres disparos seguidos, la ruta cambia.
+      expect(await refresher.tick("/acceso")).toBe("skipped");
+      advance(SESSION_REFRESH_INTERVAL_MS);
+      expect(await refresher.tick("/ops")).toBe("refreshed");
+      advance(SESSION_REFRESH_INTERVAL_MS);
+      expect(await refresher.tick("/ops/mapa")).toBe("refreshed");
+
+      expect(refresh).toHaveBeenCalledTimes(2);
+    });
+
+    it("un disparo salteado en /acceso no cuenta como intento", async () => {
+      const { refresher, refresh, advance } = setup([response(200)]);
+
+      advance(SESSION_REFRESH_INTERVAL_MS);
+      expect(await refresher.tick("/acceso")).toBe("skipped");
+      // Ya en la app, la vuelta a la pestaña sí intenta: el último intento
+      // real fue hace más de un intervalo.
+      expect(await refresher.onVisible("/inicio")).toBe("refreshed");
+
+      expect(refresh).toHaveBeenCalledTimes(1);
+    });
   });
 });

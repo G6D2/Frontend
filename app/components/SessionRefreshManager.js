@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createSessionRefresher,
+  isAuthScreen,
   SESSION_REFRESH_INTERVAL_MS,
 } from "../lib/sessionRefresh";
 
@@ -21,22 +22,29 @@ export default function SessionRefreshManager() {
     })
   );
 
-  useEffect(() => {
-    // En las pantallas de autenticación no se refresca; la sesión que venga
-    // después puede ser federada o local.
-    if (pathname === "/acceso" || pathname === "/logout") {
-      refresher.reset();
-      return;
-    }
+  // La ruta se lee desde un ref y no es dependencia del efecto del timer: si
+  // lo fuera, cada navegación lo reiniciaba y, navegando al menos una vez
+  // cada 13 min, el refresh no corría nunca (el token del personal dura 15).
+  const pathnameRef = useRef(pathname);
 
+  useEffect(() => {
+    pathnameRef.current = pathname;
+    // En las pantallas de autenticación no se refresca (lo decide el
+    // refresher con la ruta que recibe); la sesión que venga después puede
+    // ser federada o local.
+    if (isAuthScreen(pathname)) refresher.reset();
+  }, [pathname, refresher]);
+
+  // Se monta una sola vez: navegar no reinicia el timer.
+  useEffect(() => {
     const intervalId = setInterval(() => {
-      refresher.tick();
+      refresher.tick(pathnameRef.current);
     }, SESSION_REFRESH_INTERVAL_MS);
 
     // Si la pestaña estuvo en segundo plano o el equipo suspendido y vuelve a primer plano:
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        refresher.onVisible();
+        refresher.onVisible(pathnameRef.current);
       }
     };
 
@@ -46,7 +54,7 @@ export default function SessionRefreshManager() {
       clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [pathname, refresher]);
+  }, [refresher]);
 
   return null;
 }
