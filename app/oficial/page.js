@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import MaterialIcon from "../components/civic/MaterialIcon";
 import GeoLabel from "../components/civic/GeoLabel";
 import PageHeader from "../components/PageHeader";
@@ -18,6 +18,7 @@ import {
   PRIORITY_CONFIG,
   TYPE_LABELS,
 } from "../lib/emergencies";
+import { createPoller } from "../lib/polling";
 
 const RESOLUTION_CAUSES = [
   { value: "VIA", label: "Vía" },
@@ -189,6 +190,7 @@ export default function OficialPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const pollerRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
@@ -202,18 +204,24 @@ export default function OficialPage() {
     }
   }, []);
 
+  // Polling con pausa en pestaña oculta y sin pedidos superpuestos (createPoller).
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-    const interval = setInterval(load, CITIZEN_POLLING_INTERVAL_MS);
-    return () => clearInterval(interval);
+    const poller = createPoller({ load, intervalMs: CITIZEN_POLLING_INTERVAL_MS });
+    pollerRef.current = poller;
+    poller.start();
+    return () => {
+      poller.stop();
+      pollerRef.current = null;
+    };
   }, [load]);
 
   const handleAdvance = async (id, action, resolution) => {
     setBusyId(id);
     try {
       await advanceOfficerStatus(id, action, resolution);
-      await load();
+      // refresh() espera un pedido en vuelo y vuelve a pedir: esa respuesta
+      // pudo armarse antes del cambio de estado.
+      await (pollerRef.current ? pollerRef.current.refresh() : load());
       return true;
     } catch (err) {
       setError(err.message || "No se pudo actualizar el estado");
