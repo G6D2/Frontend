@@ -499,6 +499,14 @@ export async function validateEmergency(id) {
   return res.data;
 }
 
+export async function closeEmergency(id) {
+  const res = await apiFetch(`/api/emergencies/${id}/close`, {
+    method: "PATCH",
+    body: {},
+  });
+  return res.data;
+}
+
 export async function discardEmergency(id, reason) {
   const res = await apiFetch(`/api/emergencies/${id}/discard`, {
     method: "PATCH",
@@ -572,13 +580,13 @@ export const OFFICER_NEXT_STEP = {
 };
 
 /** PATCH /api/emergencies/:id/{en-route|on-scene|resolve} (solo oficial asignado). */
-export async function advanceOfficerStatus(id, action) {
+export async function advanceOfficerStatus(id, action, resolution = {}) {
   if (!["en-route", "on-scene", "resolve"].includes(action)) {
     throw new ApiError(`Acción de oficial desconocida: ${action}`, { status: 400 });
   }
   const res = await apiFetch(`/api/emergencies/${id}/${action}`, {
     method: "PATCH",
-    body: {},
+    body: action === "resolve" ? resolution : {},
   });
   return res?.data;
 }

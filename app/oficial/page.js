@@ -19,27 +19,61 @@ import {
   TYPE_LABELS,
 } from "../lib/emergencies";
 
+const RESOLUTION_CAUSES = [
+  { value: "VIA", label: "Vía" },
+  { value: "ESPACIO_PUBLICO", label: "Espacio público" },
+  { value: "RESIDUOS", label: "Residuos" },
+];
+
 /**
  * MVP del oficial: lista de emergencias asignadas y un solo botón por
  * tarjeta con el próximo paso (En camino → Llegué al lugar → Resolver).
- * Resolver pide confirmación porque saca la emergencia de la lista.
+ * Al resolver, permite registrar causas relacionadas y su descripción.
  */
 function AssignmentCard({ emergency, busy, onAdvance }) {
-  const [confirming, setConfirming] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [relatedCauses, setRelatedCauses] = useState([]);
+  const [problemDescription, setProblemDescription] = useState("");
   const statusCfg = getStatusConfig(emergency.status);
   const priority = PRIORITY_CONFIG[emergency.severity];
   const step = OFFICER_NEXT_STEP[emergency.status];
+  const hasViaCause = relatedCauses.includes("VIA");
   const typeLabel =
     TYPE_LABELS[emergency.emergencyType] ||
     TYPE_LABELS[String(emergency.emergencyType || "").toLowerCase()];
 
   const handleClick = () => {
-    if (step.action === "resolve" && !confirming) {
-      setConfirming(true);
+    if (step.action === "resolve") {
+      setResolving(true);
       return;
     }
-    setConfirming(false);
     onAdvance(emergency.id, step.action);
+  };
+
+  const handleCauseChange = (cause, checked) => {
+    setRelatedCauses((current) =>
+      checked ? [...current, cause] : current.filter((value) => value !== cause)
+    );
+    if (cause === "VIA" && !checked) setProblemDescription("");
+  };
+
+  const handleCancelResolution = () => {
+    setResolving(false);
+    setRelatedCauses([]);
+    setProblemDescription("");
+  };
+
+  const handleResolveSubmit = async (event) => {
+    event.preventDefault();
+    const description = problemDescription.trim();
+    if (hasViaCause && !description) return;
+
+    const resolution = { causasRelacionadas: relatedCauses };
+    if (hasViaCause) resolution.descripcionProblema = description;
+
+    if (await onAdvance(emergency.id, step.action, resolution)) {
+      handleCancelResolution();
+    }
   };
 
   return (
@@ -74,27 +108,77 @@ function AssignmentCard({ emergency, busy, onAdvance }) {
       </div>
 
       {step && (
-        <div className="flex gap-2">
-          {confirming && (
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              disabled={busy}
-              className="flex-1 min-h-touch rounded-lg border border-outline-variant text-on-surface font-semibold text-sm py-3"
-            >
-              Cancelar
-            </button>
-          )}
+        resolving && step.action === "resolve" ? (
+          <form onSubmit={handleResolveSubmit} className="flex flex-col gap-4 border-t border-outline-variant pt-4">
+            <fieldset disabled={busy} className="flex flex-col gap-3">
+              <legend className="text-sm font-semibold text-on-surface">
+                Causas relacionadas <span className="font-normal text-on-surface-variant">(opcional)</span>
+              </legend>
+              {RESOLUTION_CAUSES.map(({ value, label }) => (
+                <label key={value} className="flex items-center gap-3 text-sm text-on-surface">
+                  <input
+                    type="checkbox"
+                    checked={relatedCauses.includes(value)}
+                    onChange={(event) => handleCauseChange(value, event.target.checked)}
+                    className="size-5 accent-primary"
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+
+            {hasViaCause && (
+              <div className="flex flex-col gap-2">
+                <label htmlFor={`problem-description-${emergency.id}`} className="text-sm font-semibold text-on-surface">
+                  Descripción del problema <span aria-hidden="true">*</span>
+                </label>
+                <textarea
+                  id={`problem-description-${emergency.id}`}
+                  rows={3}
+                  maxLength={280}
+                  required
+                  value={problemDescription}
+                  onChange={(event) => setProblemDescription(event.target.value)}
+                  disabled={busy}
+                  placeholder="Describí brevemente el problema observado"
+                  className="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base text-on-surface placeholder:text-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary outline-none resize-none"
+                />
+                <span className="text-xs text-on-surface-variant text-right">
+                  {problemDescription.length}/280
+                </span>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCancelResolution}
+                disabled={busy}
+                className="flex-1 min-h-touch rounded-lg border border-outline-variant text-on-surface font-semibold text-sm py-3"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={busy || (hasViaCause && !problemDescription.trim())}
+                className="flex-1 min-h-touch rounded-lg bg-primary text-on-primary font-semibold text-sm py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <MaterialIcon name="task_alt" size={18} />
+                {busy ? "Guardando…" : "Confirmar resolución"}
+              </button>
+            </div>
+          </form>
+        ) : (
           <button
             type="button"
             onClick={handleClick}
             disabled={busy}
-            className="flex-1 min-h-touch rounded-lg bg-primary text-on-primary font-semibold text-sm py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+            className="w-full min-h-touch rounded-lg bg-primary text-on-primary font-semibold text-sm py-3 flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <MaterialIcon name={step.icon} size={18} />
-            {busy ? "Guardando…" : confirming ? "Confirmar resolución" : step.label}
+            {busy ? "Guardando…" : step.label}
           </button>
-        </div>
+        )
       )}
     </article>
   );
@@ -125,13 +209,15 @@ export default function OficialPage() {
     return () => clearInterval(interval);
   }, [load]);
 
-  const handleAdvance = async (id, action) => {
+  const handleAdvance = async (id, action, resolution) => {
     setBusyId(id);
     try {
-      await advanceOfficerStatus(id, action);
+      await advanceOfficerStatus(id, action, resolution);
       await load();
+      return true;
     } catch (err) {
       setError(err.message || "No se pudo actualizar el estado");
+      return false;
     } finally {
       setBusyId(null);
     }
