@@ -43,58 +43,24 @@ export const DEMO_ACCOUNTS = [
   },
 ];
 
-// Cuenta demo fija para el dispatcher (acceso directo desde el login, sin contraseña).
-// No está en DEMO_ACCOUNTS porque no se valida por email+password sino por botón directo.
-export const DISPATCHER_DEMO = {
-  sub: "DISP-Demo001",
-  preferred_username: "Dispatcher Demo",
-  groups: ["dispatcher"],
-  hasAntipanicButton: false,
-};
-
 // ── DEMO_LOGIN_SHORTCUTS ───────────────────────────────────────────────────────
 //
 //  Botones de /acceso que entran directo con loginDev (POST /auth/dev/login),
 //  sin contraseña. No se muestran con NEXT_PUBLIC_AUTH_MODE=idp. Cada `sub` tiene
 //  que estar en DEV_LOGIN_ALLOWLIST del backend (src/auth/dev-login-policy.js):
 //  con DEV_LOGIN_STRICT los claims (groups, has_antipanic_button) salen de esa
-//  allowlist y lo que manda el front se ignora. Los oficiales usan el id del
-//  catálogo `officers` como sub porque el backend compara sub con
-//  assigned_officer_id para dejarlos avanzar el estado.
+//  allowlist y lo que manda el front se ignora.
+//
+//  Solo ciudadanos: el endpoint es público, así que un atajo de dispatcher u
+//  oficial le daba ese rol a cualquiera. El backend ya no los emite en modo
+//  estricto (issue #73 del board). El personal entra por el Login Federado:
+//  el dispatcher de prueba tiene su acceso directo LDAP en el panel de la llave.
 //
 // loginDev toma solo sub, preferred_username, groups y hasAntipanicButton:
 // el email de la cuenta no viaja.
 const JUAN_PANICO = DEMO_ACCOUNTS.find((a) => a.sub === "CIT-JuanPanico");
 
 export const DEMO_LOGIN_SHORTCUTS = [
-  {
-    id: "dispatcher",
-    label: "Dispatcher",
-    icon: "radio_button_checked",
-    account: DISPATCHER_DEMO,
-  },
-  {
-    id: "of-001",
-    label: "Oficial of-001",
-    icon: "local_police",
-    account: {
-      sub: "of-001",
-      preferred_username: "Oficial Carlos Gómez",
-      groups: ["officer"],
-      hasAntipanicButton: false,
-    },
-  },
-  {
-    id: "of-002",
-    label: "Oficial of-002",
-    icon: "local_police",
-    account: {
-      sub: "of-002",
-      preferred_username: "Oficial Mariana López",
-      groups: ["officer"],
-      hasAntipanicButton: false,
-    },
-  },
   {
     id: "juan-panico",
     label: "Ciudadano con SOS",

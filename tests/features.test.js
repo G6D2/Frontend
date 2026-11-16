@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   ANTIPANIC_MODE,
   DEMO_ACCOUNTS,
-  DISPATCHER_DEMO,
   DEMO_LOGIN_SHORTCUTS,
   findDemoAccount,
 } from "../app/lib/features.js";
@@ -10,13 +9,11 @@ import { getHomePathForUser } from "../app/lib/auth-roles.js";
 
 // Copia de DEV_LOGIN_ALLOWLIST del backend (src/auth/dev-login-policy.js).
 // Con DEV_LOGIN_STRICT, /auth/dev/login rechaza cualquier otro sub con 400.
+// Solo ciudadanos: dispatcher y oficiales entran por el Login Federado.
 const BACKEND_DEV_LOGIN_ALLOWLIST = [
   "U000042",
   "CIT-JuanPanico",
   "CIT-LuciaTranquila",
-  "DISP-Demo001",
-  "of-001",
-  "of-002",
 ];
 
 describe("features — constantes", () => {
@@ -39,11 +36,6 @@ describe("features — constantes", () => {
       );
       expect(acc).not.toHaveProperty("password");
     }
-  });
-
-  it("DISPATCHER_DEMO tiene grupo dispatcher", () => {
-    expect(DISPATCHER_DEMO.groups).toContain("dispatcher");
-    expect(DISPATCHER_DEMO.hasAntipanicButton).toBe(false);
   });
 });
 
@@ -86,39 +78,21 @@ describe("findDemoAccount", () => {
 });
 
 describe("DEMO_LOGIN_SHORTCUTS (atajos sin contraseña de /acceso)", () => {
-  const bySub = Object.fromEntries(DEMO_LOGIN_SHORTCUTS.map((s) => [s.account.sub, s]));
-
-  it("trae dispatcher, los dos oficiales y el ciudadano con SOS, en ese orden", () => {
-    expect(DEMO_LOGIN_SHORTCUTS.map((s) => s.account.sub)).toEqual([
-      "DISP-Demo001",
-      "of-001",
-      "of-002",
-      "CIT-JuanPanico",
-    ]);
+  it("trae solo al ciudadano con SOS", () => {
+    expect(DEMO_LOGIN_SHORTCUTS.map((s) => s.account.sub)).toEqual(["CIT-JuanPanico"]);
   });
 
-  it("cada sub está en la allowlist de /auth/dev/login del backend", () => {
+  it("ningún atajo da rol de personal: /auth/dev/login es público y sin contraseña", () => {
     for (const { account } of DEMO_LOGIN_SHORTCUTS) {
+      expect(account.groups).toEqual(["citizen"]);
       expect(BACKEND_DEV_LOGIN_ALLOWLIST).toContain(account.sub);
     }
   });
 
-  it("los grupos coinciden con los que fija la allowlist del backend", () => {
-    expect(bySub["DISP-Demo001"].account.groups).toEqual(["dispatcher"]);
-    expect(bySub["of-001"].account.groups).toEqual(["officer"]);
-    expect(bySub["of-002"].account.groups).toEqual(["officer"]);
-    expect(bySub["CIT-JuanPanico"].account.groups).toEqual(["citizen"]);
-  });
-
-  it("solo el ciudadano demo tiene botón SOS", () => {
-    expect(bySub["CIT-JuanPanico"].account.hasAntipanicButton).toBe(true);
-    expect(bySub["DISP-Demo001"].account.hasAntipanicButton).toBe(false);
-    expect(bySub["of-001"].account.hasAntipanicButton).toBe(false);
-    expect(bySub["of-002"].account.hasAntipanicButton).toBe(false);
-  });
-
-  it("el dispatcher es el mismo DISPATCHER_DEMO del panel de atajos", () => {
-    expect(bySub["DISP-Demo001"].account).toBe(DISPATCHER_DEMO);
+  it("el ciudadano demo tiene botón SOS y va a /inicio", () => {
+    const [{ account }] = DEMO_LOGIN_SHORTCUTS;
+    expect(account.hasAntipanicButton).toBe(true);
+    expect(getHomePathForUser(account)).toBe("/inicio");
   });
 
   it("ids únicos (son los ids de los botones) y sin password", () => {
@@ -129,13 +103,5 @@ describe("DEMO_LOGIN_SHORTCUTS (atajos sin contraseña de /acceso)", () => {
       expect(s.icon).toEqual(expect.any(String));
       expect(s.account).not.toHaveProperty("password");
     }
-  });
-
-  it("navegación por rol: dispatcher a /ops; oficiales y ciudadano a /inicio", () => {
-    expect(getHomePathForUser(bySub["DISP-Demo001"].account)).toBe("/ops");
-    // No hay home de oficial: el middleware lo trata como no-dispatcher.
-    expect(getHomePathForUser(bySub["of-001"].account)).toBe("/oficial");
-    expect(getHomePathForUser(bySub["of-002"].account)).toBe("/oficial");
-    expect(getHomePathForUser(bySub["CIT-JuanPanico"].account)).toBe("/inicio");
   });
 });

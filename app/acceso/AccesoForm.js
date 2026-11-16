@@ -598,9 +598,10 @@ export default function AccesoForm() {
 
         </div>
 
-        {/* ── Atajos demo sin contraseña (dispatcher, oficiales y ciudadano con SOS) ──
+        {/* ── Atajos demo sin contraseña (solo ciudadanos) ──
             Entran con loginDev → POST /auth/dev/login, que el backend solo acepta
-            para los sub de su allowlist demo. Ocultos con NEXT_PUBLIC_AUTH_MODE=idp. */}
+            para los sub ciudadanos de su allowlist demo. El personal entra por el
+            Login Federado. Ocultos con NEXT_PUBLIC_AUTH_MODE=idp. */}
         {!IS_IDP_MODE && (
           <section aria-labelledby="demo-atajos-titulo" className="mt-4">
             <div className="relative">
