@@ -91,7 +91,7 @@ export function middleware(request) {
   // Rutas del BFF que exigen sesión: 401 JSON en vez de redirect. /api/geocode
   // también lo chequea en el route; acá queda como segunda barrera.
   if (
-    matchesAny(pathname, ["/api/backend", "/api/auth/session", "/api/geocode"])
+    matchesAny(pathname, ["/api/backend", "/api/analytics", "/api/auth/session", "/api/geocode"])
   ) {
     if (!valid) {
       const res = NextResponse.json(

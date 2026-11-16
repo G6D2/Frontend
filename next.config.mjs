@@ -1,9 +1,4 @@
-import { analyticsFrameOrigin } from "./app/lib/analytics.js";
-
 const isDev = process.env.NODE_ENV === "development";
-
-// Origen del HTML de analítica que /ops/analitica muestra en un iframe.
-const analyticsOrigin = analyticsFrameOrigin();
 
 // Content-Security-Policy: solo lo que la app carga de verdad.
 // - script-src 'unsafe-inline': Next mete scripts inline para hidratar
@@ -17,7 +12,8 @@ const analyticsOrigin = analyticsFrameOrigin();
 //   JetBrains Mono los sirve next/font desde el propio sitio.
 // - img-src: tiles de OpenStreetMap ({s}.tile.openstreetmap.org en OpsMap.js)
 //   y data: para el GIF vacío con el que Leaflet descarga tiles.
-// - frame-src: solo el embed de analítica del backend (/ops/analitica).
+// - frame-src 'self': el iframe de /ops/analitica carga el embed de analítica
+//   a través del proxy /api/analytics (mismo origen).
 // - connect-src 'self': el browser solo habla con el BFF; el geocoding y el
 //   backend van del lado del servidor.
 const csp = [
@@ -27,7 +23,7 @@ const csp = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https://*.tile.openstreetmap.org",
   "connect-src 'self'",
-  `frame-src ${analyticsOrigin ?? "'none'"}`,
+  "frame-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -43,6 +39,32 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
 ];
 
+// Respuestas del proxy de analítica (/api/analytics/**, el HTML embebido en
+// /ops/analitica y sus assets). Es contenido del backend de analítica, no
+// nuestro: se puede enmarcar solo desde nuestro origen y se le permiten
+// scripts/estilos/imágenes de CDNs https (no sabemos cuáles usa), pero
+// connect-src queda en 'self' para que solo hable con el proxy.
+const analyticsCsp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https:",
+  "style-src 'self' 'unsafe-inline' https:",
+  "font-src 'self' data: https:",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join("; ");
+
+const analyticsHeaders = [
+  { key: "Content-Security-Policy", value: analyticsCsp },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "same-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // El dev server de Next bloquea con 403 los assets (/_next/*) cuando se accede
@@ -55,7 +77,12 @@ const nextConfig = {
     .filter(Boolean),
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      // Todo menos el proxy de analítica (que no se puede enmarcar con DENY).
+      { source: "/((?!api/analytics(?:/|$)).*)", headers: securityHeaders },
+      { source: "/api/analytics/:path*", headers: analyticsHeaders },
+      { source: "/api/analytics", headers: analyticsHeaders },
+    ];
   },
 };
 

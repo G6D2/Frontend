@@ -1,16 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredUser, fetchCurrentUser } from "../../lib/api";
 import { isDispatcher } from "../../lib/auth";
-import { ANALYTICS_EMBED_URL } from "../../lib/analytics";
+import { analyticsProxyUrl } from "../../lib/analytics";
+
+// Pasa por el BFF, que agrega el Bearer del IdP (ver app/lib/analytics.js).
+const EMBED_SRC = analyticsProxyUrl();
 import PageHeader from "../../components/PageHeader";
 import MaterialIcon from "../../components/civic/MaterialIcon";
 
 export default function OpsAnaliticaPage() {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
+
+  // La página es estática: el iframe puede terminar de cargar antes de que
+  // React enganche onLoad. Como el embed es mismo origen (vía proxy), al
+  // montarlo se mira si su documento ya está completo.
+  const checkAlreadyLoaded = useCallback((el) => {
+    try {
+      const doc = el?.contentDocument;
+      if (doc && doc.readyState === "complete" && doc.URL !== "about:blank") {
+        setLoaded(true);
+      }
+    } catch {
+      // sin acceso al documento: queda onLoad
+    }
+  }, []);
 
   // Mismo guard de rol que el resto de /ops (el middleware ya filtra; esto
   // cubre sesiones cuyo user cacheado no sea dispatcher).
@@ -35,7 +52,7 @@ export default function OpsAnaliticaPage() {
         title="Analítica"
         right={
           <a
-            href={ANALYTICS_EMBED_URL}
+            href={EMBED_SRC}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Abrir analítica en una pestaña nueva"
@@ -53,7 +70,8 @@ export default function OpsAnaliticaPage() {
           </div>
         )}
         <iframe
-          src={ANALYTICS_EMBED_URL}
+          ref={checkAlreadyLoaded}
+          src={EMBED_SRC}
           title="Analítica de emergencias"
           className="absolute inset-0 w-full h-full border-0"
           onLoad={() => setLoaded(true)}
