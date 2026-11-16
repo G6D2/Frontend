@@ -31,6 +31,19 @@ function isMappable(em) {
   return hasValidCoords(em) && isOpsStatus(em?.status);
 }
 
+function markerHtml(color) {
+  return `<div style="width:18px;height:18px;border-radius:9999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}55,0 2px 8px rgba(0,0,0,.35)"></div>`;
+}
+
+function markerIcon(L, html) {
+  return L.divIcon({
+    className: "",
+    html,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+}
+
 function escapeHtml(text) {
   return String(text)
     .replace(/&/g, "&amp;")
@@ -45,6 +58,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
   const markersRef = useRef(new Map());
   const leafletRef = useRef(null);
   const onSelectRef = useRef(onSelect);
+  const emergenciesRef = useRef(emergencies);
   const fittedRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   // eslint-disable-next-line react-hooks/refs
@@ -111,22 +125,20 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
       const incidentLine = incident?.reportCount
         ? `<br/><strong>Incidente</strong> · ${incident.reportCount} reporte${incident.reportCount === 1 ? "" : "s"}`
         : "";
-      const html = `<div style="width:18px;height:18px;border-radius:9999px;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}55,0 2px 8px rgba(0,0,0,.35)"></div>`;
+      const html = markerHtml(color);
 
       let marker = markersRef.current.get(em.id);
       if (!marker) {
-        marker = L.marker([lat, lng], {
-          icon: L.divIcon({
-            className: "",
-            html,
-            iconSize: [18, 18],
-            iconAnchor: [9, 9],
-          }),
-        }).addTo(map);
+        marker = L.marker([lat, lng], { icon: markerIcon(L, html) }).addTo(map);
         marker.on("click", () => onSelectRef.current?.(em));
         markersRef.current.set(em.id, marker);
       } else {
         marker.setLatLng([lat, lng]);
+        // La prioridad puede cambiar entre un polling y el siguiente: el
+        // ícono se rearma solo si cambió el color, no en cada ciclo.
+        if (marker.getIcon().options.html !== html) {
+          marker.setIcon(markerIcon(L, html));
+        }
       }
 
       marker.bindPopup(
@@ -145,16 +157,26 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
     setTimeout(() => map.invalidateSize(), 50);
   }, [emergencies, mapReady]);
 
+  // Declarado antes del efecto de selección: en un mismo render los efectos
+  // corren en orden, así que ese ya lee la lista nueva.
+  useEffect(() => {
+    emergenciesRef.current = emergencies;
+  }, [emergencies]);
+
+  // Centra el mapa y abre el popup solo cuando cambia la selección. La lista
+  // se lee del ref y no va en las dependencias: `emergencies` es un array
+  // nuevo en cada polling (30 s) y el mapa volvía a la emergencia seleccionada
+  // aunque el dispatcher lo hubiera movido.
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map || !selectedId) return;
-    const em = emergencies.find((e) => e.id === selectedId);
+    const em = emergenciesRef.current.find((e) => e.id === selectedId);
     if (!isMappable(em)) return;
     map.flyTo([Number(em.latitude), Number(em.longitude)], 16, {
       duration: 0.55,
     });
     markersRef.current.get(selectedId)?.openPopup();
-  }, [selectedId, emergencies, mapReady]);
+  }, [selectedId, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
