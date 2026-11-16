@@ -1,4 +1,9 @@
+import { analyticsFrameOrigin } from "./app/lib/analytics.js";
+
 const isDev = process.env.NODE_ENV === "development";
+
+// Origen del HTML de analítica que /ops/analitica muestra en un iframe.
+const analyticsOrigin = analyticsFrameOrigin();
 
 // Content-Security-Policy: solo lo que la app carga de verdad.
 // - script-src 'unsafe-inline': Next mete scripts inline para hidratar
@@ -12,6 +17,7 @@ const isDev = process.env.NODE_ENV === "development";
 //   JetBrains Mono los sirve next/font desde el propio sitio.
 // - img-src: tiles de OpenStreetMap ({s}.tile.openstreetmap.org en OpsMap.js)
 //   y data: para el GIF vacío con el que Leaflet descarga tiles.
+// - frame-src: solo el embed de analítica del backend (/ops/analitica).
 // - connect-src 'self': el browser solo habla con el BFF; el geocoding y el
 //   backend van del lado del servidor.
 const csp = [
@@ -21,6 +27,7 @@ const csp = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https://*.tile.openstreetmap.org",
   "connect-src 'self'",
+  `frame-src ${analyticsOrigin ?? "'none'"}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

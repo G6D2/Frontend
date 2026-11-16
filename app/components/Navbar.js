@@ -11,6 +11,7 @@ import {
   IconMap,
   IconUsers,
   IconHistory,
+  IconChartBar,
   IconUser,
   IconClipboardList,
   IconChevronLeft,
@@ -34,6 +35,7 @@ const DISPATCHER_NAV = [
   { label: "Mapa", icon: IconMap },
   { label: "Oficiales", icon: IconUsers },
   { label: "Historial", icon: IconHistory },
+  { label: "Analítica", icon: IconChartBar },
   { label: "Mi Cuenta", icon: IconUser },
 ];
 
