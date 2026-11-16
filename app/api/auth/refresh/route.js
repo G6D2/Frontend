@@ -10,10 +10,32 @@ import {
 } from "@/lib/session";
 import { checkCsrf } from "@/lib/csrf";
 
+// Tope de espera al IdP. Sin esto, si el Login Federado no respondía, el
+// refresh (y el pedido del browser que lo esperaba) quedaba colgado.
+const IDP_TIMEOUT_MS = 8000;
+
+// AbortSignal.timeout corta con un DOMException "TimeoutError", tanto si
+// todavía no llegó la respuesta como si se colgó la lectura del cuerpo.
+function isTimeout(error) {
+  return error?.name === "TimeoutError";
+}
+
 function idpError(sessionActive, message) {
   return NextResponse.json(
     { error: "Bad Gateway", reason: "idp_error", sessionActive, message },
     { status: 502 }
+  );
+}
+
+function idpTimeout(sessionActive) {
+  return NextResponse.json(
+    {
+      error: "Gateway Timeout",
+      reason: "idp_error",
+      sessionActive,
+      message: "El Login Federado no responde. Probá de nuevo.",
+    },
+    { status: 504 }
   );
 }
 
@@ -35,7 +57,8 @@ function idpError(sessionActive, message) {
  *   - refresh_rejected (401): el IdP rechazó el refresh token. Se borra esa
  *     cookie; la de sesión se deja mientras siga vigente.
  *   - idp_error (502): el IdP no respondió, devolvió 5xx o no mandó
- *     access_token. No se toca ninguna cookie.
+ *     access_token. No se toca ninguna cookie. Si no respondió en
+ *     IDP_TIMEOUT_MS, el status es 504 (mismo `reason`).
  */
 export async function POST(request) {
   // Sin body: solo se exige mismo origen (ver lib/csrf.js).
@@ -71,9 +94,14 @@ export async function POST(request) {
         Accept: "application/json",
       },
       body: JSON.stringify({ refreshToken }),
+      signal: AbortSignal.timeout(IDP_TIMEOUT_MS),
     });
-    data = await res.json().catch(() => null);
-  } catch {
+    data = await res.json().catch((error) => {
+      if (isTimeout(error)) throw error;
+      return null;
+    });
+  } catch (error) {
+    if (isTimeout(error)) return idpTimeout(sessionActive);
     return idpError(sessionActive, "No se pudo conectar con el IdP.");
   }
 

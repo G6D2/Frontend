@@ -111,5 +111,28 @@ describe("GET /api/geocode", () => {
 
     expect(res.status).toBe(200);
     expect(json.label).toBe("San Telmo, CABA, Buenos Aires");
+    // Una dirección resuelta sí se cachea en el navegador.
+    expect(res.headers.get("Cache-Control")).toBe("private, max-age=3600");
+  });
+
+  it.each([
+    ["los dos proveedores caídos", "network-error", "network-error"],
+    ["los dos proveedores responden 503", { status: 503, body: {} }, { status: 503, body: {} }],
+    ["los proveedores responden sin dirección", { status: 200, body: {} }, { status: 200, body: {} }],
+  ])("sin dirección (%s): { label: null } con Cache-Control: no-store", async (_label, bigDataCloud, nominatim) => {
+    // Regresión: el `label: null` salía con max-age=3600 y el navegador lo
+    // guardaba una hora, aunque el proveedor se recuperara al minuto.
+    mockBackend({
+      "GET /data/reverse-geocode-client": bigDataCloud,
+      "GET /reverse": nominatim,
+    });
+
+    const req = makeRequest("http://localhost/api/geocode?lat=-34.6&lng=-58.4");
+    const res = await GET(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.label).toBeNull();
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
   });
 });

@@ -31,6 +31,16 @@ import { checkCsrf } from "@/lib/csrf";
 
 const IS_IDP_MODE = process.env.NEXT_PUBLIC_AUTH_MODE === "idp";
 
+// Tope de espera al IdP. Sin esto, si el Login Federado no respondía, el
+// login quedaba colgado hasta que cortaba el proxy.
+const IDP_TIMEOUT_MS = 8000;
+
+// AbortSignal.timeout corta con un DOMException "TimeoutError", tanto si
+// todavía no llegó la respuesta como si se colgó la lectura del cuerpo.
+function isTimeout(error) {
+  return error?.name === "TimeoutError";
+}
+
 export async function POST(request) {
   const rejected = checkCsrf(request);
   if (rejected) return rejected;
@@ -68,6 +78,7 @@ export async function POST(request) {
       ? rawIdentifier.split("@")[0].trim()
       : rawIdentifier;
 
+    let timedOut = false;
     try {
       res = await fetch(idpUrl, {
         method: "POST",
@@ -80,10 +91,25 @@ export async function POST(request) {
           password: body.password,
           clientId,
         }),
+        signal: AbortSignal.timeout(IDP_TIMEOUT_MS),
       });
-      data = await res.json().catch(() => null);
-    } catch {
+      data = await res.json().catch((error) => {
+        if (isTimeout(error)) throw error;
+        return null;
+      });
+    } catch (error) {
       // red / timeout
+      timedOut = isTimeout(error);
+    }
+
+    if (timedOut) {
+      return NextResponse.json(
+        {
+          error: "Gateway Timeout",
+          message: "El Login Federado no responde. Probá de nuevo.",
+        },
+        { status: 504 }
+      );
     }
 
     if (!res) {
