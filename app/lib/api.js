@@ -1,9 +1,4 @@
-import {
-  clearStoredUser,
-  getStoredUser,
-  setStoredUser,
-  getHomePathForUser,
-} from "./auth";
+import { clearStoredUser, getStoredUser, setStoredUser } from "./auth";
 import { SEVERITY_CONFIG } from "./emergencies";
 
 /** Intervalo de polling para el dispatcher (30 s, 2 por minuto). Se pausa con
@@ -697,4 +692,5 @@ export function getCurrentLocation(options = {}) {
   });
 }
 
-export { getStoredUser, setStoredUser, getHomePathForUser };
+export { getStoredUser, setStoredUser };
+export { getHomePathForUser } from "./auth";

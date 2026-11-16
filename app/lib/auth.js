@@ -1,5 +1,3 @@
-import { getHomePathForUser, isDispatcher, isOfficer } from "./auth-roles";
-
 const USER_KEY = "citypass_user_profile";
 
 /** Perfil no sensible en sessionStorage (el JWT vive en cookie httpOnly). */
@@ -60,4 +58,4 @@ export function clearStoredUser() {
   }
 }
 
-export { getHomePathForUser, isDispatcher, isOfficer };
+export { getHomePathForUser, isDispatcher, isOfficer } from "./auth-roles";
