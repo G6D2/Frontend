@@ -136,13 +136,17 @@
 /* ── Kanban board (RF-09, RF-09.2) ── */
 .boardScrollArea {
   width: 100%;
+  /* Scroll nativo: el ancho mínimo del tablero cambia con los datos, y la
+     barra de ScrollArea (Mantine) solo se recalcula cuando cambia el tamaño
+     de sus contenedores, así que quedaba desfasada. */
+  overflow-x: auto;
 }
 
 .boardStatus {
-  /* Los anchos de las columnas (grid-template-columns) y el ancho mínimo del
-     tablero salen de boardGridStyle (app/lib/boardLayout.js). */
+  /* Los anchos de las columnas (grid-template-columns), el espacio entre
+     ellas y el ancho mínimo del tablero salen de boardGridStyle
+     (app/lib/boardLayout.js). */
   display: grid;
-  gap: 16px;
   width: 100%;
   padding-bottom: 16px;
 }

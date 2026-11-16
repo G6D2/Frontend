@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { Badge, Button, Card, Group, Spoiler, Stack, Text } from "@mantine/core";
 import {
   IconAlertTriangle,
   IconCircleCheck,
@@ -17,9 +17,16 @@ import classes from "../styles.module.css";
 // Mismo fallback que las pills de lista/mapa/asignar (ver OpsBadges).
 const NO_PRIORITY = { color: "gray", label: NO_PRIORITY_LABEL };
 
+// Alto de 3 líneas del título (font-size md de Mantine, 16 px × 1,55).
+const DESCRIPTION_CLAMP_PX = 75;
+
 export default function EmergencyCard({
   emergency,
   isNew = false,
+  // En el tablero de escritorio (columnas angostas) el título se corta a 3
+  // líneas con un "Ver más". En celular la tarjeta ocupa todo el ancho y el
+  // texto va completo.
+  clampDescription = false,
   onAssignOfficer,
   onValidate,
   onDiscard,
@@ -66,12 +73,27 @@ export default function EmergencyCard({
         </Group>
       </Group>
 
-      {/* Título a 3 líneas como máximo: las descripciones de emergencias
-          externas son largas y una sola tarjeta ocupaba más que la columna.
-          El texto completo queda en el tooltip y en el detalle. */}
-      <Text fz="md" fw={600} mt="sm" lineClamp={3} title={emergency.description}>
-        {emergency.description}
-      </Text>
+      {/* Las descripciones de emergencias externas son largas y una sola
+          tarjeta ocupaba más que la columna. El dispatcher necesita poder
+          leerla entera para validar o descartar: "Ver más" la despliega
+          (con mouse, teclado o toque) y solo aparece si el texto no entra. */}
+      {clampDescription ? (
+        <Spoiler
+          mt="sm"
+          maxHeight={DESCRIPTION_CLAMP_PX}
+          showLabel="Ver más"
+          hideLabel="Ver menos"
+          styles={{ control: { fontSize: "var(--mantine-font-size-xs)" } }}
+        >
+          <Text fz="md" fw={600}>
+            {emergency.description}
+          </Text>
+        </Spoiler>
+      ) : (
+        <Text fz="md" fw={600} mt="sm">
+          {emergency.description}
+        </Text>
+      )}
 
       {/* Id corto (el completo, al pasar el mouse) y quién reportó, si hay:
           las emergencias que llegan de otros módulos no tienen usuario. */}

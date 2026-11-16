@@ -6,7 +6,6 @@ import {
   Alert,
   Badge,
   Group,
-  ScrollArea,
   Skeleton,
   Text,
   Title,
@@ -329,7 +328,7 @@ export default function DispatcherView() {
 
       {/* ── VISTA ESCRITORIO: Tablero Kanban Clásico Multi-Columna ── */}
       <div className={classes.desktopBoard}>
-        <ScrollArea type="auto" offsetScrollbars className={classes.boardScrollArea}>
+        <div className={classes.boardScrollArea}>
           <div
             className={classes.boardStatus}
             style={boardGridStyle(
@@ -378,6 +377,7 @@ export default function DispatcherView() {
                         <EmergencyCard
                           key={em.id}
                           emergency={em}
+                          clampDescription
                           isNew={newEmergencyIds.has(String(em.id))}
                           onAssignOfficer={handleOpenAssignModal}
                           onValidate={handleValidate}
@@ -391,7 +391,7 @@ export default function DispatcherView() {
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* ── VISTA CELULAR: Swipe Horizontal estilo Tinder (Toda la pantalla para un estado) ── */}

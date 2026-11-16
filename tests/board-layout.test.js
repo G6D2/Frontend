@@ -26,9 +26,18 @@ describe("boardGridStyle", () => {
     );
   });
 
-  it("una columna con tarjetas nunca baja del mínimo legible", () => {
-    expect(BOARD_COLUMN_MIN_PX).toBeGreaterThanOrEqual(280);
+  it("con las 6 columnas con tarjetas entra en 1920 px con el menú abierto", () => {
+    // 1920 - 280 del menú lateral - 32 de padding - 12 de margen = 1596.
+    expect(boardGridStyle([1, 1, 1, 1, 1, 1]).minWidth).toBeLessThanOrEqual(1596);
+  });
+
+  it("una columna con tarjetas deja más lugar al texto que los 230 px de antes", () => {
     expect(boardGridStyle([1]).minWidth).toBe(BOARD_COLUMN_MIN_PX);
+    expect(BOARD_COLUMN_MIN_PX).toBeGreaterThan(230);
+  });
+
+  it("el espacio entre columnas sale del mismo lugar que el ancho mínimo", () => {
+    expect(boardGridStyle([1, 0]).gap).toBe(BOARD_GAP_PX);
   });
 
   it("mientras carga todas las columnas van anchas (ahí se dibuja el skeleton)", () => {
@@ -38,13 +47,20 @@ describe("boardGridStyle", () => {
   });
 
   it("sin columnas no rompe", () => {
-    expect(boardGridStyle([])).toEqual({ gridTemplateColumns: "", minWidth: 0 });
+    expect(boardGridStyle([])).toEqual({ gridTemplateColumns: "", gap: BOARD_GAP_PX, minWidth: 0 });
   });
 
   it("trata como vacía una cantidad que no es un número positivo", () => {
-    expect(boardGridStyle([undefined, null, -1]).gridTemplateColumns).toBe(
-      [VACIA, VACIA, VACIA].join(" ")
+    expect(boardGridStyle([2, undefined, null, -1]).gridTemplateColumns).toBe(
+      [ANCHA, VACIA, VACIA, VACIA].join(" ")
     );
+  });
+
+  it("sin ninguna emergencia las columnas se reparten todo el ancho", () => {
+    const style = boardGridStyle([0, 0, 0]);
+    const repartida = `minmax(${BOARD_EMPTY_COLUMN_PX}px, 1fr)`;
+    expect(style.gridTemplateColumns).toBe([repartida, repartida, repartida].join(" "));
+    expect(style.minWidth).toBe(3 * BOARD_EMPTY_COLUMN_PX + 2 * BOARD_GAP_PX);
   });
 });
 
