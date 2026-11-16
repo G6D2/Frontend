@@ -18,10 +18,18 @@
  * - `sessionActive: false` → el token ya venció: `onExpired` (→ /acceso).
  * - Después de cada intento, salga como salga, se anota la hora: la vuelta a
  *   la pestaña no reintenta hasta que pase otro intervalo.
+ * - En las pantallas de autenticación (`isAuthScreen`) no se refresca. El
+ *   componente monta el timer una sola vez, no por navegación, y en cada
+ *   disparo pasa la ruta en la que está el usuario.
  */
 
 // Con expires_in = 900 s (15 min), renovar a los ~13 minutos según la guía oficial LDAP.
 export const SESSION_REFRESH_INTERVAL_MS = 13 * 60 * 1000;
+
+/** Pantallas de autenticación: ahí no hay sesión que refrescar. */
+export function isAuthScreen(pathname) {
+  return pathname === "/acceso" || pathname === "/logout";
+}
 
 /**
  * @param {object} deps
@@ -40,8 +48,8 @@ export function createSessionRefresher({
   let inFlight = false;
   let localSession = false;
 
-  async function attempt() {
-    if (localSession || inFlight) return "skipped";
+  async function attempt(pathname) {
+    if (isAuthScreen(pathname) || localSession || inFlight) return "skipped";
     inFlight = true;
     try {
       let res;
@@ -66,12 +74,12 @@ export function createSessionRefresher({
   }
 
   return {
-    /** Timer periódico. */
+    /** Timer periódico. `pathname`: ruta actual (en las de autenticación no refresca). */
     tick: attempt,
     /** La pestaña volvió a primer plano: solo intenta si ya pasó un intervalo. */
-    onVisible() {
+    onVisible(pathname) {
       if (now() - lastAttemptAt < intervalMs) return Promise.resolve("skipped");
-      return attempt();
+      return attempt(pathname);
     },
     /** En /acceso: la próxima sesión puede ser federada o local. */
     reset() {
