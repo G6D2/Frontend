@@ -16,8 +16,13 @@ import { DEMO_ACCOUNTS, DEMO_LOGIN_SHORTCUTS } from "../lib/features";
 // En modo idp real, se ocultan los atajos demo (el IdP no los admite).
 const IS_IDP_MODE = process.env.NEXT_PUBLIC_AUTH_MODE === "idp";
 
-// El panel de atajos (llave) mantiene su propio acceso directo al dispatcher.
-const DISPATCHER_SHORTCUT = DEMO_LOGIN_SHORTCUTS.find((s) => s.id === "dispatcher");
+// Usuario de prueba del LDAP del Grupo 2 (Login Federado), con grupo
+// `dispatcher`. Lo usan la tarjeta "Juan Dispatcher" y el acceso directo del
+// panel de atajos.
+const LDAP_DISPATCHER_DEMO = Object.freeze({
+  username: "juan-trabaja",
+  password: "trabaja123",
+});
 
 // ── Modo: "login" | "signup" | "forgot"
 export default function AccesoForm() {
@@ -142,13 +147,25 @@ export default function AccesoForm() {
     }
   };
 
-  const handleLdapModalSubmit = async (e) => {
+  const handleLdapModalSubmit = (e) => {
     e.preventDefault();
+    submitLdapLogin(ldapUsername.trim(), ldapPassword);
+  };
+
+  // Acceso directo del panel de atajos: entra por el Login Federado (LDAP)
+  // con el dispatcher de prueba. Deja la solapa LDAP abierta y con las
+  // credenciales cargadas para que un error se vea ahí.
+  const handleLdapDispatcherQuickLogin = () => {
+    setShortcutsOpen(false);
+    switchMode("ldap");
+    setLdapUsername(LDAP_DISPATCHER_DEMO.username);
+    setLdapPassword(LDAP_DISPATCHER_DEMO.password);
+    submitLdapLogin(LDAP_DISPATCHER_DEMO.username, LDAP_DISPATCHER_DEMO.password);
+  };
+
+  const submitLdapLogin = async (username, password) => {
     setLdapLoading(true);
     setLdapError("");
-
-    const username = ldapUsername.trim();
-    const password = ldapPassword;
 
     try {
       const { user } = await loginWithLdap({ username, password });
@@ -700,15 +717,15 @@ export default function AccesoForm() {
                   </span>
                 </div>
                 <div className="text-xs text-on-surface-variant flex flex-col gap-1 bg-surface-container-lowest p-2.5 rounded-lg font-mono border border-outline-variant/60">
-                  <div><span className="font-semibold text-on-surface font-sans">usuario:</span> juan-trabaja</div>
-                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> trabaja123</div>
+                  <div><span className="font-semibold text-on-surface font-sans">usuario:</span> {LDAP_DISPATCHER_DEMO.username}</div>
+                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> {LDAP_DISPATCHER_DEMO.password}</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     switchMode("ldap");
-                    setLdapUsername("juan-trabaja");
-                    setLdapPassword("trabaja123");
+                    setLdapUsername(LDAP_DISPATCHER_DEMO.username);
+                    setLdapPassword(LDAP_DISPATCHER_DEMO.password);
                     setLdapError("");
                     setShortcutFeedback("Credenciales de juan-trabaja cargadas ✓");
                     setTimeout(() => {
@@ -793,32 +810,28 @@ export default function AccesoForm() {
                 </button>
               </div>
 
-              {/* Atajo 4: Dispatcher Demo Bypass (Local) */}
-              {!IS_IDP_MODE && (
-                <div className="p-3.5 rounded-xl border border-amber-300 bg-amber-50/70 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-amber-950">Acceso Directo Demo</span>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-900">
-                      Bypass
-                    </span>
-                  </div>
-                  <p className="text-xs text-amber-900/80">
-                    Entrada inmediata a la vista operativa sin credenciales (modo local).
-                  </p>
-                  <button
-                    type="button"
-                    disabled={loading || ldapLoading}
-                    onClick={() => {
-                      setShortcutsOpen(false);
-                      loginWithDemoShortcut(DISPATCHER_SHORTCUT);
-                    }}
-                    className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <MaterialIcon name="bolt" size={16} />
-                    <span>Ingresar a Dispatcher View</span>
-                  </button>
+              {/* Atajo 4: acceso directo del dispatcher por el Login Federado (LDAP) */}
+              <div className="p-3.5 rounded-xl border border-primary/40 bg-surface-container-low flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-primary">Acceso Directo Dispatcher</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-primary text-on-primary">
+                    LDAP
+                  </span>
                 </div>
-              )}
+                <p className="text-xs text-on-surface-variant">
+                  Entra en un clic con {LDAP_DISPATCHER_DEMO.username} por el Login Federado.
+                </p>
+                <button
+                  type="button"
+                  id="btn-atajo-ldap-dispatcher"
+                  disabled={loading || ldapLoading}
+                  onClick={handleLdapDispatcherQuickLogin}
+                  className="w-full py-2 px-3 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
+                >
+                  <MaterialIcon name="bolt" size={16} />
+                  <span>{ldapLoading ? "Autenticando con LDAP..." : "Ingresar a Dispatcher View"}</span>
+                </button>
+              </div>
             </div>
           </aside>
         </div>

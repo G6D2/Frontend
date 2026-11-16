@@ -78,8 +78,8 @@ describe("api.js", () => {
 
   describe("Constantes exportadas", () => {
     it("define intervalos de polling esperados", () => {
-      expect(POLLING_INTERVAL_MS).toBe(15000);
-      expect(CITIZEN_POLLING_INTERVAL_MS).toBe(5000);
+      expect(POLLING_INTERVAL_MS).toBe(30000);
+      expect(CITIZEN_POLLING_INTERVAL_MS).toBe(30000);
     });
 
     it("define la configuración de estados y severidades", () => {
