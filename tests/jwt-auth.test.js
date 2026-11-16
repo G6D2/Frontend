@@ -8,7 +8,6 @@ import {
   getHomePathForUser,
   isDispatcher,
   isDelegado,
-  isCitizen,
   isOfficer,
 } from "../app/lib/auth-roles";
 
@@ -103,11 +102,6 @@ describe("auth roles", () => {
 
   it("routes citizen to /inicio", () => {
     expect(getHomePathForUser({ groups: ["citizen"] })).toBe("/inicio");
-    expect(isCitizen({ groups: ["citizen"] })).toBe(true);
-    expect(isCitizen({ role: "citizen" })).toBe(true);
-    expect(isCitizen({ group: "citizen" })).toBe(true);
-    expect(isCitizen({ roles: "citizen" })).toBe(true);
-    expect(isCitizen(null)).toBe(false);
     expect(getHomePathForUser(null)).toBe("/inicio");
   });
 

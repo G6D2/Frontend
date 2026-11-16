@@ -22,24 +22,6 @@ import { checkCsrf } from "@/lib/csrf";
  *     "success": true,
  *     "message": "Si el correo esta registrado, recibiras el enlace en breve."
  *   }
- *
- * -- Integracion ----------------------------------------------------------------
- * Para activar, reemplazar el cuerpo de esta funcion por una llamada al IdP:
- *
- *   import { BACKEND_URL } from "@/lib/session";
- *   import { fetchBackend } from "@/lib/backend-fetch";
- *
- *   const body = await request.json().catch(() => ({}));
- *   await fetchBackend(`${BACKEND_URL}/auth/forgot-password`, {
- *     method: "POST",
- *     headers: { "Content-Type": "application/json", Accept: "application/json" },
- *     body: JSON.stringify({ email: body.email }),
- *   }).catch(() => {});   // silenciar errores para no revelar existencia de cuenta
- *
- *   return NextResponse.json({
- *     success: true,
- *     message: "Si el correo esta registrado, recibiras el enlace en breve.",
- *   });
  */
 export async function POST(request) {
   const rejected = checkCsrf(request);

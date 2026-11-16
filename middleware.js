@@ -20,25 +20,9 @@ import { isDispatcher, isDelegado, isOfficer } from "@/app/lib/auth-roles";
  * Este middleware NO valida la firma del JWT.
  */
 
-const PUBLIC_PREFIXES = [
-  "/acceso",
-  "/api/auth/login",
-  "/api/auth/logout",
-  "/api/auth/register",
-  "/_next",
-  "/favicon.ico",
-];
-
 const CITIZEN_PREFIXES = ["/inicio", "/reportar", "/mis-alertas", "/perfil"];
 const OPS_PREFIXES = ["/ops"];
 const OFFICER_PREFIXES = ["/oficial"];
-
-function isPublic(pathname) {
-  if (pathname === "/") return true;
-  return PUBLIC_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
-  );
-}
 
 /**
  * Rutas que requieren sesión activa (autenticación).
@@ -172,10 +156,7 @@ export function middleware(request) {
     }
   }
 
-  if (isPublic(pathname) || !isProtected(pathname)) {
-    return NextResponse.next();
-  }
-
+  // Todo lo que no es una ruta protegida (o lo es y pasó los guards) sigue.
   return NextResponse.next();
 }
 

@@ -11,7 +11,6 @@ import {
   registerAccount,
   logout,
   fetchCurrentUser,
-  hasValidSession,
   triggerPanicButton,
   fetchEmergencyDetail,
   fetchEmergencies,
@@ -37,7 +36,6 @@ import {
   getCurrentLocation,
   getStoredUser,
   setStoredUser,
-  clearSession,
 } from "../app/lib/api.js";
 
 // window, sessionStorage y navigator se stubbean con vi.stubGlobal y se
@@ -371,22 +369,6 @@ describe("api.js", () => {
       await expect(fetchCurrentUser()).rejects.toThrow(ApiError);
       expect(getStoredUser()).toBeNull();
       expect(global.window.location.replace).not.toHaveBeenCalled();
-    });
-
-    it("hasValidSession: devuelve true si la sesión es válida y false si falla", async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ data: { sub: "u1" } }),
-      });
-      expect(await hasValidSession()).toBe(true);
-
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        json: async () => ({ message: "No auth" }),
-      });
-      expect(await hasValidSession()).toBe(false);
     });
   });
 

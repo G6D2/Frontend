@@ -41,10 +41,4 @@ export async function savePersonalData(data) {
   return true;
 }
 
-/** Solo limpia restos locales (el backend conserva el perfil del usuario). */
-export function clearPersonalData() {
-  purgeLegacyPersonalDataStorage();
-  return true;
-}
-
 export { LEGACY_STORAGE_KEY as PERSONAL_DATA_STORAGE_KEY };

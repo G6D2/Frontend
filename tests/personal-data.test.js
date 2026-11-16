@@ -13,9 +13,7 @@ vi.mock("../app/lib/citizen-profile-api.js", () => ({
 import {
   getPersonalData,
   savePersonalData,
-  clearPersonalData,
   PERSONAL_DATA_STORAGE_KEY,
-  EMPTY_PERSONAL_DATA,
 } from "../app/lib/personal-data.js";
 
 function createMemoryStorage() {
@@ -57,12 +55,5 @@ describe("personal-data (backend)", () => {
     saveCitizenProfile.mockResolvedValue({ name: "Ana" });
     await expect(savePersonalData({ name: "Ana" })).resolves.toBe(true);
     expect(saveCitizenProfile).toHaveBeenCalledWith({ name: "Ana" });
-  });
-
-  it("clearPersonalData solo limpia restos locales", () => {
-    globalThis.localStorage.setItem(PERSONAL_DATA_STORAGE_KEY, "{}");
-    expect(clearPersonalData()).toBe(true);
-    expect(globalThis.localStorage.getItem(PERSONAL_DATA_STORAGE_KEY)).toBeNull();
-    expect(EMPTY_PERSONAL_DATA.name).toBe("");
   });
 });

@@ -85,19 +85,6 @@
   margin-bottom: 2px;
 }
 
-.separator {
-  height: 1px;
-  background-color: rgba(255, 255, 255, 0.12);
-  margin: var(--mantine-spacing-sm) var(--mantine-spacing-sm);
-}
-
-.footer {
-  padding-top: var(--mantine-spacing-md);
-  margin-top: var(--mantine-spacing-md);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  padding-bottom: var(--mantine-spacing-md);
-}
-
 .link {
   display: flex;
   align-items: center;
@@ -146,11 +133,6 @@
   color: #fff;
 }
 
-/* ── Toggle icon ── */
-.toggleIcon {
-  color: var(--mantine-color-dark-4);
-}
-
 /* ── Kanban board (RF-09, RF-09.2) ── */
 .boardScrollArea {
   width: 100%;
@@ -163,28 +145,9 @@
   padding-bottom: 16px;
 }
 
-.boardCriticality {
-  display: flex;
-  gap: 20px;
-  width: 100%;
-  padding-bottom: 16px;
-}
-
 .boardColumnStatus {
   width: 230px;
   min-width: 230px;
-  background-color: var(--mantine-color-gray-0);
-  border-radius: var(--mantine-radius-md);
-  border: 1px solid var(--mantine-color-gray-2);
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 135px);
-  overflow: hidden;
-}
-
-.boardColumnCriticality {
-  flex: 1 1 0;
-  min-width: 250px;
   background-color: var(--mantine-color-gray-0);
   border-radius: var(--mantine-radius-md);
   border: 1px solid var(--mantine-color-gray-2);

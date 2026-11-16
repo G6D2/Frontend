@@ -1,4 +1,4 @@
-import { getHomePathForUser, isCitizen, isDispatcher, isOfficer } from "./auth-roles";
+import { getHomePathForUser, isDispatcher, isOfficer } from "./auth-roles";
 
 const USER_KEY = "citypass_user_profile";
 
@@ -60,4 +60,4 @@ export function clearStoredUser() {
   }
 }
 
-export { getHomePathForUser, isCitizen, isDispatcher, isOfficer };
+export { getHomePathForUser, isDispatcher, isOfficer };

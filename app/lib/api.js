@@ -305,15 +305,6 @@ export async function fetchCurrentUser() {
   return merged;
 }
 
-export async function hasValidSession() {
-  try {
-    await fetchCurrentUser();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // Tope del backend para el campo opcional `address` (string ≤ 200, ver
 // POST /api/panic-button en emergencies-backend).
 const ADDRESS_MAX_LENGTH = 200;
@@ -706,4 +697,4 @@ export function getCurrentLocation(options = {}) {
   });
 }
 
-export { getStoredUser, setStoredUser, getHomePathForUser, clearStoredUser as clearSession };
+export { getStoredUser, setStoredUser, getHomePathForUser };
