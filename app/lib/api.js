@@ -1,9 +1,4 @@
-import {
-  clearStoredUser,
-  getStoredUser,
-  setStoredUser,
-  getHomePathForUser,
-} from "./auth";
+import { clearStoredUser, getStoredUser, setStoredUser } from "./auth";
 import { SEVERITY_CONFIG } from "./emergencies";
 
 /** Intervalo de polling para el dispatcher (30 s, 2 por minuto). Se pausa con
@@ -303,15 +298,6 @@ export async function fetchCurrentUser() {
   const merged = { ...(existing || {}), ...data.data };
   setStoredUser(merged);
   return merged;
-}
-
-export async function hasValidSession() {
-  try {
-    await fetchCurrentUser();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // Tope del backend para el campo opcional `address` (string ≤ 200, ver
@@ -706,4 +692,5 @@ export function getCurrentLocation(options = {}) {
   });
 }
 
-export { getStoredUser, setStoredUser, getHomePathForUser, clearStoredUser as clearSession };
+export { getStoredUser, setStoredUser };
+export { getHomePathForUser } from "./auth";

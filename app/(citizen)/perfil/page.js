@@ -16,9 +16,15 @@ const ACCESS_ITEMS = [
 
 export default function PerfilPage() {
   const router = useRouter();
-  const [user, setUser] = useState(getStoredUser());
+  // Arranca en null también en el cliente para que el primer render coincida
+  // con el HTML del server (sin sessionStorage); el guardado se lee al montar.
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    const storedUser = getStoredUser();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (storedUser) setUser(storedUser);
+
     fetchCurrentUser()
       .then(setUser)
       .catch(() => router.replace("/acceso"));

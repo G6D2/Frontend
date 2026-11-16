@@ -171,6 +171,15 @@ export function isActiveStatus(status) {
   );
 }
 
+/**
+ * Estados de los que la emergencia ya no sale (sin transición en la máquina
+ * de estados del backend). RESOLVED no es terminal: el dispatcher todavía la
+ * pasa a CLOSED, por eso no alcanza con `!isActiveStatus(status)`.
+ */
+export function isTerminalStatus(status) {
+  return ["CANCELLED", "CLOSED", "DISCARDED"].includes(status);
+}
+
 export function isCancelable(status) {
   return status === "CREATED" || status === "PENDING" || status === "VALIDATED";
 }

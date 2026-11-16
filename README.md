@@ -59,7 +59,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 
 - El JWT vive en la cookie `citypass_session` (`httpOnly`, `sameSite: lax`, `secure` en producción y vencimiento igual al `exp` del token). El JS del navegador no lo ve.
 - El backend es la autoridad: verifica la firma del JWT y los `groups` en cada request. El middleware del front no verifica la firma: decide redirecciones mirando solo `exp` y `groups` (ver [Middleware](#middleware)).
-- `lib/backend-fetch.js` reintenta 502, 503, 504 y errores de red hasta 6 veces, con 4 s entre intentos, para absorber el arranque en frío de Render.
+- `lib/backend-fetch.js` reintenta 502, 503, 504 y errores de red hasta 6 veces, con 4 s entre intentos, para absorber el arranque en frío de Render. POST y PATCH reintentan menos casos (ver [Proxy](#proxy-apibackendpath)).
 
 ---
 
@@ -88,7 +88,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/inicio` | Ciudadano | Botón SOS (solo si `hasAntipanicButton`) y acceso a reportar |
 | `/reportar` | Ciudadano | Reporte de incidente por categoría: médica, incendio, infraestructura, disturbio o evento, otro |
 | `/mis-alertas` | Ciudadano | Mis emergencias, refresco cada 30 s (pausado con la pestaña oculta) |
-| `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados (refresco cada 30 s, pausado con la pestaña oculta) y cancelar con confirmación |
+| `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados y cancelar con confirmación. Refresca cada 30 s, pausado con la pestaña oculta, y deja de consultar cuando la emergencia queda cancelada, cerrada o descartada |
 | `/perfil`, `/perfil/datos`, `/perfil/ubicaciones`, `/perfil/ayuda` | Ciudadano | Cuenta, datos personales y ubicaciones guardadas (en el backend, cifrados) y ayuda |
 | `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar, asignar oficial y cerrar emergencias resueltas |
 | `/ops/lista` | Dispatcher | Lista ordenada por prioridad, con métricas que filtran, búsqueda, orden por columna y panel de detalle |
@@ -101,7 +101,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/oficial` | Oficial | Emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver**. Al resolver permite seleccionar causas relacionadas; `VIA` requiere una descripción de hasta 280 caracteres. Refresco cada 30 s, pausado con la pestaña oculta. Mismo panel lateral (y barra inferior en celular) que ciudadano y dispatcher: **Asignaciones** y **Mi cuenta** |
 | `/oficial/cuenta` | Oficial | Mi cuenta y logout (misma vista que ciudadano y dispatcher) |
 
-Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
+Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 30 s (`POLLING_INTERVAL_MS`), pausado con la pestaña oculta.
 
 En `/ops`, el dispatcher puede cerrar una emergencia desde la columna **Resuelta**. La acción pide confirmación y solo se ofrece para registros en `RESOLVED`; el backend los pasa a `CLOSED`.
 
@@ -116,6 +116,7 @@ En `/ops`, el dispatcher puede cerrar una emergencia desde la columna **Resuelta
 | `POST` | `/api/auth/login` | Con `{email, password}` llama a `POST /auth/login`. Con `{sub, groups}` (atajos demo) llama a `POST /auth/dev/login`. Después completa el usuario con `GET /api/user` y setea la cookie. |
 | `POST` | `/api/auth/register` | `POST /auth/register` con email, contraseña y nombre. Setea la cookie. |
 | `GET` | `/api/auth/session` | Usuario de la sesión: `GET /api/user` o, si falla, los claims del JWT. |
+| `POST` | `/api/auth/refresh` | Solo para sesiones del Login Federado (LDAP): canjea el refresh token de la cookie `citypass_refresh` en el IdP por un JWT nuevo y rota el refresh token. Sin esa cookie responde 401 (`reason: "no_refresh_token"`) sin llamar al IdP. Lo usan `SessionRefreshManager` y `apiFetch` (ante un 401 del proxy). |
 | `POST` | `/api/auth/logout` | Borra la cookie. |
 | `POST` | `/api/auth/forgot-password` | **Stub:** responde 200 siempre y no llama al backend. |
 | `GET` `POST` `PUT` `PATCH` `DELETE` | `/api/backend/[...path]` | Proxy al backend (ver abajo). |
@@ -125,10 +126,11 @@ En `/ops`, el dispatcher puede cerrar una emergencia desde la columna **Resuelta
 ### Proxy `/api/backend/[...path]`
 
 - Exporta `GET`, `POST`, `PUT`, `PATCH` y `DELETE`. `HEAD` y `OPTIONS` no están exportados.
-- `/api/backend/<path>?<query>` va a `${API_URL}/<path>?<query>` sin tocar el path. Por eso el front llama a `/api/backend/api/emergencies`, que termina en `/api/emergencies` del backend.
+- Solo pasan las rutas de una lista (`ALLOWED_ROUTES` en el route), cada una con sus métodos: `api/emergencies` (GET y PATCH), `api/panic-button` (POST), `api/officers` (GET), `api/citizen/profile` (GET y PUT) y `api/citizen/saved-locations` (GET, POST, PATCH y DELETE). Una ruta fuera de la lista responde 404, un método no permitido 405 y un segmento inválido (`..`, restos de encoding) 400, sin llamar al backend.
+- Para las rutas permitidas, `/api/backend/<path>?<query>` va a `${API_URL}/<path>?<query>` con el mismo path. Por eso el front llama a `/api/backend/api/emergencies`, que termina en `/api/emergencies` del backend.
 - Agrega `Authorization: Bearer <JWT de la cookie>` y reenvía `Content-Type`, `Idempotency-Key` y el body (salvo en GET y HEAD).
 - Si la cookie no está o venció, responde 401 sin llamar al backend. Si el backend responde 401, borra la cookie.
-- Reintenta 502, 503, 504 y errores de red en todos los métodos. En POST, PUT y PATCH genera un `Idempotency-Key` que se mantiene entre reintentos, pero **el backend hoy no lo usa**: si un POST llegó a procesarse antes del 502, el reintento puede duplicarlo.
+- Los reintentos dependen del método (`lib/backend-fetch.js`). GET, PUT y DELETE reintentan ante 502, 503, 504 y cualquier error de red o timeout. POST y PATCH solo ante 502 y 503 o si no se llegó a conectar, que es cuando la request no llegó al backend: un 504 o un corte después de conectar devuelven el error en vez de arriesgar un alta duplicada. En POST, PUT y PATCH manda un `Idempotency-Key` que se mantiene entre reintentos, pero **el backend hoy no lo usa**.
 
 Lo que el front consume por el proxy:
 
@@ -137,12 +139,12 @@ Lo que el front consume por el proxy:
 | `POST /api/panic-button` | SOS de `/inicio` y reportes de `/reportar` |
 | `GET /api/emergencies` (con `status`, `page`, `limit`, `sortBy`, `order`) y `GET /api/emergencies/:id` | Ciudadano y dispatcher |
 | `PATCH /api/emergencies/:id/cancel` | Ciudadano, desde el detalle |
-| `PATCH /api/emergencies/:id/validate`, `/discard`, `/assign` | Dispatcher |
+| `PATCH /api/emergencies/:id/validate`, `/discard`, `/assign` y `/close` | Dispatcher |
 | `GET /api/emergencies` (filtrado por el backend) y `PATCH /api/emergencies/:id/en-route`, `/on-scene`, `/resolve` | Oficial, en `/oficial` |
 | `GET /api/officers` (con `status=disponible` en el modal de asignar) | Dispatcher |
 | `GET`/`PUT /api/citizen/profile` y `GET`/`POST`/`PATCH`/`DELETE /api/citizen/saved-locations` | Perfil del ciudadano |
 
-El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencies/:id/close` y `/return` (dispatcher), `GET /api/incidents` y `GET /api/outbox-events`.
+El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencies/:id/return` (dispatcher), `GET /api/incidents` y `GET /api/outbox-events`.
 
 ### Middleware
 
@@ -216,7 +218,7 @@ PENDING ──► VALIDATED ──► DISPATCHED ──► EN_ROUTE ──► ON
    └──► DISCARDED        (el dispatcher descarta desde PENDING)
 ```
 
-Desde el front, el ciudadano cancela y el dispatcher valida, descarta y asigna oficial. `app/lib/emergencies.js` además acepta para mostrar algunos alias viejos que el backend no emite: `CREATED` (default de la tabla antes de la migración V5), `ON_SITE` y los nombres en minúscula y en castellano.
+Desde el front, el ciudadano cancela; el dispatcher valida, descarta, asigna oficial y cierra las resueltas; y el oficial avanza de `DISPATCHED` a `RESOLVED`. `app/lib/emergencies.js` además acepta para mostrar algunos alias viejos que el backend no emite: `CREATED` (default de la tabla antes de la migración V5), `ON_SITE` y los nombres en minúscula y en castellano.
 
 ---
 
@@ -229,13 +231,13 @@ npm run test:integration  # integración del BFF
 
 | Suite | Qué cubre | Config | Umbral |
 |---|---|---|---|
-| Unitarios | `lib/**`, `app/lib/**` (menos `app/lib/auth.js`, que depende de `sessionStorage`) y `middleware.js` | `vitest.config.mjs` | 80% en statements, branches, functions y lines |
+| Unitarios | `lib/**`, `app/lib/**` (menos `app/lib/auth.js`, que depende de `sessionStorage`: tiene tests en `tests/auth.test.js` pero no cuenta para la cobertura) y `middleware.js` | `vitest.config.mjs` | 80% en statements, branches, functions y lines |
 | Integración del BFF | Route Handlers de `app/api/**` invocados con `Request` reales | `vitest.integration.config.mjs` | Sin umbral |
 
-Números al 05/11/2026 (Node 22): **259 tests unitarios** en 15 archivos y **29 de integración** en 5. Cobertura de unit: **97,28% statements, 88,86% branches, 97,98% functions y 99,14% lines**. `middleware.js` está al 100%.
+Números al 16/11/2026 (Node 22): **360 tests unitarios** en 19 archivos y **75 de integración** en 7. Cobertura de unit: **97,1% statements, 89,95% branches, 97,95% functions y 98,16% lines**. `middleware.js` está en 84,37% de statements y 85,36% de branches.
 
 - Las dos suites corren en entorno `node` y pasan en Node 20, 22 y 24. Desde Node 21, `navigator` es un global de solo lectura: los tests que lo necesitan usan `vi.stubGlobal` y lo restauran con `vi.unstubAllGlobals()`.
-- Los tests de integración (`tests/integration/`) mockean `global.fetch` (el backend) y `next/headers` (las cookies) con los helpers de `tests/integration/helpers.js`. No levantan servidor ni backend real. Cubren login (email y contraseña, y atajos demo con `sub`), registro, sesión, el proxy y geocode. Quedan sin test `logout`, `warmup` y `forgot-password`.
+- Los tests de integración (`tests/integration/`) mockean `global.fetch` (el backend) y `next/headers` (las cookies) con los helpers de `tests/integration/helpers.js`. No levantan servidor ni backend real. Cubren login (email y contraseña, y atajos demo con `sub`), registro, sesión, refresh, el proxy (lista de rutas, CSRF y reintentos), geocode y el chequeo CSRF de los POST de `/api/auth`. `warmup` no tiene test; de `logout` y `forgot-password` solo se prueba el chequeo CSRF.
 - El umbral del 80% es sobre las librerías y el middleware, no sobre todo el frontend. Los componentes React, las páginas y los layouts no tienen tests.
 - SonarCloud analiza `lib` y `app/lib` (`sonar.sources` en `sonar-project.properties`). Todavía no incluye `middleware.js`.
 - **Deuda declarada:** no hay tests E2E ni de componentes (ni Playwright ni Testing Library), ni smoke tests contra el deploy. Antes de cada demo se prueba a mano: login de cada rol, SOS, validar, asignar y descartar.

@@ -24,7 +24,6 @@ import {
   addSavedLocation,
   updateSavedLocation,
   removeSavedLocation,
-  clearSavedLocations,
   SAVED_LOCATIONS_STORAGE_KEY,
 } from "../app/lib/saved-locations.js";
 
@@ -70,11 +69,5 @@ describe("saved-locations (backend)", () => {
     await expect(removeSavedLocation("1")).resolves.toBe(true);
     expect(patchSavedLocation).toHaveBeenCalledWith("1", { label: "Trabajo" });
     expect(deleteSavedLocation).toHaveBeenCalledWith("1");
-  });
-
-  it("clearSavedLocations solo limpia restos locales", () => {
-    globalThis.localStorage.setItem(SAVED_LOCATIONS_STORAGE_KEY, "[]");
-    expect(clearSavedLocations()).toBe(true);
-    expect(globalThis.localStorage.getItem(SAVED_LOCATIONS_STORAGE_KEY)).toBeNull();
   });
 });

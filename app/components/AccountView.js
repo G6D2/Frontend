@@ -26,7 +26,7 @@ function rolePillClass(groups) {
  * Vista de "Mi cuenta" compartida por ciudadano (app/(citizen)/perfil/page.js)
  * y dispatcher (app/ops/cuenta/page.js). Antes cada rol tenía su propio
  * layout y un botón de logout con estilo distinto (ciudadano: borde+texto
- * secondary; dispatcher: BTN_DANGER sólido bg-error). Ahora las dos usan el
+ * secondary; dispatcher: botón sólido bg-error). Ahora las dos usan el
  * mismo avatar con iniciales, nombre, `sub` en mono, rol como pill, lista de
  * accesos (si tiene) y el mismo botón de logout peligro-secundario (borde
  * error, texto error, ícono logout).
