@@ -6,12 +6,15 @@
 // real levantado, así que estos tests corren rápido y en el mismo proceso que
 // vitest (`environment: "node"`, ver vitest.integration.config.mjs).
 //
-// Tres piezas:
+// Piezas:
 //  - mockNextCookies: reemplaza `next/headers` por un jar en memoria, porque
 //    `cookies()` fuera de un request real de Next explota.
 //  - mockBackend: reemplaza `global.fetch` por un router de tabla que resuelve
 //    por método+path (con soporte para devolver una secuencia de respuestas,
 //    útil para probar los reintentos de `lib/backend-fetch.js`).
+//  - mockHangingFetch + fakeAbortSignalTimeout: un servidor que no responde y
+//    un `AbortSignal.timeout` que se puede adelantar con los fake timers, para
+//    probar los timeouts hacia el IdP sin esperar de verdad.
 //  - makeRequest: arma un `Request` de la Web API con menos boilerplate.
 
 import { vi } from "vitest";
@@ -141,6 +144,76 @@ export function mockBackend(routes) {
 
   global.fetch = fetchMock;
   return { calls, fetchMock };
+}
+
+/**
+ * Reemplaza `global.fetch` por uno que no responde nunca, como un servidor
+ * colgado. Igual que el fetch real, solo rechaza —con el motivo del abort— si
+ * se aborta el `signal` que recibió. Si el código bajo prueba no manda
+ * `signal`, el pedido queda pendiente y el test falla por timeout de vitest:
+ * esa es la regresión que se quiere detectar.
+ *
+ * Con `{ afterHeaders: true }` responde los headers (200) y lo que queda
+ * colgado es la lectura del cuerpo (`json()`/`text()`).
+ *
+ * Devuelve `{ calls }` con `{ method, url, path, body, signal }` por llamada.
+ */
+export function mockHangingFetch({ afterHeaders = false } = {}) {
+  const calls = [];
+
+  function untilAborted(signal) {
+    return new Promise((_resolve, reject) => {
+      if (!signal) return;
+      if (signal.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+  }
+
+  const fetchMock = vi.fn((input, init = {}) => {
+    const url = typeof input === "string" ? input : input.url;
+    calls.push({
+      method: (init.method || "GET").toUpperCase(),
+      url,
+      path: normalizePath(url),
+      body: init.body,
+      signal: init.signal,
+    });
+    if (!afterHeaders) return untilAborted(init.signal);
+    return Promise.resolve({
+      status: 200,
+      ok: true,
+      json: () => untilAborted(init.signal),
+      text: () => untilAborted(init.signal),
+    });
+  });
+
+  global.fetch = fetchMock;
+  return { calls, fetchMock };
+}
+
+/**
+ * `AbortSignal.timeout` usa un timer interno de Node que los fake timers de
+ * vitest no adelantan. Esto lo reemplaza por uno equivalente armado con
+ * `setTimeout`, que aborta con el mismo `DOMException` "TimeoutError", para
+ * poder adelantar el reloj con `vi.advanceTimersByTimeAsync`.
+ *
+ * Se usa después de `vi.useFakeTimers()`. Devuelve el spy: sirve para
+ * comprobar con cuántos milisegundos se pidió el timeout y hay que restaurarlo
+ * (`spy.mockRestore()`) al terminar el test.
+ */
+export function fakeAbortSignalTimeout() {
+  return vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => {
+      controller.abort(
+        new DOMException("The operation was aborted due to timeout", "TimeoutError")
+      );
+    }, ms);
+    return controller.signal;
+  });
 }
 
 /**

@@ -10,7 +10,14 @@ const CLEAR_COOKIE_OPTIONS = {
   maxAge: 0,
 };
 
-/** Revoca el refresh token en el IdP. Un fallo de red no bloquea el logout local. */
+// Tope corto para la revocación: el logout no espera al IdP más que esto.
+const IDP_REVOKE_TIMEOUT_MS = 3000;
+
+/**
+ * Revoca el refresh token en el IdP. Ni un fallo de red ni la demora del IdP
+ * bloquean el logout local: pasado IDP_REVOKE_TIMEOUT_MS se corta el pedido y
+ * las cookies se borran igual.
+ */
 async function revokeIdpSession() {
   const refreshToken = await readRefreshToken();
   if (!refreshToken) return;
@@ -22,9 +29,10 @@ async function revokeIdpSession() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
+      signal: AbortSignal.timeout(IDP_REVOKE_TIMEOUT_MS),
     });
   } catch {
-    // no bloquear logout del cliente ante fallo de red del IdP
+    // no bloquear logout del cliente ante fallo de red o timeout del IdP
   }
 }
 
