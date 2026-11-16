@@ -6,13 +6,13 @@ import {
 } from "./auth";
 import { SEVERITY_CONFIG } from "./emergencies";
 
-/** Intervalo de polling para el dispatcher (15 s). Se pausa con la pestaña
- *  oculta y nunca superpone pedidos (ver createPoller en ./polling). */
-export const POLLING_INTERVAL_MS = 15_000;
-/** Intervalo de polling para la vista del ciudadano (5 s). Permite actualizaciones
- *  casi en tiempo real del historial de estados sin sobrecargar el sistema,
- *  dado que la carga de ciudadanos simultáneos es menor que la del dispatcher. */
-export const CITIZEN_POLLING_INTERVAL_MS = 5_000;
+/** Intervalo de polling para el dispatcher (30 s, 2 por minuto). Se pausa con
+ *  la pestaña oculta y nunca superpone pedidos (ver createPoller en ./polling).
+ *  Se bajó de 15 s para reducir el tráfico del BFF al backend. */
+export const POLLING_INTERVAL_MS = 30_000;
+/** Intervalo de polling para las vistas del ciudadano y del oficial (30 s,
+ *  2 por minuto). Se bajó de 5 s para reducir el tráfico del BFF al backend. */
+export const CITIZEN_POLLING_INTERVAL_MS = 30_000;
 
 function purgeLegacyCitizenLocalStorage() {
   if (typeof window === "undefined") return;

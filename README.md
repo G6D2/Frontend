@@ -87,8 +87,8 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/acceso` | Sin sesión (con sesión redirige al home del rol) | Login con email y contraseña, registro, recuperar contraseña y atajos demo |
 | `/inicio` | Ciudadano | Botón SOS (solo si `hasAntipanicButton`) y acceso a reportar |
 | `/reportar` | Ciudadano | Reporte de incidente por categoría: médica, incendio, infraestructura, disturbio o evento, otro |
-| `/mis-alertas` | Ciudadano | Mis emergencias, refresco cada 5 s |
-| `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados (refresco cada 5 s, pausado con la pestaña oculta) y cancelar con confirmación |
+| `/mis-alertas` | Ciudadano | Mis emergencias, refresco cada 30 s |
+| `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados (refresco cada 30 s, pausado con la pestaña oculta) y cancelar con confirmación |
 | `/perfil`, `/perfil/datos`, `/perfil/ubicaciones`, `/perfil/ayuda` | Ciudadano | Cuenta, datos personales y ubicaciones guardadas (en el backend, cifrados) y ayuda |
 | `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar, asignar oficial y cerrar emergencias resueltas |
 | `/ops/lista` | Dispatcher | Lista ordenada por prioridad, con métricas que filtran, búsqueda, orden por columna y panel de detalle |
@@ -98,7 +98,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/ops/oficiales` | Dispatcher | Catálogo de oficiales y su estado |
 | `/ops/cuenta` | Dispatcher | Mi cuenta y logout |
 | `/ops/emergencias` | Dispatcher | Redirige a `/ops/lista` |
-| `/oficial` | Oficial | Emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver**. Al resolver permite seleccionar causas relacionadas; `VIA` requiere una descripción de hasta 280 caracteres. Refresco cada 5 s. Mismo panel lateral (y barra inferior en celular) que ciudadano y dispatcher: **Asignaciones** y **Mi cuenta** |
+| `/oficial` | Oficial | Emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver**. Al resolver permite seleccionar causas relacionadas; `VIA` requiere una descripción de hasta 280 caracteres. Refresco cada 30 s. Mismo panel lateral (y barra inferior en celular) que ciudadano y dispatcher: **Asignaciones** y **Mi cuenta** |
 | `/oficial/cuenta` | Oficial | Mi cuenta y logout (misma vista que ciudadano y dispatcher) |
 
 Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
