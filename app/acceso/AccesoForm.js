@@ -16,13 +16,89 @@ import { DEMO_ACCOUNTS, DEMO_LOGIN_SHORTCUTS } from "../lib/features";
 // En modo idp real, se ocultan los atajos demo (el IdP no los admite).
 const IS_IDP_MODE = process.env.NEXT_PUBLIC_AUTH_MODE === "idp";
 
-// Usuario de prueba del LDAP del Grupo 2 (Login Federado), con grupo
-// `dispatcher`. Lo usan la tarjeta "Juan Dispatcher" y el acceso directo del
-// panel de atajos.
-const LDAP_DISPATCHER_DEMO = Object.freeze({
-  username: "juan-trabaja",
-  password: "trabaja123",
+// Todos los atajos de prueba viven en el panel de la llave (a la derecha de
+// la tarjeta). La tarjeta queda solo con los formularios.
+
+// Ciudadano sin perfil (sub U000042 de la allowlist demo del backend). Entra
+// por loginDev como el resto de los atajos sin contraseña, con su propio
+// loginMethod para que la sesión se vea como anónima.
+const ANONYMOUS_CITIZEN_SHORTCUT = Object.freeze({
+  id: "ciudadano-anonimo",
+  label: "Ciudadano anónimo",
+  icon: "account_balance",
+  loginMethod: "anonima",
+  account: Object.freeze({
+    sub: "U000042",
+    preferred_username: "ciudadano",
+    groups: ["citizen"],
+    hasAntipanicButton: false,
+  }),
 });
+
+const PANEL_DEMO_SHORTCUTS = [...DEMO_LOGIN_SHORTCUTS, ANONYMOUS_CITIZEN_SHORTCUT];
+
+// Usuarios de prueba del LDAP del Grupo 2 (Login Federado). El atajo carga
+// usuario y contraseña en la solapa Personal. Las contraseñas quedan en el
+// bundle de JS: son cuentas de prueba del Grupo 2, no reutilizarlas.
+const LDAP_DEMO_USERS = Object.freeze([
+  Object.freeze({
+    username: "juan-trabaja",
+    password: "trabaja123",
+    label: "Juan Dispatcher",
+    badge: "LDAP",
+    icon: "badge",
+  }),
+  Object.freeze({
+    username: "delegado-emer",
+    password: "changeit123",
+    label: "Delegado Municipal",
+    badge: "LDAP Admin",
+    icon: "admin_panel_settings",
+  }),
+]);
+
+// Botón de acción de cada fila del panel: mismo ancho en las tres secciones.
+// El `!` hace falta por el `font: inherit` de @mantine/core/styles.css.
+const SHORTCUT_ACTION_CLASS =
+  "shrink-0 w-20 py-2 px-1.5 rounded-lg bg-primary text-on-primary text-xs! font-semibold! hover:opacity-90 transition-opacity flex items-center justify-center gap-1 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-default";
+
+const iconClassFor = (hasAntipanicButton) => (hasAntipanicButton ? "text-red-600" : "text-primary");
+
+// Una fila del panel de la llave: la misma tarjeta para las tres secciones.
+function ShortcutRow({ icon, iconClassName, title, detail, badge, action }) {
+  return (
+    <div className="p-3 rounded-xl border border-outline-variant bg-surface-container-low hover:border-primary transition-all flex items-center gap-3 shadow-xs">
+      <span className="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center shrink-0">
+        <MaterialIcon name={icon} size={20} className={iconClassName || "text-primary"} />
+      </span>
+      <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+        <span className="font-bold text-sm text-primary truncate">{title}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[11px] font-mono text-on-surface-variant truncate">{detail}</span>
+          {badge && (
+            <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 bg-primary/10 text-primary border border-primary/20">
+              {badge}
+            </span>
+          )}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+// Una sección del panel: título, filas y una línea que dice qué hace el botón.
+function ShortcutSection({ id, title, hint, children }) {
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-2">
+      <h3 id={id} className="text-[11px] font-bold tracking-widest uppercase text-primary">
+        {title}
+      </h3>
+      {children}
+      {hint && <p className="text-[11px] text-on-surface-variant leading-snug">{hint}</p>}
+    </section>
+  );
+}
 
 // ── Modo: "login" | "signup" | "forgot"
 export default function AccesoForm() {
@@ -51,7 +127,7 @@ export default function AccesoForm() {
   const [ldapLoading, setLdapLoading] = useState(false);
   const [ldapError, setLdapError] = useState("");
 
-  // Atajos demo sin contraseña (bloque "Demo" debajo de la tarjeta)
+  // Atajos demo sin contraseña (sección del panel de la llave)
   const [demoPendingId, setDemoPendingId] = useState(null);
   const [demoError, setDemoError] = useState("");
 
@@ -78,15 +154,18 @@ export default function AccesoForm() {
   }
 
   // Atajo demo: loginDev (POST /auth/dev/login con el sub) y home según el rol.
-  // El error va en el bloque Demo porque el de `error` solo se ve en la
-  // solapa ciudadana.
+  // El error va en el panel, al lado del botón, porque el de `error` solo se
+  // ve en la solapa ciudadana.
   const loginWithDemoShortcut = async (shortcut) => {
     setLoading(true);
     setDemoPendingId(shortcut.id);
     setError("");
     setDemoError("");
     try {
-      const { user } = await loginDev({ ...shortcut.account, loginMethod: "sesion" });
+      const { user } = await loginDev({
+        ...shortcut.account,
+        loginMethod: shortcut.loginMethod || "sesion",
+      });
       navigateToHome(user);
     } catch (err) {
       setDemoError(
@@ -98,22 +177,42 @@ export default function AccesoForm() {
     }
   };
 
-  // Un solo handler para todos los botones del bloque Demo: el atajo sale del
-  // data-shortcut-id. Un closure por botón dentro del .map hace que el lint
-  // del React Compiler (react-hooks/immutability) marque el
+  // Un solo handler para todos los botones sin contraseña del panel: el atajo
+  // sale del data-shortcut-id. Un closure por botón dentro del .map hace que
+  // el lint del React Compiler (react-hooks/immutability) marque el
   // window.location.href de navigateToHome.
   const handleDemoShortcutClick = (event) => {
-    const shortcut = DEMO_LOGIN_SHORTCUTS.find(
+    const shortcut = PANEL_DEMO_SHORTCUTS.find(
       (s) => s.id === event.currentTarget.dataset.shortcutId
     );
     if (shortcut) loginWithDemoShortcut(shortcut);
   };
 
-  // Seed V16 — solo relleno de chips de presentación (cuenta pública de demo).
+  // Después de cargar un atajo: aviso breve en el panel y lo cierra.
+  function confirmShortcut(message, focusId) {
+    setShortcutFeedback(message);
+    setTimeout(() => {
+      setShortcutsOpen(false);
+      setShortcutFeedback("");
+      if (focusId) document.getElementById(focusId)?.focus();
+    }, 350);
+  }
+
+  // Seed V16 — cuentas ciudadanas públicas de demo: completa email y contraseña.
   function fillDemo(account) {
+    switchMode("login");
     setEmailHint(account.email);
     setPasswordHint("abracadabra");
-    setError("");
+    confirmShortcut(`Credenciales de ${account.preferred_username} cargadas ✓`);
+  }
+
+  // Usuario LDAP de prueba: completa usuario y contraseña en la solapa
+  // Personal y deja el foco en "Ingresar" (Enter entra).
+  function fillLdapUser(ldapUser) {
+    switchMode("ldap");
+    setLdapUsername(ldapUser.username);
+    setLdapPassword(ldapUser.password);
+    confirmShortcut(`Credenciales de ${ldapUser.username} cargadas ✓`, "btn-card-ldap-submit");
   }
 
   const handleSubmit = async (e) => {
@@ -150,17 +249,6 @@ export default function AccesoForm() {
   const handleLdapModalSubmit = (e) => {
     e.preventDefault();
     submitLdapLogin(ldapUsername.trim(), ldapPassword);
-  };
-
-  // Acceso directo del panel de atajos: entra por el Login Federado (LDAP)
-  // con el dispatcher de prueba. Deja la solapa LDAP abierta y con las
-  // credenciales cargadas para que un error se vea ahí.
-  const handleLdapDispatcherQuickLogin = () => {
-    setShortcutsOpen(false);
-    switchMode("ldap");
-    setLdapUsername(LDAP_DISPATCHER_DEMO.username);
-    setLdapPassword(LDAP_DISPATCHER_DEMO.password);
-    submitLdapLogin(LDAP_DISPATCHER_DEMO.username, LDAP_DISPATCHER_DEMO.password);
   };
 
   const submitLdapLogin = async (username, password) => {
@@ -271,31 +359,37 @@ export default function AccesoForm() {
                   transform: isLdap ? "translateX(calc(100%))" : "translateX(0%)",
                 }}
               />
+              {/* Una sola línea por solapa: el texto largo se abrevia en
+                  pantallas chicas en vez de partirse en dos renglones.
+                  El `!` del tamaño y el peso hace falta porque
+                  @mantine/core/styles.css (sin capa) pone `font: inherit` en
+                  los botones y le gana a las utilidades de Tailwind. */}
               <button
                 type="button"
                 id="tab-acceso-ciudadano"
                 onClick={() => switchMode("login")}
-                className={`relative z-10 flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-colors duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`relative z-10 flex-1 min-w-0 py-2.5 px-1.5 rounded-lg text-[11px]! font-bold! whitespace-nowrap transition-colors duration-200 flex items-center justify-center gap-1 cursor-pointer ${
                   !isLdap
                     ? "text-on-primary"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                <MaterialIcon name="person" size={16} />
-                <span>Acceso Ciudadano</span>
+                <MaterialIcon name="person" size={14} className="shrink-0" />
+                <span className="truncate">Acceso Ciudadano</span>
               </button>
               <button
                 type="button"
                 id="tab-acceso-ldap"
                 onClick={() => switchMode("ldap")}
-                className={`relative z-10 flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-colors duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`relative z-10 flex-1 min-w-0 py-2.5 px-1.5 rounded-lg text-[11px]! font-bold! whitespace-nowrap transition-colors duration-200 flex items-center justify-center gap-1 cursor-pointer ${
                   isLdap
                     ? "text-on-primary"
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                <MaterialIcon name="vpn_key" size={16} />
-                <span>Personal Municipal (LDAP)</span>
+                <MaterialIcon name="vpn_key" size={14} className="shrink-0" />
+                <span className="truncate sm:hidden">Personal (LDAP)</span>
+                <span className="truncate hidden sm:inline">Personal Municipal (LDAP)</span>
               </button>
             </div>
           )}
@@ -442,23 +536,6 @@ export default function AccesoForm() {
                 </div>
               </div>
 
-              {/* Chips de cuentas demo — solo en modo local (AUTH_MODE=local) */}
-              {isLogin && !IS_IDP_MODE && (
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-xs text-on-surface-variant w-full">Atajos demo:</span>
-                  {DEMO_ACCOUNTS.map((acc) => (
-                    <button
-                      key={acc.email}
-                      type="button"
-                      onClick={() => fillDemo(acc)}
-                      className="text-xs px-2.5 py-1 rounded-full border border-outline-variant text-on-surface-variant hover:bg-surface-container-low"
-                    >
-                      {acc.preferred_username}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {/* Error */}
               {error && (
                 <div className="p-3 rounded-lg bg-error-container text-on-error-container text-sm">
@@ -478,41 +555,6 @@ export default function AccesoForm() {
                     : isSignup ? "Registrarme" : "Iniciar sesión"}
                   <MaterialIcon name={isSignup ? "person_add" : "arrow_forward"} />
                 </button>
-
-                {/* Botón de cuenta ciudadana anónima — solo en modo local */}
-                {isLogin && !IS_IDP_MODE && (
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={async () => {
-                      setLoading(true);
-                      setError("");
-                      try {
-                        const { user } = await loginDev({
-                          sub: "U000042",
-                          preferred_username: "ciudadano",
-                          groups: ["citizen"],
-                          hasAntipanicButton: false,
-                          loginMethod: "anonima",
-                        });
-                        navigateToHome(user);
-                      } catch (err) {
-                        setError(
-                          err instanceof ApiError
-                            ? err.message
-                            : "No se pudo conectar con el backend."
-                        );
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    className="min-h-12 py-2.5 px-3 w-full bg-surface-container text-on-surface font-semibold text-xs sm:text-sm tracking-wide rounded-lg border border-outline-variant hover:bg-surface-variant transition-colors flex items-center justify-center text-center gap-2"
-                  >
-                    <MaterialIcon name="account_balance" className="text-primary shrink-0" size={20} />
-                    <span className="hidden sm:inline">Iniciar con cuenta ciudadana</span>
-                    <span className="sm:hidden">Cuenta ciudadana</span>
-                  </button>
-                )}
               </div>
 
               {/* Alternancia login ↔ signup */}
@@ -598,58 +640,6 @@ export default function AccesoForm() {
 
         </div>
 
-        {/* ── Atajos demo sin contraseña (solo ciudadanos) ──
-            Entran con loginDev → POST /auth/dev/login, que el backend solo acepta
-            para los sub ciudadanos de su allowlist demo. El personal entra por el
-            Login Federado. Ocultos con NEXT_PUBLIC_AUTH_MODE=idp. */}
-        {!IS_IDP_MODE && (
-          <section aria-labelledby="demo-atajos-titulo" className="mt-4">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                <div className="w-full border-t border-dashed border-outline-variant" />
-              </div>
-              <div className="relative flex justify-center">
-                <h2
-                  id="demo-atajos-titulo"
-                  className="px-3 bg-background text-xs font-bold tracking-widest uppercase text-amber-800"
-                >
-                  Demo · entrar sin contraseña
-                </h2>
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {DEMO_LOGIN_SHORTCUTS.map((shortcut) => (
-                <button
-                  key={shortcut.id}
-                  id={`btn-demo-${shortcut.id}`}
-                  data-shortcut-id={shortcut.id}
-                  type="button"
-                  disabled={loading || ldapLoading}
-                  onClick={handleDemoShortcutClick}
-                  className="min-h-14 p-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/70 hover:bg-amber-100/70 hover:shadow-sm transition-all flex items-center gap-2 text-left cursor-pointer disabled:opacity-60 disabled:cursor-default"
-                >
-                  <MaterialIcon name={shortcut.icon} size={20} className="text-amber-800 shrink-0" />
-                  <span className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-amber-950 leading-tight">
-                      {demoPendingId === shortcut.id ? "Ingresando..." : shortcut.label}
-                    </span>
-                    <span className="text-[11px] font-mono text-amber-900/80 truncate">
-                      {shortcut.account.sub}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {demoError && (
-              <div role="alert" className="mt-2 p-3 rounded-lg bg-error-container text-on-error-container text-sm">
-                {demoError}
-              </div>
-            )}
-          </section>
-        )}
-
         {/* Footer */}
         <div className="mt-4 text-center">
           <p className="text-xs font-medium text-on-surface-variant flex items-center justify-center gap-1">
@@ -705,134 +695,111 @@ export default function AccesoForm() {
             )}
 
             {/* Lista de Atajos */}
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-              {/* Atajo 1: Juan Dispatcher */}
-              <div className="p-3.5 rounded-xl border border-outline-variant bg-surface-container-low hover:border-primary transition-all flex flex-col gap-2 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <MaterialIcon name="badge" size={18} className="text-primary" />
-                    <span className="font-bold text-sm text-primary">Juan Dispatcher</span>
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-primary text-on-primary">
-                    LDAP
-                  </span>
-                </div>
-                <div className="text-xs text-on-surface-variant flex flex-col gap-1 bg-surface-container-lowest p-2.5 rounded-lg font-mono border border-outline-variant/60">
-                  <div><span className="font-semibold text-on-surface font-sans">usuario:</span> {LDAP_DISPATCHER_DEMO.username}</div>
-                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> {LDAP_DISPATCHER_DEMO.password}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    switchMode("ldap");
-                    setLdapUsername(LDAP_DISPATCHER_DEMO.username);
-                    setLdapPassword(LDAP_DISPATCHER_DEMO.password);
-                    setLdapError("");
-                    setShortcutFeedback("Credenciales de juan-trabaja cargadas ✓");
-                    setTimeout(() => {
-                      setShortcutsOpen(false);
-                      setShortcutFeedback("");
-                    }, 350);
-                  }}
-                  className="w-full py-2 px-3 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
+              {/* 1. Sin contraseña: loginDev → POST /auth/dev/login, que el
+                  backend solo acepta para los sub de su allowlist demo.
+                  Ocultos con NEXT_PUBLIC_AUTH_MODE=idp. */}
+              {!IS_IDP_MODE && (
+                <ShortcutSection
+                  id="atajos-sin-contrasena"
+                  title="Entrar sin contraseña · demo"
+                  hint="Entra directo con el login de demo, sin pasar por el formulario."
                 >
-                  <MaterialIcon name="login" size={16} />
-                  <span>Cargar credenciales</span>
-                </button>
-              </div>
+                  {PANEL_DEMO_SHORTCUTS.map((shortcut) => (
+                    <ShortcutRow
+                      key={shortcut.id}
+                      icon={shortcut.icon}
+                      iconClassName={iconClassFor(shortcut.account.hasAntipanicButton)}
+                      title={shortcut.label}
+                      detail={shortcut.account.sub}
+                      action={
+                        <button
+                          id={`btn-demo-${shortcut.id}`}
+                          data-shortcut-id={shortcut.id}
+                          type="button"
+                          disabled={loading || ldapLoading}
+                          onClick={handleDemoShortcutClick}
+                          className={SHORTCUT_ACTION_CLASS}
+                        >
+                          {demoPendingId === shortcut.id ? (
+                            <span>Entrando…</span>
+                          ) : (
+                            <>
+                              <MaterialIcon name="bolt" size={16} />
+                              <span>Entrar</span>
+                            </>
+                          )}
+                        </button>
+                      }
+                    />
+                  ))}
+                  {demoError && (
+                    <div role="alert" className="p-3 rounded-lg bg-error-container text-on-error-container text-sm">
+                      {demoError}
+                    </div>
+                  )}
+                </ShortcutSection>
+              )}
 
-              {/* Atajo 2: Delegado Municipal */}
-              <div className="p-3.5 rounded-xl border border-outline-variant bg-surface-container-low hover:border-primary transition-all flex flex-col gap-2 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <MaterialIcon name="admin_panel_settings" size={18} className="text-purple-800" />
-                    <span className="font-bold text-sm text-primary">Delegado Municipal</span>
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-purple-800 text-white">
-                    LDAP Admin
-                  </span>
-                </div>
-                <div className="text-xs text-on-surface-variant flex flex-col gap-1 bg-surface-container-lowest p-2.5 rounded-lg font-mono border border-outline-variant/60">
-                  <div><span className="font-semibold text-on-surface font-sans">usuario:</span> delegado-emer</div>
-                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> changeit123</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    switchMode("ldap");
-                    setLdapUsername("delegado-emer");
-                    setLdapPassword("changeit123");
-                    setLdapError("");
-                    setShortcutFeedback("Credenciales de delegado cargadas ✓");
-                    setTimeout(() => {
-                      setShortcutsOpen(false);
-                      setShortcutFeedback("");
-                    }, 350);
-                  }}
-                  className="w-full py-2 px-3 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <MaterialIcon name="login" size={16} />
-                  <span>Cargar credenciales</span>
-                </button>
-              </div>
+              {/* 2. Personal municipal (LDAP): carga usuario y contraseña. */}
+              <ShortcutSection
+                id="atajos-ldap"
+                title="Personal municipal (LDAP)"
+                hint="Carga usuario y contraseña en la solapa Personal; después tocá Ingresar."
+              >
+                {LDAP_DEMO_USERS.map((ldapUser) => (
+                  <ShortcutRow
+                    key={ldapUser.username}
+                    icon={ldapUser.icon}
+                    title={ldapUser.label}
+                    detail={ldapUser.username}
+                    badge={ldapUser.badge}
+                    action={
+                      <button
+                        id={`btn-ldap-${ldapUser.username}`}
+                        type="button"
+                        disabled={loading || ldapLoading}
+                        onClick={() => fillLdapUser(ldapUser)}
+                        className={SHORTCUT_ACTION_CLASS}
+                      >
+                        <MaterialIcon name="login" size={16} />
+                        <span>Cargar</span>
+                      </button>
+                    }
+                  />
+                ))}
+              </ShortcutSection>
 
-              {/* Atajo 3: Juan Pánico (Ciudadano) */}
-              <div className="p-3.5 rounded-xl border border-outline-variant bg-surface-container-low hover:border-primary transition-all flex flex-col gap-2 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <MaterialIcon name="emergency" size={18} className="text-red-600" />
-                    <span className="font-bold text-sm text-primary">Juan Pánico</span>
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-surface-container-high text-primary border border-outline-variant">
-                    Ciudadano
-                  </span>
-                </div>
-                <div className="text-xs text-on-surface-variant flex flex-col gap-1 bg-surface-container-lowest p-2.5 rounded-lg font-mono border border-outline-variant/60">
-                  <div><span className="font-semibold text-on-surface font-sans">Email:</span> juanpanico@gmail.com</div>
-                  <div><span className="font-semibold text-on-surface font-sans">contraseña:</span> abracadabra</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    switchMode("login");
-                    setEmailHint("juanpanico@gmail.com");
-                    setPasswordHint("abracadabra");
-                    setError("");
-                    setShortcutFeedback("Credenciales de Juan Pánico cargadas ✓");
-                    setTimeout(() => {
-                      setShortcutsOpen(false);
-                      setShortcutFeedback("");
-                    }, 350);
-                  }}
-                  className="w-full py-2 px-3 rounded-lg bg-surface-container text-on-surface hover:bg-surface-container-high text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-outline-variant"
+              {/* 3. Cuentas ciudadanas del seed V16 (públicas de demo). */}
+              {!IS_IDP_MODE && (
+                <ShortcutSection
+                  id="atajos-ciudadanos"
+                  title="Cuentas ciudadanas"
+                  hint="Carga email y contraseña en Acceso Ciudadano; después tocá Iniciar sesión."
                 >
-                  <MaterialIcon name="login" size={16} />
-                  <span>Cargar credenciales</span>
-                </button>
-              </div>
-
-              {/* Atajo 4: acceso directo del dispatcher por el Login Federado (LDAP) */}
-              <div className="p-3.5 rounded-xl border border-primary/40 bg-surface-container-low flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-primary">Acceso Directo Dispatcher</span>
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-primary text-on-primary">
-                    LDAP
-                  </span>
-                </div>
-                <p className="text-xs text-on-surface-variant">
-                  Entra en un clic con {LDAP_DISPATCHER_DEMO.username} por el Login Federado.
-                </p>
-                <button
-                  type="button"
-                  id="btn-atajo-ldap-dispatcher"
-                  disabled={loading || ldapLoading}
-                  onClick={handleLdapDispatcherQuickLogin}
-                  className="w-full py-2 px-3 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
-                >
-                  <MaterialIcon name="bolt" size={16} />
-                  <span>{ldapLoading ? "Autenticando con LDAP..." : "Ingresar a Dispatcher View"}</span>
-                </button>
-              </div>
+                  {DEMO_ACCOUNTS.map((account) => (
+                    <ShortcutRow
+                      key={account.email}
+                      icon={account.hasAntipanicButton ? "emergency" : "person"}
+                      iconClassName={iconClassFor(account.hasAntipanicButton)}
+                      title={account.preferred_username}
+                      detail={account.email}
+                      action={
+                        <button
+                          id={`btn-ciudadano-${account.sub}`}
+                          type="button"
+                          disabled={loading || ldapLoading}
+                          onClick={() => fillDemo(account)}
+                          className={SHORTCUT_ACTION_CLASS}
+                        >
+                          <MaterialIcon name="login" size={16} />
+                          <span>Cargar</span>
+                        </button>
+                      }
+                    />
+                  ))}
+                </ShortcutSection>
+              )}
             </div>
           </aside>
         </div>
