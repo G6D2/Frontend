@@ -8,6 +8,7 @@
  */
 
 import { hasValidCoords, locationLabel } from "./emergencies";
+import { formatBarrio } from "./barrio";
 
 /** Caché en memoria del cliente para no repetir dentro de la misma sesión. */
 const cache = new Map();
@@ -42,7 +43,7 @@ export function reverseGeocode(lat, lng, { timeoutMs = CLIENT_TIMEOUT_MS } = {})
       const data = await res.json();
       return data?.label || null;
     } catch {
-      // Silencioso: GeoLabel cae a mostrar las coordenadas.
+      // Silencioso: GeoLabel cae al barrio o a "Ubicación aproximada".
       return null;
     }
   })();
@@ -98,4 +99,45 @@ export function resolveEmergencyAddress(emergency) {
     return { label: null, needsGeocode: true };
   }
   return { label: locationLabel(emergency), needsGeocode: false };
+}
+
+/** Lo que se muestra cuando no hay dirección ni barrio (nunca lat/lng). */
+export const APPROXIMATE_LOCATION_LABEL = "Ubicación aproximada";
+
+function comparable(text) {
+  return text.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Texto de ubicación de una emergencia para mostrar, sin coordenadas crudas:
+ *
+ * - La dirección (`address` del backend, el `locationLabel` legado o la que
+ *   devolvió la geocodificación) con el barrio, si lo hay y la dirección no
+ *   lo nombra ya: "Av. Corrientes 1800 · Balvanera".
+ * - Sin dirección: el barrio. Sin ninguno: "Ubicación aproximada".
+ * - Anonimizada por retención o indescifrable: el barrio (es catálogo en
+ *   claro y la retención no lo borra) o el aviso de siempre.
+ *
+ * Función pura: la geocodificación la hace quien la llama (GeoLabel).
+ *
+ * @param {object} emergency
+ * @param {string|null} [geocodedAddress] Resultado de reverseGeocode.
+ * @returns {string}
+ */
+export function formatEmergencyLocation(emergency, geocodedAddress = null) {
+  const barrio =
+    typeof emergency?.barrio === "string" && emergency.barrio.trim()
+      ? formatBarrio(emergency.barrio)
+      : null;
+
+  if (emergency?.locationAnonymized) {
+    return barrio ? `${barrio} (ubicación anonimizada)` : "Ubicación anonimizada (retención)";
+  }
+  if (emergency?.locationUnavailable) return barrio || "Sin ubicación";
+
+  const candidates = [emergency?.address, emergency?.locationLabel, geocodedAddress];
+  const address = candidates.find((value) => typeof value === "string" && value.trim())?.trim();
+  if (!address) return barrio || APPROXIMATE_LOCATION_LABEL;
+  if (!barrio || comparable(address).includes(comparable(barrio))) return address;
+  return `${address} · ${barrio}`;
 }

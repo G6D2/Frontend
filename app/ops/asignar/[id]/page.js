@@ -29,6 +29,7 @@ import {
   ZoneContextNotice,
 } from "../../../components/ops/IncidentInfo";
 import { OriginBadge, OriginNotice } from "../../../components/ops/OriginInfo";
+import { shortEmergencyId } from "../../../lib/boardLayout";
 
 export default function AsignarOficialPage() {
   const params = useParams();
@@ -114,7 +115,7 @@ export default function AsignarOficialPage() {
               </div>
             </div>
             <p className="text-sm text-on-surface-variant">
-              #{emergency.id.slice(0, 8)} · {getStatusConfig(emergency.status).label} ·{" "}
+              #{shortEmergencyId(emergency.id)} · {getStatusConfig(emergency.status).label} ·{" "}
               <GeoLabel emergency={emergency} fallback="Obteniendo dirección…" />
             </p>
             <p className="text-xs text-on-surface-variant mt-2 italic">

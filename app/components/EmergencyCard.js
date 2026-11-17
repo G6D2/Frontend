@@ -105,19 +105,11 @@ export default function EmergencyCard({
         {emergency.userId ? ` · Reportado por ${emergency.userId}` : ""}
       </Text>
 
-      {/* Origen de las externas y la referencia de la causa en el otro
-          módulo (el id completo, al pasar el mouse). */}
+      {/* De dónde viene una externa. Sin el id de la causa en el otro
+          módulo: el único identificador es el de arriba. */}
       {origin && (
-        <Text fz="xs" mt={2} title={origin.causaId || undefined}>
-          <Text span fz="xs" fw={700}>
-            {origin.label}
-          </Text>
-          {origin.reference && (
-            <Text span fz="xs" c="dimmed">
-              {" · "}
-              {origin.reference}
-            </Text>
-          )}
+        <Text fz="xs" fw={700} mt={2}>
+          {origin.label}
         </Text>
       )}
 

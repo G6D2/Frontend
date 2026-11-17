@@ -49,6 +49,7 @@ import {
   TABLE_CELL_MONO,
 } from "../../components/ops/tableStyles";
 import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
+import { shortEmergencyId } from "../../lib/boardLayout";
 import { OriginBadge, OriginNotice } from "../../components/ops/OriginInfo";
 import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
 
@@ -387,7 +388,7 @@ export default function OpsPage() {
         <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start shrink-0">
           <div>
             <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
-              #{selected.id.slice(0, 8)}
+              #{shortEmergencyId(selected.id)}
             </h2>
             <span className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
               {getStatusConfig(selected.status).label} ·{" "}
@@ -412,7 +413,7 @@ export default function OpsPage() {
                 Ubicación
               </span>
               <div className="text-sm font-bold text-on-surface">
-                <GeoLabel emergency={selected} fallback="Obteniendo dirección…" showCoords />
+                <GeoLabel emergency={selected} fallback="Obteniendo dirección…" />
               </div>
             </div>
           </div>
@@ -758,7 +759,7 @@ export default function OpsPage() {
                     }
                     headline={elapsedMinutes(em.createdAt)}
                     location={<GeoLabel emergency={em} fallback="Obteniendo ubicación…" />}
-                    idLabel={`#${em.id?.slice(0, 8)}`}
+                    idLabel={`#${shortEmergencyId(em.id)}`}
                     timeLabel={formatTimeShort(em.createdAt)}
                     selected={selected?.id === em.id}
                     onClick={() => {

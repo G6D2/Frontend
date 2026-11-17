@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { resolveEmergencyAddress, reverseGeocode } from "../app/lib/geocoding";
+import {
+  APPROXIMATE_LOCATION_LABEL,
+  formatEmergencyLocation,
+  resolveEmergencyAddress,
+  reverseGeocode,
+} from "../app/lib/geocoding";
 
 describe("resolveEmergencyAddress", () => {
   it("returns no label and no geocode for null/undefined emergency", () => {
@@ -159,5 +164,46 @@ describe("reverseGeocode (dedupe en vuelo)", () => {
     // Como no se cacheó el fallo, el segundo llamado vuelve a intentar.
     expect(await reverseGeocode(lat, lng)).toBe("Segundo intento OK");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("formatEmergencyLocation (nunca lat/lng)", () => {
+  const coords = { latitude: -34.6035, longitude: -58.3925 };
+
+  it("dirección del backend con el barrio", () => {
+    expect(
+      formatEmergencyLocation({ ...coords, address: "Av. Corrientes 1800", barrio: "BALVANERA" })
+    ).toBe("Av. Corrientes 1800 · Balvanera");
+  });
+
+  it("no repite el barrio si la dirección ya lo nombra (sin importar tildes)", () => {
+    expect(
+      formatEmergencyLocation({ ...coords, barrio: "SAN NICOLAS" }, "San Nicolás, Buenos Aires")
+    ).toBe("San Nicolás, Buenos Aires");
+  });
+
+  it("usa el locationLabel legado o la dirección geocodificada si el backend no mandó address", () => {
+    expect(formatEmergencyLocation({ ...coords, address: " ", locationLabel: "Plaza de Mayo" })).toBe("Plaza de Mayo");
+    expect(formatEmergencyLocation({ ...coords, address: null }, "Av. Córdoba 1000")).toBe("Av. Córdoba 1000");
+  });
+
+  it("sin dirección: el barrio; sin ninguno: ubicación aproximada", () => {
+    expect(formatEmergencyLocation({ ...coords, barrio: "VILLA DEL PARQUE" }, null)).toBe("Villa del Parque");
+    expect(formatEmergencyLocation(coords, null)).toBe(APPROXIMATE_LOCATION_LABEL);
+    expect(formatEmergencyLocation(null)).toBe("Ubicación aproximada");
+  });
+
+  it("anonimizada o indescifrable: el barrio si está, si no el aviso", () => {
+    expect(formatEmergencyLocation({ locationAnonymized: true, barrio: "PALERMO" })).toBe(
+      "Palermo (ubicación anonimizada)"
+    );
+    expect(formatEmergencyLocation({ locationAnonymized: true })).toBe("Ubicación anonimizada (retención)");
+    expect(formatEmergencyLocation({ locationUnavailable: true, barrio: "PALERMO" })).toBe("Palermo");
+    expect(formatEmergencyLocation({ locationUnavailable: true })).toBe("Sin ubicación");
+  });
+
+  it("nunca devuelve coordenadas", () => {
+    const text = formatEmergencyLocation({ ...coords, address: null, barrio: null }, null);
+    expect(text).not.toMatch(/-?\d+\.\d+/);
   });
 });
