@@ -161,6 +161,24 @@ export function getStatusConfig(status) {
   return STATUS_CONFIG[status] || STATUS_CONFIG.CREATED;
 }
 
+/** Pill de una emergencia que el dispatcher le devolvió al oficial. */
+export const RETURNED_STATUS_CONFIG = {
+  label: "DEVUELTA",
+  color: "status-terminal",
+  key: "devuelta",
+  badgeClass: BADGE_CLASS.terminal,
+};
+
+/**
+ * Estado que ve el oficial en /oficial. Una devuelta (`returned`, ver
+ * fetchOfficerEmergencies) se muestra como DEVUELTA y no con el estado que
+ * tiene hoy, que puede ser el de otro oficial.
+ */
+export function getOfficerStatusConfig(emergency) {
+  if (emergency?.returned === true) return RETURNED_STATUS_CONFIG;
+  return getStatusConfig(emergency?.status);
+}
+
 export function isPendingStatus(status) {
   return status === "PENDING" || status === "CREATED" || status === "pendiente";
 }

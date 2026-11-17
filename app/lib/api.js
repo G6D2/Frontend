@@ -399,9 +399,13 @@ export async function fetchOpsEmergencies() {
  * Devuelve `{ data, pagination }` con `pagination: { page, limit, total,
  * totalPages } | null` (null si el backend todavía no la manda) para que
  * quien la use pueda pedir la página siguiente ("Cargar más").
+ *
+ * `scope` (active | history) es solo para el oficial y el backend no lo
+ * acepta junto con `status` (ver fetchOfficerEmergencies).
  */
 export async function fetchEmergenciesPage({
   status,
+  scope,
   page = 1,
   limit = 20,
   sortBy = "createdAt",
@@ -409,6 +413,7 @@ export async function fetchEmergenciesPage({
 } = {}) {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
+  if (scope) params.set("scope", scope);
   params.set("page", String(page));
   params.set("limit", String(limit));
   params.set("sortBy", sortBy);
@@ -556,17 +561,54 @@ export async function assignOfficer(emergencyId, officerId) {
 export const OFFICER_STATUSES = ["DISPATCHED", "EN_ROUTE", "ON_SCENE"];
 
 /**
- * Emergencias asignadas al oficial logueado. El backend fuerza el filtro
- * assignedOfficerId = sub del token: acá no se manda.
+ * Historial del oficial: lo que resolvió, lo que cerró el dispatcher y lo
+ * que expiró con él asignado. Las que le devolvieron (`returned`) también van
+ * al historial, en el estado que tengan hoy.
  */
-export async function fetchOfficerEmergencies() {
+export const OFFICER_HISTORY_STATUSES = ["RESOLVED", "CLOSED", "CANCELLED"];
+
+/** Selector de /oficial (issue #17): `value` es el `scope` del backend. */
+export const OFFICER_SCOPES = [
+  { value: "active", label: "Activas", emptyMessage: "No tenés emergencias en curso." },
+  { value: "history", label: "Históricas", emptyMessage: "Todavía no tenés emergencias atendidas." },
+];
+
+function isOfficerScope(scope) {
+  return OFFICER_SCOPES.some((option) => option.value === scope);
+}
+
+/**
+ * Deja solo lo que corresponde al scope. El backend ya filtra con `scope`,
+ * pero uno anterior a ese parámetro lo ignora y devuelve todo lo asignado:
+ * así las activas nunca muestran una cerrada aunque el front se despliegue
+ * antes que el back.
+ */
+export function filterOfficerScope(emergencies, scope) {
+  const list = Array.isArray(emergencies) ? emergencies : [];
+  if (scope === "history") {
+    return list.filter(
+      (em) => em?.returned === true || OFFICER_HISTORY_STATUSES.includes(em?.status)
+    );
+  }
+  return list.filter((em) => em?.returned !== true && OFFICER_STATUSES.includes(em?.status));
+}
+
+/**
+ * Emergencias del oficial logueado, en curso (`active`, las más urgentes
+ * primero) o históricas (`history`, las más nuevas primero). El backend
+ * fuerza el oficial = sub del token: acá no se manda ningún id.
+ */
+export async function fetchOfficerEmergencies(scope = "active") {
+  if (!isOfficerScope(scope)) {
+    throw new ApiError(`Scope de oficial desconocido: ${scope}`, { status: 400 });
+  }
   const { data } = await fetchEmergenciesPage({
-    status: OFFICER_STATUSES.join(","),
+    scope,
     limit: 100,
-    sortBy: "priority",
+    sortBy: scope === "active" ? "priority" : "createdAt",
     order: "desc",
   });
-  return data;
+  return filterOfficerScope(data, scope);
 }
 
 /**
@@ -578,6 +620,15 @@ export const OFFICER_NEXT_STEP = {
   EN_ROUTE: { action: "on-scene", label: "Llegué al lugar", icon: "location_on" },
   ON_SCENE: { action: "resolve", label: "Resolver", icon: "task_alt" },
 };
+
+/**
+ * Próximo paso de una emergencia del oficial. Una devuelta no tiene: ya no
+ * es suya, aunque hoy esté despachada a otro oficial.
+ */
+export function officerNextStep(emergency) {
+  if (!emergency || emergency.returned === true) return null;
+  return OFFICER_NEXT_STEP[emergency.status] || null;
+}
 
 /** PATCH /api/emergencies/:id/{en-route|on-scene|resolve} (solo oficial asignado). */
 export async function advanceOfficerStatus(id, action, resolution = {}) {

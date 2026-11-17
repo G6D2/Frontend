@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   emergencyTitle,
   getStatusConfig,
+  getOfficerStatusConfig,
+  RETURNED_STATUS_CONFIG,
   isPendingStatus,
   isActiveStatus,
   isTerminalStatus,
@@ -57,6 +59,19 @@ describe("emergencyTitle", () => {
 
   it("returns 'Emergencia' for unknown type", () => {
     expect(emergencyTitle({ emergencyType: "DESCONOCIDO" })).toBe("Emergencia");
+  });
+});
+
+describe("getOfficerStatusConfig (vista del oficial)", () => {
+  it("una devuelta se muestra DEVUELTA, sin importar el estado que tenga hoy", () => {
+    expect(getOfficerStatusConfig({ status: "DISPATCHED", returned: true })).toBe(RETURNED_STATUS_CONFIG);
+    expect(RETURNED_STATUS_CONFIG).toMatchObject({ label: "DEVUELTA", badgeClass: "bg-gray-100 text-gray-700" });
+  });
+
+  it("el resto usa el estado de siempre", () => {
+    expect(getOfficerStatusConfig({ status: "CLOSED", returned: false })).toMatchObject({ label: "CERRADA" });
+    expect(getOfficerStatusConfig({ status: "RESOLVED" })).toMatchObject({ label: "RESUELTA" });
+    expect(getOfficerStatusConfig(null)).toMatchObject({ label: "PENDIENTE" });
   });
 });
 
