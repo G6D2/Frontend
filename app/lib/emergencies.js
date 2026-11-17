@@ -1,3 +1,5 @@
+import { formatBarrio } from "./barrio";
+
 /**
  * Config de severidad: fuente única de verdad para label + color semántico.
  * La usa el kanban (Mantine `color`, ver EmergencyCard/DispatcherView) y
@@ -309,18 +311,12 @@ const ZONE_CONTEXT_LABELS = {
   ALERTA_CLIMATICA: "Alerta climática",
 };
 
-/** "PALERMO" → "Palermo", "VILLA DEL PARQUE" → "Villa del Parque". */
-function formatBarrio(barrio) {
-  const minor = new Set(["de", "del", "la", "las", "los", "y"]);
-  return barrio
-    .toLowerCase()
-    .split(" ")
-    .map((word, index) =>
-      index > 0 && minor.has(word)
-        ? word
-        : word.charAt(0).toUpperCase() + word.slice(1)
-    )
-    .join(" ");
+function barrioOrNull(value) {
+  return typeof value === "string" && value.trim() ? formatBarrio(value) : null;
+}
+
+function lowerFirst(text) {
+  return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
 /**
@@ -328,33 +324,46 @@ function formatBarrio(barrio) {
  * emergencia (`priorityContext` del backend), normalizado para mostrar:
  * `label` corto para un pill y `reason` con el motivo completo. Devuelve
  * null si no hay ninguno vigente, que es el caso normal.
+ *
+ * - Evento en un espacio público: la zona es un radio alrededor del evento
+ *   (backend #96), así que el contexto no trae barrio; si lo trae (formato
+ *   anterior), se muestra.
+ * - Alerta climática: también es un radio, alrededor de cada punto de la
+ *   alerta (ADR "Responder a las alertas climáticas de Espacios"). El
+ *   backend arma la descripción con el nivel y el fenómeno ("Alerta
+ *   climática CRITICA: tormenta fuerte"), así que el motivo es
+ *   "Prioridad elevada por alerta climática CRITICA: tormenta fuerte". El
+ *   barrio de la emergencia no se nombra: no es lo que la eleva.
  */
 export function getZoneContext(emergency) {
   const context = emergency?.priorityContext;
   if (!context || typeof context !== "object" || !context.tipo) return null;
 
   const label = ZONE_CONTEXT_LABELS[context.tipo] || "Contexto de zona";
-  const barrio =
-    typeof context.barrio === "string" && context.barrio
-      ? formatBarrio(context.barrio)
-      : null;
   const descripcion =
     typeof context.descripcion === "string" && context.descripcion
       ? context.descripcion
       : null;
+  const base = {
+    tipo: context.tipo,
+    label,
+    descripcion,
+    vigenteHasta: context.vigenteHasta ?? null,
+  };
 
+  if (context.tipo === "ALERTA_CLIMATICA") {
+    const reason = descripcion
+      ? `Prioridad elevada por ${lowerFirst(descripcion)}`
+      : "Prioridad elevada por alerta climática";
+    return { ...base, barrio: null, reason };
+  }
+
+  const barrio = barrioOrNull(context.barrio);
   let reason = `Prioridad elevada: ${label.toLowerCase()}`;
   if (barrio) reason += ` (${barrio})`;
   if (descripcion) reason += ` · ${descripcion}`;
 
-  return {
-    tipo: context.tipo,
-    label,
-    barrio,
-    descripcion,
-    vigenteHasta: context.vigenteHasta ?? null,
-    reason,
-  };
+  return { ...base, barrio, reason };
 }
 
 /**

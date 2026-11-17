@@ -453,6 +453,45 @@ describe("getZoneContext", () => {
     });
   });
 
+  it("describes a public-event context by radius, without barrio (backend #96)", () => {
+    const context = getZoneContext({
+      barrio: "PALERMO",
+      priorityContext: {
+        tipo: "EVENTO_ESPACIO_PUBLICO",
+        radioMetros: 500,
+        descripcion: "Feria en el parque",
+      },
+    });
+    expect(context.barrio).toBeNull();
+    expect(context.reason).toBe("Prioridad elevada: evento en la zona · Feria en el parque");
+  });
+
+  it("describes a climate alert with the backend description (ADR #39 format), without barrio", () => {
+    // priorityContext tal como lo arma el backend para un punto de una alerta.
+    const context = getZoneContext({
+      barrio: "SAN NICOLAS",
+      priorityContext: {
+        tipo: "ALERTA_CLIMATICA",
+        latitud: -34.6037,
+        longitud: -58.3816,
+        radioMetros: 1000,
+        origen: "espacios",
+        referenciaExterna: "a7f0e2c4-1b3d-4e5f-8a9b-0c1d2e3f4a5b#0",
+        descripcion: "Alerta climática CRITICA: tormenta fuerte",
+        vigenteDesde: "2026-11-12T21:00:00.000Z",
+        vigenteHasta: "2026-11-13T03:00:00.000Z",
+      },
+    });
+    expect(context).toEqual({
+      tipo: "ALERTA_CLIMATICA",
+      label: "Alerta climática",
+      barrio: null,
+      descripcion: "Alerta climática CRITICA: tormenta fuerte",
+      vigenteHasta: "2026-11-13T03:00:00.000Z",
+      reason: "Prioridad elevada por alerta climática CRITICA: tormenta fuerte",
+    });
+  });
+
   it("is null-safe with missing barrio, description and unknown type", () => {
     expect(getZoneContext({ priorityContext: { tipo: "ALERTA_CLIMATICA" } })).toEqual({
       tipo: "ALERTA_CLIMATICA",
@@ -460,7 +499,7 @@ describe("getZoneContext", () => {
       barrio: null,
       descripcion: null,
       vigenteHasta: null,
-      reason: "Prioridad elevada: alerta climática",
+      reason: "Prioridad elevada por alerta climática",
     });
     expect(getZoneContext({ priorityContext: { tipo: "OTRO", barrio: 7 } }).label).toBe(
       "Contexto de zona"

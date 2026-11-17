@@ -1,5 +1,6 @@
 import { clearStoredUser, getStoredUser, setStoredUser } from "./auth";
 import { SEVERITY_CONFIG } from "./emergencies";
+import { normalizeAlertasClimaticas } from "./clima";
 
 /** Intervalo de polling para el dispatcher (30 s, 2 por minuto). Se pausa con
  *  la pestaña oculta y nunca superpone pedidos (ver createPoller en ./polling).
@@ -518,6 +519,19 @@ export async function fetchOfficers({ status } = {}) {
   if (Array.isArray(res?.data)) return res.data;
   if (Array.isArray(res)) return res;
   return [];
+}
+
+/** Polling del banner de alertas climáticas: cambian cada horas, no segundos. */
+export const ALERTAS_CLIMA_POLLING_INTERVAL_MS = 60_000;
+
+/**
+ * Alertas climáticas activas o por empezar (GET /api/contextos-zona/activos,
+ * una entrada por alerta), ya normalizadas para el banner. Solo ALTA y
+ * CRITICA: MEDIA y BAJA no suben prioridades y el backend no las lista.
+ */
+export async function fetchAlertasClimaticasActivas() {
+  const res = await apiFetch("/api/contextos-zona/activos");
+  return normalizeAlertasClimaticas(res);
 }
 
 export async function assignOfficer(emergencyId, officerId) {

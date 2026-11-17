@@ -29,10 +29,11 @@ export function IncidentBadge({ emergency, className = "" }) {
 }
 
 /**
- * Pill "Evento en la zona" para una emergencia cuya prioridad está elevada
- * por un contexto de zona vigente en su barrio (hoy, un evento en un espacio
- * público en curso). El motivo completo va en el tooltip. Null-safe: no
- * renderiza nada sin contexto, que es el caso normal.
+ * Pill "Evento en la zona" / "Alerta climática" para una emergencia cuya
+ * prioridad de despacho está elevada por un contexto de zona vigente: un
+ * evento en un espacio público cercano (radio) o una alerta climática en su
+ * barrio. El motivo completo va en el tooltip. Null-safe: no renderiza nada
+ * sin contexto, que es el caso normal.
  */
 export function ZoneContextBadge({ emergency, className = "" }) {
   const context = getZoneContext(emergency);
