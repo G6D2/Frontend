@@ -9,20 +9,16 @@
  */
 import { formatBarrio } from "./barrio";
 
+// Catálogo de fenómenos de Espacios (guía "CityPass Eventos climáticos",
+// 13/11/2026), el mismo que usa el backend.
 const FENOMENO_LABELS = {
-  LLUVIA_FUERTE: "Lluvia fuerte",
-  TORMENTA_ELECTRICA: "Tormenta eléctrica",
-  VIENTO_FUERTE: "Viento fuerte",
-  TORNADO: "Tornado",
-  GRANIZO: "Granizo",
-  INUNDACION: "Inundación",
-  OLA_DE_CALOR: "Ola de calor",
-  FRIO_EXTREMO: "Frío extremo",
-  NIEBLA: "Niebla",
-  // Catálogo real de Espacios (guía "CityPass Eventos climáticos", 13/11/2026).
-  LLUVIA_INTENSA: "Lluvia intensa",
   TORMENTA_FUERTE: "Tormenta fuerte",
+  LLUVIA_INTENSA: "Lluvia intensa",
+  VIENTO_FUERTE: "Viento fuerte",
+  OLA_DE_CALOR: "Ola de calor",
   OLA_DE_FRIO: "Ola de frío",
+  GRANIZO: "Granizo",
+  TORMENTA_ELECTRICA: "Tormenta eléctrica",
   HURACAN: "Huracán",
   NIEVE: "Nieve",
 };

@@ -26,7 +26,7 @@ const NOW = new Date("2026-11-12T23:30:00.000Z");
 describe("formatFenomeno", () => {
   it("maps known phenomena", () => {
     expect(formatFenomeno("TORMENTA_ELECTRICA")).toBe("Tormenta eléctrica");
-    expect(formatFenomeno("inundacion")).toBe("Inundación");
+    expect(formatFenomeno("ola_de_calor")).toBe("Ola de calor");
   });
 
   it("maps the phenomena of Espacios' real catalog, with accents", () => {
