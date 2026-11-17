@@ -60,6 +60,8 @@ const TYPE_FILTER_OPTIONS = [
   { key: "infrastructure",label: "Infraestructura",  match: ["INFRAESTRUCTURA", "infrastructure"] },
   { key: "disturbance",   label: "Disturbio",        match: ["DISTURBIO_EVENTO_MASIVO", "disturbance"] },
   { key: "other",         label: "Otro",             match: ["OTRO", "other"] },
+  { key: "transit",       label: "Tránsito",         match: ["TRANSITO"] },
+  { key: "preventive",    label: "Preventiva",       match: ["PREVENTIVA"] },
 ];
 
 const DESKTOP_COLUMNS = [

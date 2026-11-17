@@ -133,6 +133,10 @@ export const TYPE_LABELS = {
   INFRAESTRUCTURA: "Infraestructura",
   DISTURBIO_EVENTO_MASIVO: "Disturbio o evento masivo",
   OTRO: "Otro incidente",
+  // Los crea solo el sistema: intervención por un reclamo de ciclovía y
+  // cobertura preventiva (evento, actividad, reserva o alerta climática).
+  TRANSITO: "Tránsito",
+  PREVENTIVA: "Cobertura preventiva",
   // Alias que todavía manda el formulario (el backend los normaliza)
   panic: "Botón de pánico",
   medical: "Emergencia médica",
@@ -142,7 +146,6 @@ export const TYPE_LABELS = {
   other: "Otro incidente",
   // Legacy
   SEGURIDAD: "Seguridad",
-  TRANSITO: "Tránsito",
 };
 
 export function emergencyTitle(emergency) {
