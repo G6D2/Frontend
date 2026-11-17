@@ -111,8 +111,10 @@ function formatHora(date, now) {
 /** "sube un nivel a 500 m de 2 puntos", con lo que se sepa. */
 function formatAlcance({ radioMetros, puntos }) {
   if (!radioMetros) return "sube un nivel cerca de la alerta";
-  const dePuntos = puntos ? ` de ${puntos === 1 ? "1 punto" : `${puntos} puntos`}` : "";
-  return `sube un nivel a ${radioMetros} m${dePuntos}`;
+  const base = `sube un nivel a ${radioMetros} m`;
+  if (!puntos) return base;
+  const cantidad = puntos === 1 ? "1 punto" : puntos + " puntos";
+  return `${base} de ${cantidad}`;
 }
 
 /**
