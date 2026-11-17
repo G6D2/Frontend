@@ -28,6 +28,7 @@ import {
   ZoneContextBadge,
   ZoneContextNotice,
 } from "../../../components/ops/IncidentInfo";
+import { OriginBadge, OriginNotice } from "../../../components/ops/OriginInfo";
 
 export default function AsignarOficialPage() {
   const params = useParams();
@@ -109,6 +110,7 @@ export default function AsignarOficialPage() {
                 <PriorityBadge severity={getEffectivePriority(emergency)} />
                 <IncidentBadge emergency={emergency} />
                 <ZoneContextBadge emergency={emergency} />
+                <OriginBadge emergency={emergency} />
               </div>
             </div>
             <p className="text-sm text-on-surface-variant">
@@ -118,7 +120,8 @@ export default function AsignarOficialPage() {
             <p className="text-xs text-on-surface-variant mt-2 italic">
               &quot;{emergency.description}&quot;
             </p>
-            <div className="mt-3">
+            <div className="mt-3 flex flex-col gap-3">
+              <OriginNotice emergency={emergency} />
               <IncidentDetailBlock emergency={emergency} />
               <ZoneContextNotice emergency={emergency} />
             </div>

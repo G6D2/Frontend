@@ -9,6 +9,7 @@ import {
 } from "@tabler/icons-react";
 import { SEVERITY_CONFIG } from "../lib/api";
 import { getEffectivePriority, getZoneContext } from "../lib/emergencies";
+import { getEmergencyOrigin } from "../lib/emergencyOrigin";
 import { shortEmergencyId } from "../lib/boardLayout";
 import GeoLabel from "./civic/GeoLabel";
 import { NO_PRIORITY_LABEL } from "./ops/OpsBadges";
@@ -35,6 +36,8 @@ export default function EmergencyCard({
   const sev = SEVERITY_CONFIG[getEffectivePriority(emergency)] || NO_PRIORITY;
   // Contexto de zona vigente (p. ej. evento en el barrio) que eleva la prioridad.
   const zoneContext = getZoneContext(emergency);
+  // De dónde viene una emergencia externa (reclamo, cobertura, alerta, bici).
+  const origin = getEmergencyOrigin(emergency);
   const isValidated =
     emergency.status === "validada" || emergency.status === "VALIDATED";
   const isPending =
@@ -101,6 +104,22 @@ export default function EmergencyCard({
         #{shortEmergencyId(emergency.id)}
         {emergency.userId ? ` · Reportado por ${emergency.userId}` : ""}
       </Text>
+
+      {/* Origen de las externas y la referencia de la causa en el otro
+          módulo (el id completo, al pasar el mouse). */}
+      {origin && (
+        <Text fz="xs" mt={2} title={origin.causaId || undefined}>
+          <Text span fz="xs" fw={700}>
+            {origin.label}
+          </Text>
+          {origin.reference && (
+            <Text span fz="xs" c="dimmed">
+              {" · "}
+              {origin.reference}
+            </Text>
+          )}
+        </Text>
+      )}
 
       <Text fz="xs" c="dimmed" mt={2} lineClamp={2}>
         <GeoLabel emergency={emergency} fallback="Obteniendo dirección…" />

@@ -49,6 +49,7 @@ import {
   TABLE_CELL_MONO,
 } from "../../components/ops/tableStyles";
 import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
+import { OriginBadge, OriginNotice } from "../../components/ops/OriginInfo";
 import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -416,6 +417,7 @@ export default function OpsPage() {
             </div>
           </div>
 
+          <OriginNotice emergency={selected} />
           <IncidentDetailBlock emergency={selected} />
           <ZoneContextNotice emergency={selected} />
 
@@ -431,7 +433,8 @@ export default function OpsPage() {
           <div className="text-xs text-on-surface-variant flex flex-col gap-1 border-t border-outline-variant/40 pt-3">
             <div className="flex justify-between">
               <span>Usuario:</span>
-              <span className="font-mono font-medium text-on-surface">{selected.userId}</span>
+              {/* Las externas no tienen usuario: el origen va arriba. */}
+              <span className="font-mono font-medium text-on-surface">{selected.userId || "—"}</span>
             </div>
             <div className="flex justify-between">
               <span>Hora de reporte:</span>
@@ -694,6 +697,7 @@ export default function OpsPage() {
                             <PriorityBadge severity={getEffectivePriority(em)} />
                             <IncidentBadge emergency={em} />
                             <ZoneContextBadge emergency={em} />
+                            <OriginBadge emergency={em} />
                           </div>
                         </td>
                         <td className={TABLE_CELL}>
@@ -749,6 +753,7 @@ export default function OpsPage() {
                         <StatusBadge status={em.status} />
                         <IncidentBadge emergency={em} />
                         <ZoneContextBadge emergency={em} />
+                        <OriginBadge emergency={em} />
                       </>
                     }
                     headline={elapsedMinutes(em.createdAt)}

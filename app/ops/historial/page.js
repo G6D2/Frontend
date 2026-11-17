@@ -22,6 +22,7 @@ import PageHeader from "../../components/PageHeader";
 import { PriorityBadge, StatusBadge } from "../../components/ops/OpsBadges";
 import { IncidentBadge, IncidentDetailBlock } from "../../components/ops/IncidentInfo";
 import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
+import { OriginBadge, OriginNotice } from "../../components/ops/OriginInfo";
 import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
 import { BTN_BASE, BTN_SECONDARY } from "../../components/ops/buttonStyles";
 import {
@@ -379,6 +380,7 @@ export default function HistorialPage() {
               <StatusBadge status={selected.status} />
               <PriorityBadge severity={getEffectivePriority(selected) || "critical"} />
               <IncidentBadge emergency={selected} />
+              <OriginBadge emergency={selected} />
             </div>
           </div>
           <button
@@ -404,6 +406,7 @@ export default function HistorialPage() {
             </div>
           </div>
 
+          <OriginNotice emergency={selected} />
           <IncidentDetailBlock emergency={selected} />
 
           {selected.description && (
