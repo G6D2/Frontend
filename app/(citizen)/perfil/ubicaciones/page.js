@@ -20,11 +20,6 @@ const LABEL_PRESETS = ["Casa", "Trabajo", "Otro"];
 
 const EMPTY_FORM = { labelPreset: "Casa", customLabel: "", address: "", lat: "", lng: "" };
 
-function formatCoords(lat, lng) {
-  if (typeof lat !== "number" || typeof lng !== "number") return null;
-  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-}
-
 export default function UbicacionesGuardadasPage() {
   const [locations, setLocations] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -275,11 +270,6 @@ export default function UbicacionesGuardadasPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-on-surface">{loc.label}</p>
                     <p className="text-sm text-on-surface-variant break-words">{loc.address}</p>
-                    {formatCoords(loc.lat, loc.lng) && (
-                      <p className="text-xs text-on-surface-variant font-mono mt-0.5">
-                        {formatCoords(loc.lat, loc.lng)}
-                      </p>
-                    )}
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <button
