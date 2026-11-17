@@ -38,19 +38,18 @@ const ANONYMOUS_CITIZEN_SHORTCUT = Object.freeze({
 const PANEL_DEMO_SHORTCUTS = [...DEMO_LOGIN_SHORTCUTS, ANONYMOUS_CITIZEN_SHORTCUT];
 
 // Usuarios de prueba del LDAP del Grupo 2 (Login Federado). El atajo carga
-// usuario y contraseña en la solapa Personal. Las contraseñas quedan en el
-// bundle de JS: son cuentas de prueba del Grupo 2, no reutilizarlas.
+// solo el usuario: la contraseña no viaja en el bundle de JS y la escribe
+// quien entra. Con una contraseña acá, cualquiera con la URL entraba como
+// dispatcher en dos clics.
 const LDAP_DEMO_USERS = Object.freeze([
   Object.freeze({
     username: "juan-trabaja",
-    password: "trabaja123",
     label: "Juan Dispatcher",
     badge: "LDAP",
     icon: "badge",
   }),
   Object.freeze({
     username: "delegado-emer",
-    password: "changeit123",
     label: "Delegado Municipal",
     badge: "LDAP Admin",
     icon: "admin_panel_settings",
@@ -206,13 +205,13 @@ export default function AccesoForm() {
     confirmShortcut(`Credenciales de ${account.preferred_username} cargadas ✓`);
   }
 
-  // Usuario LDAP de prueba: completa usuario y contraseña en la solapa
-  // Personal y deja el foco en "Ingresar" (Enter entra).
+  // Usuario LDAP de prueba: completa solo el usuario en la solapa Personal y
+  // deja el foco en la contraseña, que se escribe.
   function fillLdapUser(ldapUser) {
     switchMode("ldap");
     setLdapUsername(ldapUser.username);
-    setLdapPassword(ldapUser.password);
-    confirmShortcut(`Credenciales de ${ldapUser.username} cargadas ✓`, "btn-card-ldap-submit");
+    setLdapPassword("");
+    confirmShortcut(`Usuario ${ldapUser.username} cargado: escribí la contraseña ✓`, "card-ldap-password");
   }
 
   const handleSubmit = async (e) => {
@@ -745,7 +744,7 @@ export default function AccesoForm() {
               <ShortcutSection
                 id="atajos-ldap"
                 title="Personal municipal (LDAP)"
-                hint="Carga usuario y contraseña en la solapa Personal; después tocá Ingresar."
+                hint="Carga el usuario en la solapa Personal; la contraseña la escribís vos."
               >
                 {LDAP_DEMO_USERS.map((ldapUser) => (
                   <ShortcutRow

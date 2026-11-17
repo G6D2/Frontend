@@ -178,10 +178,9 @@ A tener en cuenta:
 | Sección del panel | Botón | Qué hace | Backend |
 |---|---|---|---|
 | **Entrar sin contraseña · demo** | Entrar | Entra directo: `CIT-JuanPanico` (ciudadano con botón SOS), salido de `DEMO_LOGIN_SHORTCUTS` en `app/lib/features.js`, y **Ciudadano anónimo** `U000042` (sin botón SOS, `loginMethod: "anonima"`). Solo ciudadanos: el dispatcher y los oficiales entran por el Login Federado (sección LDAP) | `POST /auth/dev/login` con `sub` |
-| **Personal municipal (LDAP)** | Cargar | `juan-trabaja` (dispatcher) y `delegado-emer` (delegado): completa usuario y contraseña en la solapa Personal y deja el foco en Ingresar | Login Federado |
+| **Personal municipal (LDAP)** | Cargar | `juan-trabaja` (dispatcher) y `delegado-emer` (delegado): completa solo el usuario en la solapa Personal y deja el foco en la contraseña, que se escribe. Las contraseñas LDAP no están en el código | Login Federado |
 | **Cuentas ciudadanas** | Cargar | JuanPanico y LuciaTranquila (`DEMO_ACCOUNTS`): completa el email y la contraseña `abracadabra` en Acceso Ciudadano | `POST /auth/login` |
 
-- **Las contraseñas de los usuarios LDAP de prueba también están en el bundle** (`LDAP_DEMO_USERS` en `app/acceso/AccesoForm.js`). Son cuentas de prueba del Grupo 2; no reutilizarlas.
 
 - **La contraseña demo está en el bundle de JS.** `fillDemo` en `app/acceso/AccesoForm.js` tiene `"abracadabra"` escrito en el código, así que cualquiera que abra las DevTools la ve. Son cuentas públicas de demo, sembradas por la migración V16 del backend. No reutilizar esa contraseña en ningún lado.
 - `/auth/dev/login` exige `sub`. Con `NODE_ENV=production` o `DEV_LOGIN_STRICT=true` en el backend, solo acepta los `sub` de su allowlist demo, que son todos ciudadanos (`U000042`, `CIT-JuanPanico` y `CIT-LuciaTranquila`). Si no, acepta cualquiera. Dispatchers y oficiales entran por el Login Federado: el endpoint es público y sin contraseña, y hasta el 16/11/2026 daba token de dispatcher a cualquiera.
