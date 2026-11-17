@@ -100,6 +100,9 @@ function ShortcutSection({ id, title, hint, children }) {
 }
 
 // ── Modo: "login" | "signup" | "forgot"
+// "forgot" no tiene entrada en la UI: el backend no tiene recuperación de
+// contraseña y /api/auth/forgot-password es un mock. Se saca el link para no
+// prometer algo que no existe; el flujo queda listo para cuando haya backend.
 export default function AccesoForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -501,15 +504,6 @@ export default function AccesoForm() {
                   <label htmlFor="password" className="text-sm font-semibold tracking-wide text-on-surface">
                     Contraseña
                   </label>
-                  {isLogin && (
-                    <button
-                      type="button"
-                      onClick={() => switchMode("forgot")}
-                      className="text-xs text-primary hover:underline font-medium"
-                    >
-                      ¿Olvidaste tu contraseña?
-                    </button>
-                  )}
                 </div>
                 <div className="relative">
                   <input

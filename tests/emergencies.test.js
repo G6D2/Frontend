@@ -24,6 +24,18 @@ import {
   getEmergencyReason,
 } from "../app/lib/emergencies";
 
+describe("TYPE_LABELS", () => {
+  it("tiene etiqueta para los tipos que crea solo el sistema", () => {
+    expect(emergencyTitle({ emergencyType: "PREVENTIVA" })).toBe("Cobertura preventiva");
+    expect(emergencyTitle({ emergencyType: "TRANSITO" })).toBe("Tránsito");
+  });
+
+  it("la descripción sigue ganando sobre la etiqueta del tipo", () => {
+    expect(emergencyTitle({ emergencyType: "PREVENTIVA", description: "Cobertura preventiva — Feria" }))
+      .toBe("Cobertura preventiva — Feria");
+  });
+});
+
 describe("emergencyTitle", () => {
   it("returns 'Emergencia' for null", () => {
     expect(emergencyTitle(null)).toBe("Emergencia");
