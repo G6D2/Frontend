@@ -197,6 +197,25 @@ describe("/api/backend/[...path]", () => {
       expect(calls).toHaveLength(0);
     });
 
+    it("contextos de zona activos (banner climático): GET pasa con la query; POST no", async () => {
+      const { calls } = mockBackend({
+        "GET /api/contextos-zona/activos": { status: 200, body: { data: [] } },
+      });
+      const get = await GET(
+        makeRequest("http://localhost/api/backend/api/contextos-zona/activos?tipo=ALERTA_CLIMATICA"),
+        ctxFor(["api", "contextos-zona", "activos"])
+      );
+      const post = await POST(
+        makeRequest("http://localhost/api/backend/api/contextos-zona/activos", { method: "POST", body: {} }),
+        ctxFor(["api", "contextos-zona", "activos"])
+      );
+
+      expect(get.status).toBe(200);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url).toContain("/api/contextos-zona/activos?tipo=ALERTA_CLIMATICA");
+      expect(post.status).toBe(405);
+    });
+
     it("segmentos con .. (decodificados o no): 400 y no llama al backend", async () => {
       const { calls } = mockBackend({});
       const attempts = [

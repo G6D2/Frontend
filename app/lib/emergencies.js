@@ -1,3 +1,6 @@
+import { formatBarrio } from "./barrio";
+import { formatFenomeno, formatGravedad } from "./clima";
+
 /**
  * Config de severidad: fuente única de verdad para label + color semántico.
  * La usa el kanban (Mantine `color`, ver EmergencyCard/DispatcherView) y
@@ -297,18 +300,8 @@ const ZONE_CONTEXT_LABELS = {
   ALERTA_CLIMATICA: "Alerta climática",
 };
 
-/** "PALERMO" → "Palermo", "VILLA DEL PARQUE" → "Villa del Parque". */
-function formatBarrio(barrio) {
-  const minor = new Set(["de", "del", "la", "las", "los", "y"]);
-  return barrio
-    .toLowerCase()
-    .split(" ")
-    .map((word, index) =>
-      index > 0 && minor.has(word)
-        ? word
-        : word.charAt(0).toUpperCase() + word.slice(1)
-    )
-    .join(" ");
+function barrioOrNull(value) {
+  return typeof value === "string" && value.trim() ? formatBarrio(value) : null;
 }
 
 /**
@@ -316,33 +309,47 @@ function formatBarrio(barrio) {
  * emergencia (`priorityContext` del backend), normalizado para mostrar:
  * `label` corto para un pill y `reason` con el motivo completo. Devuelve
  * null si no hay ninguno vigente, que es el caso normal.
+ *
+ * - Evento en un espacio público: la zona es un radio alrededor del evento
+ *   (backend #96), así que el contexto no trae barrio; si lo trae (formato
+ *   anterior), se muestra.
+ * - Alerta climática: la zona son barrios y el motivo nombra el barrio de
+ *   la emergencia ("Elevada por alerta climática (Tormenta eléctrica, alta)
+ *   en Palermo").
  */
 export function getZoneContext(emergency) {
   const context = emergency?.priorityContext;
   if (!context || typeof context !== "object" || !context.tipo) return null;
 
   const label = ZONE_CONTEXT_LABELS[context.tipo] || "Contexto de zona";
-  const barrio =
-    typeof context.barrio === "string" && context.barrio
-      ? formatBarrio(context.barrio)
-      : null;
   const descripcion =
     typeof context.descripcion === "string" && context.descripcion
       ? context.descripcion
       : null;
+  const base = {
+    tipo: context.tipo,
+    label,
+    descripcion,
+    vigenteHasta: context.vigenteHasta ?? null,
+  };
 
+  if (context.tipo === "ALERTA_CLIMATICA") {
+    const barrio = barrioOrNull(emergency.barrio);
+    const fenomeno = formatFenomeno(context.fenomeno);
+    const gravedad = formatGravedad(context.gravedad);
+    const detalle = [fenomeno, gravedad].filter(Boolean).join(", ");
+    let reason = "Elevada por alerta climática";
+    if (detalle) reason += ` (${detalle})`;
+    if (barrio) reason += ` en ${barrio}`;
+    return { ...base, barrio, fenomeno, gravedad, reason };
+  }
+
+  const barrio = barrioOrNull(context.barrio);
   let reason = `Prioridad elevada: ${label.toLowerCase()}`;
   if (barrio) reason += ` (${barrio})`;
   if (descripcion) reason += ` · ${descripcion}`;
 
-  return {
-    tipo: context.tipo,
-    label,
-    barrio,
-    descripcion,
-    vigenteHasta: context.vigenteHasta ?? null,
-    reason,
-  };
+  return { ...base, barrio, reason };
 }
 
 /**

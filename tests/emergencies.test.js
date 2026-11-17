@@ -419,14 +419,52 @@ describe("getZoneContext", () => {
     });
   });
 
-  it("is null-safe with missing barrio, description and unknown type", () => {
+  it("describes a public-event context by radius, without barrio (backend #96)", () => {
+    const context = getZoneContext({
+      barrio: "PALERMO",
+      priorityContext: {
+        tipo: "EVENTO_ESPACIO_PUBLICO",
+        radioMetros: 500,
+        descripcion: "Feria en el parque",
+      },
+    });
+    expect(context.barrio).toBeNull();
+    expect(context.reason).toBe("Prioridad elevada: evento en la zona · Feria en el parque");
+  });
+
+  it("describes a climate alert with phenomenon, severity and the emergency's barrio", () => {
+    const context = getZoneContext({
+      barrio: "VILLA DEL PARQUE",
+      priorityContext: {
+        tipo: "ALERTA_CLIMATICA",
+        barrios: ["VILLA DEL PARQUE", "AGRONOMIA"],
+        fenomeno: "TORMENTA_ELECTRICA",
+        gravedad: "ALTA",
+        vigenteHasta: "2026-11-13T03:00:00.000Z",
+      },
+    });
+    expect(context).toEqual({
+      tipo: "ALERTA_CLIMATICA",
+      label: "Alerta climática",
+      barrio: "Villa del Parque",
+      fenomeno: "Tormenta eléctrica",
+      gravedad: "alta",
+      descripcion: null,
+      vigenteHasta: "2026-11-13T03:00:00.000Z",
+      reason: "Elevada por alerta climática (Tormenta eléctrica, alta) en Villa del Parque",
+    });
+  });
+
+  it("is null-safe with missing barrio, phenomenon, description and unknown type", () => {
     expect(getZoneContext({ priorityContext: { tipo: "ALERTA_CLIMATICA" } })).toEqual({
       tipo: "ALERTA_CLIMATICA",
       label: "Alerta climática",
       barrio: null,
+      fenomeno: null,
+      gravedad: null,
       descripcion: null,
       vigenteHasta: null,
-      reason: "Prioridad elevada: alerta climática",
+      reason: "Elevada por alerta climática",
     });
     expect(getZoneContext({ priorityContext: { tipo: "OTRO", barrio: 7 } }).label).toBe(
       "Contexto de zona"

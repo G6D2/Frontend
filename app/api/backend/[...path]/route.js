@@ -14,6 +14,8 @@ const ALLOWED_ROUTES = [
   { prefix: "api/emergencies", methods: ["GET", "PATCH"] },
   { prefix: "api/panic-button", methods: ["POST"] },
   { prefix: "api/officers", methods: ["GET"] },
+  // Banner de alertas climáticas del tablero (AlertaClimaticaBanner).
+  { prefix: "api/contextos-zona", methods: ["GET"] },
   { prefix: "api/citizen/profile", methods: ["GET", "PUT"] },
   { prefix: "api/citizen/saved-locations", methods: ["GET", "POST", "PATCH", "DELETE"] },
 ];

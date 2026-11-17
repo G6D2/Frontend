@@ -75,7 +75,8 @@ export default function MapaOperativoPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col">
+    // Descuenta el banner de alertas climáticas (--ops-banner-h, 0 sin alertas).
+    <div className="h-[calc(100vh_-_var(--ops-banner-h,0px))] flex flex-col">
       <PageHeader title="Mapa" />
       <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">
         {error && (
