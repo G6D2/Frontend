@@ -11,6 +11,10 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     "next-env.d.ts",
+    // Salidas de Playwright (npm run test:e2e): el reporte HTML trae JS minificado.
+    "test-results/**",
+    "playwright-report/**",
+    "blob-report/**",
   ]),
 ]);
 

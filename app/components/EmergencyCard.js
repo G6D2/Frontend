@@ -50,6 +50,8 @@ export default function EmergencyCard({
       withBorder
       padding="md"
       radius="md"
+      // Selector de los tests e2e (e2e/dispatcher.spec.mjs).
+      data-testid="emergency-card"
       className={isNew ? classes.newCardHighlight : undefined}
       style={{ flexShrink: 0, width: "100%" }}
     >

@@ -1,0 +1,60 @@
+name: E2E
+# Tests de punta a punta con Playwright (e2e/*.spec.mjs) contra `next start`.
+# Workflow aparte del CI y no es un check requerido: si falla, avisa pero no
+# bloquea el merge. Ver la sección "Tests e2e" del README.
+run-name: "E2E · ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || format('push {0}', github.ref_name) }} · ${{ github.actor }}"
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Solo el headless shell de Chromium (los tests corren headless) y sus
+      # dependencias del sistema.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps --only-shell chromium
+
+      - name: Build
+        run: npm run build
+
+      # Backend simulado (e2e/mocks/backend.mjs) y Login Federado simulado
+      # (e2e/mocks/login-federado.mjs): el backend real vive en un repo privado
+      # aparte y este workflow no tiene credenciales para clonarlo.
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
