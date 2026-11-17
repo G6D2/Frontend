@@ -28,6 +28,7 @@ API_URL=http://otro-host:3000 npm run dev     # backend en otro lado
 | `npm run test:coverage` | Tests unitarios con cobertura y umbral del 80% |
 | `npm run test:integration` | Tests de integración del BFF |
 | `npm run test:watch` | Tests unitarios en modo watch |
+| `npm run test:e2e` | Tests de punta a punta con Playwright (después de `npm run build`, ver [Tests e2e](#tests-e2e-playwright)) |
 
 ---
 
@@ -232,20 +233,67 @@ npm run test:integration  # integración del BFF
 |---|---|---|---|
 | Unitarios | `lib/**`, `app/lib/**` (menos `app/lib/auth.js`, que depende de `sessionStorage`: tiene tests en `tests/auth.test.js` pero no cuenta para la cobertura) y `middleware.js` | `vitest.config.mjs` | 80% en statements, branches, functions y lines |
 | Integración del BFF | Route Handlers de `app/api/**` invocados con `Request` reales | `vitest.integration.config.mjs` | Sin umbral |
+| E2E | Pantallas reales en Chromium contra `next start`: flujo del ciudadano y del dispatcher | `playwright.config.mjs` | Sin umbral |
 
 Números al 16/11/2026 (Node 22): **360 tests unitarios** en 19 archivos y **75 de integración** en 7. Cobertura de unit: **97,1% statements, 89,95% branches, 97,95% functions y 98,16% lines**. `middleware.js` está en 84,37% de statements y 85,36% de branches.
 
 - Las dos suites corren en entorno `node` y pasan en Node 20, 22 y 24. Desde Node 21, `navigator` es un global de solo lectura: los tests que lo necesitan usan `vi.stubGlobal` y lo restauran con `vi.unstubAllGlobals()`.
 - Los tests de integración (`tests/integration/`) mockean `global.fetch` (el backend) y `next/headers` (las cookies) con los helpers de `tests/integration/helpers.js`. No levantan servidor ni backend real. Cubren login (email y contraseña, y atajos demo con `sub`), registro, sesión, refresh, el proxy (lista de rutas, CSRF y reintentos), geocode y el chequeo CSRF de los POST de `/api/auth`. `warmup` no tiene test; de `logout` y `forgot-password` solo se prueba el chequeo CSRF.
 - El umbral del 80% es sobre las librerías y el middleware, no sobre todo el frontend. Los componentes React, las páginas y los layouts no tienen tests.
-- SonarCloud analiza `lib` y `app/lib` (`sonar.sources` en `sonar-project.properties`). Todavía no incluye `middleware.js`.
-- **Deuda declarada:** no hay tests E2E ni de componentes (ni Playwright ni Testing Library), ni smoke tests contra el deploy. Antes de cada demo se prueba a mano: login de cada rol, SOS, validar, asignar y descartar.
+- SonarCloud analiza `lib` y `app/lib` (`sonar.sources` en `sonar-project.properties`). Todavía no incluye `middleware.js`. `tests` y `e2e` están declarados como código de test (`sonar.tests`): no cuentan como código sin cobertura.
+- **Deuda declarada:** no hay tests de componentes (Testing Library) ni smoke tests contra el deploy. Los e2e cubren los dos flujos principales; el oficial, `/reportar`, la lista, el mapa y el historial del dispatcher se siguen probando a mano.
+
+### Tests e2e (Playwright)
+
+Dos specs en `e2e/`, que corren en Chromium contra el build de producción (`next start`):
+
+| Spec | Flujo |
+|---|---|
+| `e2e/ciudadano.spec.mjs` | Login con email y contraseña → botón de pánico (ubicación fija del navegador y cuenta regresiva de 3 s) → detalle de la alerta → **Mis alertas** → detalle desde la lista → cancelar con motivo. Al final recarga y comprueba que la cancelación y el motivo vienen del backend. |
+| `e2e/dispatcher.spec.mjs` | Login por la solapa **Personal Municipal (LDAP)** → kanban con dos emergencias pendientes → validar una → asignarle el oficial disponible → descartar la otra con motivo (el botón no se habilita sin motivo). Al final verifica en el backend el estado, el oficial y el motivo con su autor. |
+
+Cada test crea sus propios datos con usuarios nuevos (sufijo único por corrida): el ciudadano se registra por `POST /auth/register` y las emergencias del dispatcher las reporta un vecino nuevo. No se usan las cuentas demo del seed ni datos reales, y nada corre contra producción.
+
+Piezas que se simulan, porque en CI no existen:
+
+- **Login Federado** (`e2e/mocks/login-federado.mjs`): el BFF le manda el usuario y la contraseña del formulario LDAP a `CITYPASS_IDP_AUTH_URL`, que en los tests apunta a este servidor. Acepta cualquier usuario con la contraseña `e2e-ldap-password` y le pide el token al login de demo del backend con grupo `dispatcher` (por eso el backend de prueba corre con `DEV_LOGIN_STRICT=false`). El token lo firma y lo valida el mismo backend del test.
+- **Botón de pánico de la cuenta**: el backend no tiene API para habilitarlo. Con el backend real, el test marca `auth_users.has_antipanic_button` por SQL; con el simulado, por un endpoint de prueba.
+- **Geocoding**: `/api/geocode` se responde desde el navegador con una dirección fija, para no depender de BigDataCloud ni de Nominatim.
+
+**Contra el backend simulado** (el default y el de CI, `e2e/mocks/backend.mjs`, en memoria):
+
+```bash
+npx playwright install chromium   # una vez
+npm run build
+npm run test:e2e
+```
+
+**Contra el backend real** (`G6D2/emergencias-backend`, con Postgres en Docker). El backend tiene que estar clonado y con `npm ci` hecho; Playwright aplica las migraciones de Flyway (con Docker, como `npm run migrate` del backend) y lo levanta solo, con login de demo abierto, sin rate limit, sin Kafka y sin jobs de fondo (ver `realBackendEnv` en `e2e/support/env.mjs`):
+
+```bash
+docker run -d --name pg-e2e -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=emergencias_e2e -p 55436:5432 postgres:16-alpine
+npm run build
+E2E_BACKEND=real E2E_BACKEND_DIR=../emergencias-backend npm run test:e2e
+```
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `E2E_BACKEND` | `mock` | `real` usa el backend clonado en vez del simulado |
+| `E2E_BACKEND_DIR` | `../emergencias-backend` | Carpeta del backend, relativa a este repo |
+| `E2E_DATABASE_URL` | `postgresql://postgres:postgres@localhost:55436/emergencias_e2e` | Base del backend real. Usar una base solo para tests: el test le agrega filas |
+| `E2E_FRONT_PORT`, `E2E_BACKEND_PORT`, `E2E_IDP_PORT` | `4311`, `4310`, `4312` | Puertos del front, del backend y del Login Federado simulado |
+
+- Fuera de CI, si ya hay algo escuchando en esos puertos, Playwright lo reusa en vez de levantarlo. Ojo con un `next start` viejo: hay que volver a hacer `npm run build` y matarlo después de cambiar código.
+- `npx playwright test --ui` abre el modo interactivo, y `npx playwright show-report` el reporte HTML de la última corrida (con trace, captura y video de lo que falló).
+- Un solo worker: los specs comparten backend y el kanban muestra todas las emergencias abiertas. Por eso cada tarjeta se busca por la descripción única del test (`data-testid="emergency-card"`).
+- El dispatcher deja el backend como estaba: devuelve la emergencia despachada (libera al oficial) y la cancela. Así una base local se puede reusar entre corridas sin quedarse sin oficiales disponibles.
 
 ---
 
 ## CI/CD y deploy
 
 - **CI** (`.github/workflows/ci.yml`) corre en cada PR a `main` y en cada push a `main`, sobre **Node 22**. Valida que el PR tenga título y descripción, y después corre `npm ci`, lint, build, tests unitarios con cobertura y tests de integración. Publica la cobertura en el resumen del run y en un comentario del PR. SonarCloud corre si existe `SONAR_TOKEN` y no bloquea. Si algo falla, avisa por mail.
+- **E2E** (`.github/workflows/e2e.yml`) es un workflow aparte, con el job `e2e`, que corre en los mismos eventos que el CI: instala Chromium, hace el build y corre `npm run test:e2e` contra el backend simulado. El backend real vive en un repo privado y el workflow no tiene credenciales para clonarlo. No es un check requerido, así que no bloquea el merge. El reporte de Playwright queda como artefacto del run (`playwright-report`, 7 días).
 - **CD** (`.github/workflows/cd.yml`) se dispara cuando termina un CI de un push a `main`. Si salió bien, llama al deploy hook de Render. No instala Node.
 - **Activate backup** (`.github/workflows/activate-backup.yml`) es manual: despliega el frontend de respaldo y espera a que `/api/warmup` responda `warmed: true`.
 - **Render** (`render.yaml`): build `npm ci && npm run build`, start `npm run start`, health check `/acceso`. Render toma la versión de Node de `engines` en `package.json` (`22.x`), salvo que el servicio tenga `NODE_VERSION` configurada.
@@ -284,5 +332,7 @@ El dev server de Next responde **403 en `/_next/*`** cuando el host del request 
 │   ├── components/           componentes compartidos, civic/ y ops/
 │   └── lib/                  lógica de cliente sin React: api.js, emergencies.js,
 │                             features.js, sosController.js, auth-roles.js, ...
-└── tests/                    unitarios; tests/integration/ es el BFF
+├── tests/                    unitarios; tests/integration/ es el BFF
+└── e2e/                      Playwright: specs, support/ (datos de prueba) y
+                              mocks/ (backend y Login Federado simulados)
 ```
