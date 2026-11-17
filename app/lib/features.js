@@ -22,9 +22,13 @@ export const ANTIPANIC_MODE = "backend";
 
 // ── DEMO_ACCOUNTS ──────────────────────────────────────────────────────────────
 //
-//  Atajos de presentación (chips en el login). Solo rellenan el email;
-//  la password NO viaja en el bundle (seed V16: abracadabra — ver README).
-//  Cualquier email puede registrarse vía POST /auth/register.
+//  Atajos de presentación (chips en el login): completan el email y la
+//  contraseña de las cuentas ciudadanas de demo del seed V16 (fillDemo en
+//  AccesoForm). Esa contraseña es pública a propósito y está en el bundle:
+//  son ciudadanos de demo, sin permisos de personal. Las cuentas de personal
+//  no tienen atajo con contraseña: entran por el Login Federado (LDAP) y la
+//  contraseña se escribe. Cualquier email puede registrarse vía
+//  POST /auth/register.
 //
 export const DEMO_ACCOUNTS = [
   {
