@@ -131,7 +131,7 @@ En `/ops`, el dispatcher puede cerrar una emergencia desde la columna **Resuelta
 - Para las rutas permitidas, `/api/backend/<path>?<query>` va a `${API_URL}/<path>?<query>` con el mismo path. Por eso el front llama a `/api/backend/api/emergencies`, que termina en `/api/emergencies` del backend.
 - Agrega `Authorization: Bearer <JWT de la cookie>` y reenvía `Content-Type`, `Idempotency-Key` y el body (salvo en GET y HEAD).
 - Si la cookie no está o venció, responde 401 sin llamar al backend. Si el backend responde 401, borra la cookie.
-- Los reintentos dependen del método (`lib/backend-fetch.js`). GET, PUT y DELETE reintentan ante 502, 503, 504 y cualquier error de red o timeout. POST y PATCH solo ante 502 y 503 o si no se llegó a conectar, que es cuando la request no llegó al backend: un 504 o un corte después de conectar devuelven el error en vez de arriesgar un alta duplicada. En POST, PUT y PATCH manda un `Idempotency-Key` que se mantiene entre reintentos, pero **el backend hoy no lo usa**.
+- Los reintentos dependen del método (`lib/backend-fetch.js`). GET, PUT y DELETE reintentan ante 502, 503, 504 y cualquier error de red o timeout. POST y PATCH solo ante 502 y 503 o si no se llegó a conectar, que es cuando la request no llegó al backend: un 504 o un corte después de conectar devuelven el error en vez de arriesgar un alta duplicada. En POST, PUT y PATCH manda un `Idempotency-Key` que se mantiene entre reintentos. El backend lo usa solo en `POST /api/panic-button` (desde su #127): con la misma clave devuelve la emergencia ya creada, con `Idempotent-Replayed: true`, en vez de crear otra. Los demás endpoints lo ignoran.
 
 Lo que el front consume por el proxy:
 
