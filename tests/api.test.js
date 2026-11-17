@@ -28,6 +28,9 @@ import {
   fetchAlertasClimaticasActivas,
   assignOfficer,
   fetchOfficerEmergencies,
+  filterOfficerScope,
+  officerNextStep,
+  OFFICER_SCOPES,
   advanceOfficerStatus,
   OFFICER_NEXT_STEP,
   addObservation,
@@ -761,20 +764,87 @@ describe("api.js", () => {
   });
 
   describe("Oficial (HU-08)", () => {
-    it("fetchOfficerEmergencies pide solo estados de oficial, sin assignedOfficerId", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ data: [{ id: "e1" }], pagination: null }),
+    describe("vista del oficial: activas e históricas (issue #17)", () => {
+      const ROWS = [
+        { id: "disp", status: "DISPATCHED" },
+        { id: "route", status: "EN_ROUTE", returned: false },
+        { id: "scene", status: "ON_SCENE" },
+        { id: "res", status: "RESOLVED" },
+        { id: "closed", status: "CLOSED", returned: false },
+        { id: "exp", status: "CANCELLED" },
+        { id: "ret", status: "DISPATCHED", returned: true },
+        { id: "ret-closed", status: "CLOSED", returned: true },
+      ];
+
+      function mockRows(data) {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ data, pagination: null }),
+        });
+      }
+
+      it("OFFICER_SCOPES: Activas primero, con el scope del backend como value", () => {
+        expect(OFFICER_SCOPES.map(({ value, label }) => [value, label])).toEqual([
+          ["active", "Activas"],
+          ["history", "Históricas"],
+        ]);
+        expect(OFFICER_SCOPES.every(({ emptyMessage }) => typeof emptyMessage === "string")).toBe(true);
       });
 
-      const data = await fetchOfficerEmergencies();
+      it("por default pide scope=active por prioridad, sin status ni assignedOfficerId", async () => {
+        mockRows([{ id: "e1", status: "DISPATCHED" }]);
 
-      expect(data).toEqual([{ id: "e1" }]);
-      const url = global.fetch.mock.calls[0][0];
-      expect(url).toContain("/api/backend/api/emergencies?");
-      expect(decodeURIComponent(url)).toContain("status=DISPATCHED,EN_ROUTE,ON_SCENE");
-      expect(url).not.toContain("assignedOfficerId");
+        const data = await fetchOfficerEmergencies();
+
+        expect(data).toEqual([{ id: "e1", status: "DISPATCHED" }]);
+        const url = global.fetch.mock.calls[0][0];
+        expect(url).toContain("/api/backend/api/emergencies?");
+        expect(url).toContain("scope=active");
+        expect(url).toContain("sortBy=priority&order=desc");
+        expect(url).not.toContain("status=");
+        expect(url).not.toContain("assignedOfficerId");
+      });
+
+      it("history pide scope=history, las más nuevas primero", async () => {
+        mockRows([]);
+
+        await fetchOfficerEmergencies("history");
+
+        const url = global.fetch.mock.calls[0][0];
+        expect(url).toContain("scope=history");
+        expect(url).toContain("sortBy=createdAt&order=desc");
+      });
+
+      it("con un back que ignora scope (todo lo asignado), igual separa activas de históricas", async () => {
+        mockRows(ROWS);
+        const active = await fetchOfficerEmergencies("active");
+        mockRows(ROWS);
+        const history = await fetchOfficerEmergencies("history");
+
+        expect(active.map((em) => em.id)).toEqual(["disp", "route", "scene"]);
+        expect(history.map((em) => em.id)).toEqual(["res", "closed", "exp", "ret", "ret-closed"]);
+      });
+
+      it("un scope desconocido falla sin llamar al backend", async () => {
+        global.fetch = vi.fn();
+
+        await expect(fetchOfficerEmergencies("todas")).rejects.toMatchObject({ status: 400 });
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
+
+      it("filterOfficerScope tolera listas inválidas y filas vacías", () => {
+        expect(filterOfficerScope(null, "active")).toEqual([]);
+        expect(filterOfficerScope([null, { id: "x" }], "history")).toEqual([]);
+      });
+
+      it("officerNextStep: el paso de su estado, salvo en las devueltas y las terminadas", () => {
+        expect(officerNextStep({ status: "DISPATCHED" })).toBe(OFFICER_NEXT_STEP.DISPATCHED);
+        expect(officerNextStep({ status: "ON_SCENE", returned: false })).toBe(OFFICER_NEXT_STEP.ON_SCENE);
+        expect(officerNextStep({ status: "DISPATCHED", returned: true })).toBeNull();
+        expect(officerNextStep({ status: "CLOSED" })).toBeNull();
+        expect(officerNextStep(null)).toBeNull();
+      });
     });
 
     it.each(["en-route", "on-scene", "resolve"])("advanceOfficerStatus(%s) hace PATCH a esa ruta", async (action) => {

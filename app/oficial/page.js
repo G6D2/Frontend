@@ -8,13 +8,14 @@ import CitizenPageContainer from "../components/civic/CitizenPageContainer";
 import {
   fetchOfficerEmergencies,
   advanceOfficerStatus,
-  OFFICER_NEXT_STEP,
+  officerNextStep,
+  OFFICER_SCOPES,
   CITIZEN_POLLING_INTERVAL_MS,
 } from "../lib/api";
 import {
   emergencyTitle,
   formatTime,
-  getStatusConfig,
+  getOfficerStatusConfig,
   PRIORITY_CONFIG,
   TYPE_LABELS,
 } from "../lib/emergencies";
@@ -30,14 +31,15 @@ const RESOLUTION_CAUSES = [
  * MVP del oficial: lista de emergencias asignadas y un solo botón por
  * tarjeta con el próximo paso (En camino → Llegué al lugar → Resolver).
  * Al resolver, permite registrar causas relacionadas y su descripción.
+ * En las históricas no hay próximo paso: la tarjeta es solo de consulta.
  */
 function AssignmentCard({ emergency, busy, onAdvance }) {
   const [resolving, setResolving] = useState(false);
   const [relatedCauses, setRelatedCauses] = useState([]);
   const [problemDescription, setProblemDescription] = useState("");
-  const statusCfg = getStatusConfig(emergency.status);
+  const statusCfg = getOfficerStatusConfig(emergency);
   const priority = PRIORITY_CONFIG[emergency.severity];
-  const step = OFFICER_NEXT_STEP[emergency.status];
+  const step = officerNextStep(emergency);
   const hasViaCause = relatedCauses.includes("VIA");
   const typeLabel =
     TYPE_LABELS[emergency.emergencyType] ||
@@ -185,24 +187,74 @@ function AssignmentCard({ emergency, busy, onAdvance }) {
   );
 }
 
+/**
+ * Selector Activas / Históricas (issue #17). Dos botones con aria-pressed;
+ * el `!` del tamaño y el peso hace falta porque @mantine/core/styles.css (sin
+ * capa) pone `font: inherit` en los botones (igual que en AccesoForm).
+ */
+function ScopeSelector({ scope, onChange }) {
+  return (
+    <div
+      role="group"
+      aria-label="Filtrar asignaciones"
+      className="flex p-1 rounded-xl bg-surface-container border border-outline-variant/60"
+    >
+      {OFFICER_SCOPES.map((option) => {
+        const active = option.value === scope;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            className={`flex-1 min-h-touch rounded-lg text-sm! font-semibold! transition-colors cursor-pointer ${
+              active
+                ? "bg-primary text-on-primary shadow-sm"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function OficialPage() {
+  const [scope, setScope] = useState(OFFICER_SCOPES[0].value);
   const [emergencies, setEmergencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
   const pollerRef = useRef(null);
+  // Scope vigente: una respuesta que llega después de cambiar de solapa se
+  // descarta en vez de pisar la lista nueva.
+  const scopeRef = useRef(scope);
+  const emptyMessage = OFFICER_SCOPES.find((option) => option.value === scope)?.emptyMessage;
 
   const load = useCallback(async () => {
     try {
-      const data = await fetchOfficerEmergencies();
+      const data = await fetchOfficerEmergencies(scope);
+      if (scopeRef.current !== scope) return;
       setEmergencies(Array.isArray(data) ? data : []);
       setError("");
     } catch (err) {
+      if (scopeRef.current !== scope) return;
       setError(err.message || "No se pudieron cargar tus asignaciones");
     } finally {
-      setLoading(false);
+      if (scopeRef.current === scope) setLoading(false);
     }
-  }, []);
+  }, [scope]);
+
+  const handleScopeChange = (next) => {
+    if (next === scope) return;
+    scopeRef.current = next;
+    setScope(next);
+    setEmergencies([]);
+    setError("");
+    setLoading(true);
+  };
 
   // Polling con pausa en pestaña oculta y sin pedidos superpuestos (createPoller).
   useEffect(() => {
@@ -237,6 +289,8 @@ export default function OficialPage() {
           lateral y la navegación móvil vienen de app/oficial/layout.js. */}
       <PageHeader title="Mis asignaciones" />
       <CitizenPageContainer className="gap-4">
+        <ScopeSelector scope={scope} onChange={handleScopeChange} />
+
         {error && (
           <p role="alert" className="rounded-lg bg-error-container text-on-error-container p-3 text-sm">
             {error}
@@ -246,7 +300,7 @@ export default function OficialPage() {
         {loading ? (
           <p className="text-on-surface-variant">Cargando…</p>
         ) : emergencies.length === 0 ? (
-          <p className="text-on-surface-variant">No tenés emergencias asignadas.</p>
+          <p className="text-on-surface-variant">{emptyMessage}</p>
         ) : (
           emergencies.map((e) => (
             <AssignmentCard
