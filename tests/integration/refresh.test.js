@@ -5,14 +5,20 @@
 // browser no lee cookies httpOnly y SessionRefreshManager decide con eso si
 // manda a /acceso (app/lib/sessionRefresh.js). El CSRF de esta ruta está en
 // csrf.test.js.
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
 import { cookies } from "next/headers";
 import { POST as refresh } from "../../app/api/auth/refresh/route.js";
 import { POST as login } from "../../app/api/auth/login/route.js";
-import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
+import {
+  mockNextCookies,
+  mockBackend,
+  mockHangingFetch,
+  fakeAbortSignalTimeout,
+  makeRequest,
+} from "./helpers.js";
 
 function jwtFor(payload) {
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
@@ -121,6 +127,71 @@ describe("POST /api/auth/refresh", () => {
 
       expect(res.status).toBe(502);
       expect(json).toMatchObject({ reason: "idp_error", sessionActive: true });
+      expect(res.cookies.get("citypass_session")).toBeUndefined();
+      expect(res.cookies.get("citypass_refresh")).toBeUndefined();
+    });
+  });
+
+  // Si el IdP no responde, el refresh no puede quedar colgado (lo espera el
+  // browser: SessionRefreshManager y el reintento ante 401 de app/lib/api.js).
+  // La ruta corta a los 8 s y devuelve 504, con el mismo `reason` y
+  // `sessionActive` que los demás errores del IdP.
+  describe("sesión federada: el IdP no responde", () => {
+    const originalFetch = global.fetch;
+    let timeoutSpy;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      timeoutSpy = fakeAbortSignalTimeout();
+    });
+
+    afterEach(() => {
+      timeoutSpy.mockRestore();
+      vi.useRealTimers();
+      global.fetch = originalFetch;
+    });
+
+    it.each([
+      ["token vigente", VALID, true],
+      ["token vencido", EXPIRED, false],
+    ])("sin respuesta con el %s: espera 8 s, devuelve 504 idp_error y no toca cookies", async (_label, token, sessionActive) => {
+      mockNextCookies(cookies, { citypass_session: token, citypass_refresh: "rt-1" });
+      const { calls } = mockHangingFetch();
+
+      let settled = false;
+      const pending = refresh(refreshRequest()).finally(() => {
+        settled = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(7999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const res = await pending;
+
+      expect(res.status).toBe(504);
+      expect(await res.json()).toEqual({
+        error: "Gateway Timeout",
+        reason: "idp_error",
+        sessionActive,
+        message: "El Login Federado no responde. Probá de nuevo.",
+      });
+      expect(res.cookies.get("citypass_session")).toBeUndefined();
+      expect(res.cookies.get("citypass_refresh")).toBeUndefined();
+      expect(timeoutSpy).toHaveBeenCalledWith(8000);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it("responde los headers y se cuelga el cuerpo: también 504 y no toca cookies", async () => {
+      mockNextCookies(cookies, { citypass_session: VALID, citypass_refresh: "rt-1" });
+      mockHangingFetch({ afterHeaders: true });
+
+      const pending = refresh(refreshRequest());
+      await vi.advanceTimersByTimeAsync(8000);
+      const res = await pending;
+
+      expect(res.status).toBe(504);
+      expect(await res.json()).toMatchObject({ reason: "idp_error", sessionActive: true });
       expect(res.cookies.get("citypass_session")).toBeUndefined();
       expect(res.cookies.get("citypass_refresh")).toBeUndefined();
     });

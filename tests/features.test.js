@@ -134,8 +134,8 @@ describe("DEMO_LOGIN_SHORTCUTS (atajos sin contraseña de /acceso)", () => {
   it("navegación por rol: dispatcher a /ops; oficiales y ciudadano a /inicio", () => {
     expect(getHomePathForUser(bySub["DISP-Demo001"].account)).toBe("/ops");
     // No hay home de oficial: el middleware lo trata como no-dispatcher.
-    expect(getHomePathForUser(bySub["of-001"].account)).toBe("/inicio");
-    expect(getHomePathForUser(bySub["of-002"].account)).toBe("/inicio");
+    expect(getHomePathForUser(bySub["of-001"].account)).toBe("/oficial");
+    expect(getHomePathForUser(bySub["of-002"].account)).toBe("/oficial");
     expect(getHomePathForUser(bySub["CIT-JuanPanico"].account)).toBe("/inicio");
   });
 });

@@ -4,6 +4,7 @@ import {
   getStatusConfig,
   isPendingStatus,
   isActiveStatus,
+  isTerminalStatus,
   isCancelable,
   canAssignOfficer,
   formatTime,
@@ -136,6 +137,27 @@ describe("isActiveStatus", () => {
     expect(isActiveStatus("DISPATCHED")).toBe(true);
     expect(isActiveStatus("EN_ROUTE")).toBe(true);
     expect(isActiveStatus("ON_SCENE")).toBe(true);
+  });
+});
+
+describe("isTerminalStatus", () => {
+  it("es true para los estados de los que la emergencia ya no sale", () => {
+    for (const s of ["CANCELLED", "CLOSED", "DISCARDED"]) {
+      expect(isTerminalStatus(s)).toBe(true);
+    }
+  });
+
+  // RESOLVED → CLOSED: el detalle del ciudadano tiene que seguir consultando
+  // para mostrar el cierre del dispatcher.
+  it("es false para RESOLVED y para los estados en curso", () => {
+    for (const s of ["PENDING", "VALIDATED", "DISPATCHED", "EN_ROUTE", "ON_SCENE", "RESOLVED"]) {
+      expect(isTerminalStatus(s)).toBe(false);
+    }
+  });
+
+  it("es false para un estado desconocido o ausente", () => {
+    expect(isTerminalStatus("OTRO")).toBe(false);
+    expect(isTerminalStatus(undefined)).toBe(false);
   });
 });
 

@@ -11,7 +11,6 @@ import {
   registerAccount,
   logout,
   fetchCurrentUser,
-  hasValidSession,
   triggerPanicButton,
   fetchEmergencyDetail,
   fetchEmergencies,
@@ -22,11 +21,14 @@ import {
   cancelEmergency,
   reportIncident,
   validateEmergency,
+  closeEmergency,
   discardEmergency,
   overridePriority,
   fetchOfficers,
   assignOfficer,
-  updateEmergencyStatus,
+  fetchOfficerEmergencies,
+  advanceOfficerStatus,
+  OFFICER_NEXT_STEP,
   addObservation,
   requestReinforcements,
   fetchEmergencyHistory,
@@ -34,7 +36,6 @@ import {
   getCurrentLocation,
   getStoredUser,
   setStoredUser,
-  clearSession,
 } from "../app/lib/api.js";
 
 // window, sessionStorage y navigator se stubbean con vi.stubGlobal y se
@@ -75,8 +76,8 @@ describe("api.js", () => {
 
   describe("Constantes exportadas", () => {
     it("define intervalos de polling esperados", () => {
-      expect(POLLING_INTERVAL_MS).toBe(15000);
-      expect(CITIZEN_POLLING_INTERVAL_MS).toBe(5000);
+      expect(POLLING_INTERVAL_MS).toBe(30000);
+      expect(CITIZEN_POLLING_INTERVAL_MS).toBe(30000);
     });
 
     it("define la configuración de estados y severidades", () => {
@@ -369,22 +370,6 @@ describe("api.js", () => {
       expect(getStoredUser()).toBeNull();
       expect(global.window.location.replace).not.toHaveBeenCalled();
     });
-
-    it("hasValidSession: devuelve true si la sesión es válida y false si falla", async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ data: { sub: "u1" } }),
-      });
-      expect(await hasValidSession()).toBe(true);
-
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        json: async () => ({ message: "No auth" }),
-      });
-      expect(await hasValidSession()).toBe(false);
-    });
   });
 
   describe("triggerPanicButton y reportIncident", () => {
@@ -666,6 +651,25 @@ describe("api.js", () => {
       const discarded = await discardEmergency("e1", "duplicada");
       expect(discarded.status).toBe("DISCARDED");
     });
+
+    it("closeEmergency: envía PATCH /api/emergencies/:id/close sin body", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { id: "e1", status: "CLOSED" } }),
+      });
+
+      const closed = await closeEmergency("e1");
+
+      expect(closed).toEqual({ id: "e1", status: "CLOSED" });
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/backend/api/emergencies/e1/close",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({}),
+        })
+      );
+    });
   });
 
   describe("Oficiales", () => {
@@ -736,16 +740,70 @@ describe("api.js", () => {
       await expect(requestReinforcements()).rejects.toMatchObject({ status: 501 });
     });
 
-    // El mensaje "TODO(back)" de updateEmergencyStatus quedó viejo: el backend
-    // ya expone PATCH /api/emergencies/:id/en-route, /on-scene y /resolve
-    // (grupo `officer`, sub === oficial asignado). Lo que falta es del front:
-    // no hay pantallas de oficial ni código que consuma esas rutas.
-    it("updateEmergencyStatus: deuda del front, el backend ya tiene en-route/on-scene/resolve", async () => {
-      global.fetch = vi.fn();
+  });
 
-      await expect(updateEmergencyStatus()).rejects.toThrow(ApiError);
-      await expect(updateEmergencyStatus()).rejects.toMatchObject({ status: 501 });
+  describe("Oficial (HU-08)", () => {
+    it("fetchOfficerEmergencies pide solo estados de oficial, sin assignedOfficerId", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ id: "e1" }], pagination: null }),
+      });
+
+      const data = await fetchOfficerEmergencies();
+
+      expect(data).toEqual([{ id: "e1" }]);
+      const url = global.fetch.mock.calls[0][0];
+      expect(url).toContain("/api/backend/api/emergencies?");
+      expect(decodeURIComponent(url)).toContain("status=DISPATCHED,EN_ROUTE,ON_SCENE");
+      expect(url).not.toContain("assignedOfficerId");
+    });
+
+    it.each(["en-route", "on-scene", "resolve"])("advanceOfficerStatus(%s) hace PATCH a esa ruta", async (action) => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { id: "e1" } }),
+      });
+
+      await expect(advanceOfficerStatus("e1", action)).resolves.toEqual({ id: "e1" });
+      expect(global.fetch).toHaveBeenCalledWith(
+        `/api/backend/api/emergencies/e1/${action}`,
+        expect.objectContaining({ method: "PATCH" })
+      );
+    });
+
+    it("advanceOfficerStatus manda las causas relacionadas al resolver", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { id: "e1" } }),
+      });
+
+      await advanceOfficerStatus("e1", "resolve", {
+        causasRelacionadas: ["RESIDUOS"],
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/backend/api/emergencies/e1/resolve",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ causasRelacionadas: ["RESIDUOS"] }),
+        })
+      );
+    });
+
+    it("advanceOfficerStatus rechaza una acción desconocida sin llamar al backend", async () => {
+      global.fetch = vi.fn();
+      await expect(advanceOfficerStatus("e1", "close")).rejects.toThrow(ApiError);
       expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("OFFICER_NEXT_STEP sigue la máquina de estados del backend", () => {
+      expect(OFFICER_NEXT_STEP.DISPATCHED.action).toBe("en-route");
+      expect(OFFICER_NEXT_STEP.EN_ROUTE.action).toBe("on-scene");
+      expect(OFFICER_NEXT_STEP.ON_SCENE.action).toBe("resolve");
+      expect(OFFICER_NEXT_STEP.RESOLVED).toBeUndefined();
     });
   });
 

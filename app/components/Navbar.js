@@ -12,6 +12,7 @@ import {
   IconUsers,
   IconHistory,
   IconUser,
+  IconClipboardList,
   IconChevronLeft,
   IconChevronRight,
 } from "@tabler/icons-react";
@@ -36,6 +37,16 @@ const DISPATCHER_NAV = [
   { label: "Mi Cuenta", icon: IconUser },
 ];
 
+const OFFICER_NAV = [
+  { label: "Asignaciones", icon: IconClipboardList },
+  { label: "Mi Cuenta", icon: IconUser },
+];
+
+const NAV_BY_ROLE = {
+  dispatcher: DISPATCHER_NAV,
+  officer: OFFICER_NAV,
+};
+
 /** Texto visible del ítem de navegación (sin el rol entre paréntesis). */
 function navLabel(label) {
   return label === "Mi Cuenta" ? "Mi cuenta" : label;
@@ -48,7 +59,7 @@ export default function Navbar({
   opened = true,
   onToggle,
 }) {
-  const items = role === "dispatcher" ? DISPATCHER_NAV : CITIZEN_NAV;
+  const items = NAV_BY_ROLE[role] || CITIZEN_NAV;
 
   const links = items.map((item) => {
     const isActive = item.label === active;

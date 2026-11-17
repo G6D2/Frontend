@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { BACKEND_URL, readAccessToken, SESSION_COOKIE, REFRESH_COOKIE } from "@/lib/session";
+import { BACKEND_URL, readAccessToken, SESSION_COOKIE } from "@/lib/session";
 import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
 

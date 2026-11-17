@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/geocode?lat=&lng= → { label: string|null }
  * Proxy con caché y cola hacia Nominatim (ver lib/geocode-server.js).
- * Requiere sesión: no es un geocoder público. El middleware no cubre esta
- * ruta, así que la sesión se valida acá (igual que el proxy /api/backend).
+ * Requiere sesión: no es un geocoder público. El middleware ya corta sin
+ * sesión (401); el chequeo de acá queda como segunda barrera.
  */
 export async function GET(request) {
   const token = await readAccessToken();
@@ -39,8 +39,11 @@ export async function GET(request) {
     return NextResponse.json({ error: "Bad Request", message: "lat/lng inválidos" }, { status: 400 });
   }
   const label = await reverseGeocodeServer(lat, lng);
+  // Sin dirección (el proveedor falló o tardó) no se cachea: si no, el
+  // navegador guardaba el `label: null` una hora y los reintentos del cliente
+  // (app/lib/geocoding.js) ni llegaban al BFF.
   return NextResponse.json(
     { label },
-    { headers: { "Cache-Control": "private, max-age=3600" } }
+    { headers: { "Cache-Control": label ? "private, max-age=3600" : "no-store" } }
   );
 }

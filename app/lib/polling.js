@@ -1,6 +1,8 @@
 /**
- * Polling de las vistas del dispatcher (/ops/lista, /ops/mapa y el tablero
- * por estados de /ops). Igual que sosController.js, no usa React: recibe la
+ * Polling de las vistas que se refrescan solas: las del dispatcher
+ * (/ops/lista, /ops/mapa y el tablero por estados de /ops), la lista y el
+ * detalle de alertas del ciudadano (/mis-alertas y /mis-alertas/[id]) y la
+ * del oficial (/oficial). Igual que sosController.js, no usa React: recibe la
  * función de carga y el `document` por parámetro, así se testea con timers
  * falsos sin renderizar componentes.
  *

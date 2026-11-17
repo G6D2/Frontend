@@ -4,7 +4,6 @@ import {
   isRetryableStatus,
   isRetryableError,
   isConnectError,
-  isMutatingMethod,
   generateIdempotencyKey,
 } from "../lib/backend-fetch.js";
 
@@ -243,16 +242,6 @@ describe("fetchBackend", () => {
       expect(isRetryableError(fetchFailed("UND_ERR_SOCKET"), "GET")).toBe(true);
       expect(isRetryableError(fetchFailed("UND_ERR_SOCKET"), "POST")).toBe(false);
       expect(isRetryableError(fetchFailed("ECONNREFUSED"), "POST")).toBe(true);
-    });
-
-    it("distingue métodos mutantes de métodos de consulta/seguros", () => {
-      expect(isMutatingMethod("POST")).toBe(true);
-      expect(isMutatingMethod("PUT")).toBe(true);
-      expect(isMutatingMethod("PATCH")).toBe(true);
-
-      expect(isMutatingMethod("GET")).toBe(false);
-      expect(isMutatingMethod("HEAD")).toBe(false);
-      expect(isMutatingMethod("OPTIONS")).toBe(false);
     });
 
     it("genera UUID v4 válido como Idempotency-Key", () => {

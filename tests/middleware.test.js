@@ -25,6 +25,8 @@ const tokens = {
   citizen: () => jwtFor({ sub: "CIT-JuanPanico", groups: ["citizen"], exp: inOneHour() }),
   dispatcher: () => jwtFor({ sub: "DISP-Demo001", groups: ["dispatcher"], exp: inOneHour() }),
   officer: () => jwtFor({ sub: "of-001", groups: ["officer"], exp: inOneHour() }),
+  // Oficial del Login Federado: el token trae el grupo LDAP crudo.
+  ldapOfficer: () => jwtFor({ sub: "U000099", groups: ["poli"], exp: inOneHour() }),
   noGroups: () => jwtFor({ sub: "U1", exp: inOneHour() }),
   expired: () => jwtFor({ sub: "CIT-JuanPanico", groups: ["citizen"], exp: anHourAgo() }),
 };
@@ -101,8 +103,12 @@ describe("middleware: /acceso", () => {
     expectRedirect(run("/acceso", tokens.dispatcher()), "/ops");
   });
 
-  it("con sesión de officer: redirige a /inicio (no hay home de oficial)", () => {
-    expectRedirect(run("/acceso", tokens.officer()), "/inicio");
+  it("con sesión de officer: redirige a /oficial", () => {
+    expectRedirect(run("/acceso", tokens.officer()), "/oficial");
+  });
+
+  it("con sesión de oficial LDAP (grupo poli): redirige a /oficial, no a /ops", () => {
+    expectRedirect(run("/acceso", tokens.ldapOfficer()), "/oficial");
   });
 });
 
@@ -138,12 +144,29 @@ describe("middleware: guard de rol", () => {
     }
   );
 
-  it("officer en /ops: redirige a /inicio (solo dispatcher entra a /ops)", () => {
-    expectRedirect(run("/ops/lista", tokens.officer()), "/inicio");
+  it("officer en /ops: redirige a /oficial (solo dispatcher entra a /ops)", () => {
+    expectRedirect(run("/ops/lista", tokens.officer()), "/oficial");
   });
 
-  it("officer en /inicio: pasa (se lo trata como no-dispatcher)", () => {
-    expectNext(run("/inicio", tokens.officer()));
+  it("officer en pantallas de ciudadano: redirige a /oficial (le darían 403)", () => {
+    expectRedirect(run("/inicio", tokens.officer()), "/oficial");
+    expectRedirect(run("/mis-alertas/abc", tokens.officer()), "/oficial");
+  });
+
+  it("officer en /oficial: pasa", () => {
+    expectNext(run("/oficial", tokens.officer()));
+  });
+
+  it("oficial LDAP (grupo poli): pasa en /oficial y no entra a /ops ni a ciudadano", () => {
+    expectNext(run("/oficial", tokens.ldapOfficer()));
+    expectRedirect(run("/ops", tokens.ldapOfficer()), "/oficial");
+    expectRedirect(run("/inicio", tokens.ldapOfficer()), "/oficial");
+  });
+
+  it("/oficial sin sesión redirige a /acceso; con otro rol, a su home", () => {
+    expectRedirect(run("/oficial"), "/acceso");
+    expectRedirect(run("/oficial", tokens.citizen()), "/inicio");
+    expectRedirect(run("/oficial", tokens.dispatcher()), "/ops");
   });
 
   it("token sin groups: se trata como no-dispatcher", () => {
@@ -167,10 +190,22 @@ describe("middleware: rutas públicas y no protegidas", () => {
     }
   );
 
-  // Hoy el middleware no corta /api/geocode: el comentario del route dice que
-  // requiere sesión, pero ni el middleware ni el route lo chequean.
-  it("/api/geocode sin sesión: pasa", () => {
-    expectNext(run("/api/geocode?lat=-34.6&lng=-58.4"));
+  // /api/geocode exige sesión en el route y también en el middleware.
+  it("/api/geocode sin sesión: 401 JSON, sin llegar al route", async () => {
+    const res = run("/api/geocode?lat=-34.6&lng=-58.4");
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "Unauthorized" });
+  });
+
+  it("/api/geocode con sesión vencida: 401 y borra la cookie", () => {
+    const res = run("/api/geocode?lat=-34.6&lng=-58.4", tokens.expired());
+    expect(res.status).toBe(401);
+    expectCookieCleared(res);
+  });
+
+  it("/api/geocode con sesión de cualquier rol: pasa", () => {
+    expectNext(run("/api/geocode?lat=-34.6&lng=-58.4", tokens.citizen()));
+    expectNext(run("/api/geocode?lat=-34.6&lng=-58.4", tokens.officer()));
   });
 
   it("los prefijos matchean por segmento: /opsx o /inicio-demo no son rutas protegidas", () => {

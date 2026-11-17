@@ -6,10 +6,11 @@ import {
   Alert,
   Badge,
   Group,
-  ScrollArea,
   Skeleton,
   Text,
   Title,
+  Button,
+  Modal,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
@@ -23,12 +24,14 @@ import {
   assignOfficer,
   validateEmergency,
   discardEmergency,
+  closeEmergency,
   POLLING_INTERVAL_MS,
   STATUS_CONFIG,
 } from "../lib/api";
 import { getStatusConfig, isActiveStatus } from "../lib/emergencies";
 import { createPoller, mergeEmergencyPoll } from "../lib/polling";
 import EmergencyCard from "./EmergencyCard";
+import { boardGridStyle } from "../lib/boardLayout";
 import AssignOfficerModal from "./AssignOfficerModal";
 import DiscardReasonModal from "./DiscardReasonModal";
 import classes from "../styles.module.css";
@@ -72,6 +75,8 @@ export default function DispatcherView() {
   const [modalOpened, setModalOpened] = useState(false);
   const [discardTarget, setDiscardTarget] = useState(null);
   const [discardBusy, setDiscardBusy] = useState(false);
+  const [closeTarget, setCloseTarget] = useState(null);
+  const [closeBusy, setCloseBusy] = useState(false);
 
   // ── Modo celular: Índice del estado activo (tipo Tinder swipe) ──
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
@@ -230,6 +235,31 @@ export default function DispatcherView() {
     }
   };
 
+  const confirmClose = async () => {
+    if (!closeTarget || closeBusy) return;
+    setCloseBusy(true);
+    try {
+      await closeEmergency(closeTarget.id);
+      setCloseTarget(null);
+      pollerRef.current?.refresh();
+      notifications.show({
+        title: "Emergencia cerrada",
+        message: `${shortId(closeTarget.id)} pasó a CERRADA.`,
+        color: "teal",
+        autoClose: 3000,
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Error al cerrar",
+        message: error.message || "No se pudo cerrar la emergencia.",
+        color: "red",
+        autoClose: 4000,
+      });
+    } finally {
+      setCloseBusy(false);
+    }
+  };
+
   // ── RF-07 & RF-08: Confirmar asignación vía PATCH y mover a DESPACHADA ──
   const handleAssignOfficer = async (emergencyId, officerId) => {
     try {
@@ -263,6 +293,12 @@ export default function DispatcherView() {
   // Las cerradas no vienen en el poll, pero una recién descartada queda en la
   // lista local hasta el próximo: no cuenta como activa.
   const activeCount = emergencies.filter((em) => isActiveStatus(em.status)).length;
+  // Tablero de escritorio: las emergencias de cada columna, agrupadas una vez
+  // por render (de acá salen también los anchos de la grilla).
+  const boardColumns = STATUS_CONFIG.map((col) => ({
+    col,
+    items: emergencies.filter((em) => columnKey(em) === col.key),
+  }));
 
   return (
     <div style={{ width: "100%", padding: "16px", overflow: "hidden" }}>
@@ -292,24 +328,29 @@ export default function DispatcherView() {
 
       {/* ── VISTA ESCRITORIO: Tablero Kanban Clásico Multi-Columna ── */}
       <div className={classes.desktopBoard}>
-        <ScrollArea type="auto" offsetScrollbars className={classes.boardScrollArea}>
-          <div className={classes.boardStatus}>
-            {STATUS_CONFIG.map((col) => {
-              const items = emergencies.filter(
-                (em) => columnKey(em) === col.key
-              );
+        <div className={classes.boardScrollArea}>
+          <div
+            className={classes.boardStatus}
+            style={boardGridStyle(
+              boardColumns.map(({ items }) => items.length),
+              { loading }
+            )}
+          >
+            {boardColumns.map(({ col, items }) => {
               return (
                 <div key={col.key} className={classes.boardColumnStatus}>
                   <div className={classes.boardColumnHeader}>
-                    <Group justify="space-between" align="center">
-                      <Group gap="xs">
+                    {/* Sin wrap: en una columna vacía (angosta) el contador
+                        de "Despachadas" bajaba a una segunda línea. */}
+                    <Group justify="space-between" align="center" wrap="nowrap" gap={6}>
+                      <Group gap="xs" wrap="nowrap">
                         <div
                           className={classes.boardColumnDot}
                           style={{
                             backgroundColor: `var(--mantine-color-${col.color}-6)`,
                           }}
                         />
-                        <Text fw={600} size="sm" c="dark">
+                        <Text fw={600} size="sm" c="dark" style={{ whiteSpace: "nowrap" }}>
                           {col.label}
                         </Text>
                       </Group>
@@ -336,10 +377,12 @@ export default function DispatcherView() {
                         <EmergencyCard
                           key={em.id}
                           emergency={em}
+                          clampDescription
                           isNew={newEmergencyIds.has(String(em.id))}
                           onAssignOfficer={handleOpenAssignModal}
                           onValidate={handleValidate}
                           onDiscard={handleDiscard}
+                          onCloseEmergency={setCloseTarget}
                         />
                       ))
                     )}
@@ -348,7 +391,7 @@ export default function DispatcherView() {
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* ── VISTA CELULAR: Swipe Horizontal estilo Tinder (Toda la pantalla para un estado) ── */}
@@ -518,6 +561,7 @@ export default function DispatcherView() {
                             onAssignOfficer={handleOpenAssignModal}
                             onValidate={handleValidate}
                             onDiscard={handleDiscard}
+                            onCloseEmergency={setCloseTarget}
                           />
                         ))
                       )}
@@ -545,6 +589,32 @@ export default function DispatcherView() {
         }}
         onConfirm={confirmDiscard}
       />
+      <Modal
+        opened={Boolean(closeTarget)}
+        onClose={() => {
+          if (!closeBusy) setCloseTarget(null);
+        }}
+        title="Cerrar emergencia"
+        centered
+      >
+        <Text size="sm">
+          ¿Confirmás el cierre definitivo de la emergencia{" "}
+          <strong>#{closeTarget ? shortId(closeTarget.id) : ""}</strong>? Solo
+          se puede cerrar una emergencia resuelta.
+        </Text>
+        <Group justify="flex-end" mt="lg">
+          <Button
+            variant="default"
+            disabled={closeBusy}
+            onClick={() => setCloseTarget(null)}
+          >
+            Cancelar
+          </Button>
+          <Button color="teal" loading={closeBusy} onClick={confirmClose}>
+            Confirmar cierre
+          </Button>
+        </Group>
+      </Modal>
     </div>
   );
 }

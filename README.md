@@ -59,7 +59,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 
 - El JWT vive en la cookie `citypass_session` (`httpOnly`, `sameSite: lax`, `secure` en producción y vencimiento igual al `exp` del token). El JS del navegador no lo ve.
 - El backend es la autoridad: verifica la firma del JWT y los `groups` en cada request. El middleware del front no verifica la firma: decide redirecciones mirando solo `exp` y `groups` (ver [Middleware](#middleware)).
-- `lib/backend-fetch.js` reintenta 502, 503, 504 y errores de red hasta 6 veces, con 4 s entre intentos, para absorber el arranque en frío de Render.
+- `lib/backend-fetch.js` reintenta 502, 503, 504 y errores de red hasta 6 veces, con 4 s entre intentos, para absorber el arranque en frío de Render. POST y PATCH reintentan menos casos (ver [Proxy](#proxy-apibackendpath)).
 
 ---
 
@@ -72,6 +72,7 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `PORT` | `3001` | Puerto de `npm start`. Render lo define solo. |
 | `BACKEND_WARMUP_PATH` | `/` | Path que pega `/api/warmup`. En Render es `/health`. |
 | `BACKEND_WARMUP` | | `off` desactiva `/api/warmup` (para cuando el backend sea always-on). |
+| `DEV_ALLOWED_ORIGINS` | | Solo `npm run dev`: hosts extra desde los que se abre el dev server, separados por coma (ej. `100.88.28.30,192.168.100.246`). Ver [Dev server desde otra máquina](#dev-server-desde-otra-máquina). |
 
 `lib/session.js` todavía acepta `NEXT_PUBLIC_API_URL` como segundo fallback de `API_URL`. Es un resto viejo: no hace falta y no conviene usarlo.
 
@@ -86,10 +87,10 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/acceso` | Sin sesión (con sesión redirige al home del rol) | Login con email y contraseña, registro, recuperar contraseña y atajos demo |
 | `/inicio` | Ciudadano | Botón SOS (solo si `hasAntipanicButton`) y acceso a reportar |
 | `/reportar` | Ciudadano | Reporte de incidente por categoría: médica, incendio, infraestructura, disturbio o evento, otro |
-| `/mis-alertas` | Ciudadano | Mis emergencias, refresco cada 5 s |
-| `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados (refresco cada 5 s, pausado con la pestaña oculta) y cancelar con confirmación |
+| `/mis-alertas` | Ciudadano | Mis emergencias, refresco cada 30 s (pausado con la pestaña oculta) |
+| `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados y cancelar con confirmación. Refresca cada 30 s, pausado con la pestaña oculta, y deja de consultar cuando la emergencia queda cancelada, cerrada o descartada |
 | `/perfil`, `/perfil/datos`, `/perfil/ubicaciones`, `/perfil/ayuda` | Ciudadano | Cuenta, datos personales y ubicaciones guardadas (en el backend, cifrados) y ayuda |
-| `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar y asignar oficial |
+| `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar, asignar oficial y cerrar emergencias resueltas |
 | `/ops/lista` | Dispatcher | Lista ordenada por prioridad, con métricas que filtran, búsqueda, orden por columna y panel de detalle |
 | `/ops/asignar/[id]` | Dispatcher | Elegir oficial disponible para una emergencia validada |
 | `/ops/mapa` | Dispatcher | Mapa Leaflet con las emergencias de `GET /api/emergencies` (hasta 100) |
@@ -97,10 +98,14 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/ops/oficiales` | Dispatcher | Catálogo de oficiales y su estado |
 | `/ops/cuenta` | Dispatcher | Mi cuenta y logout |
 | `/ops/emergencias` | Dispatcher | Redirige a `/ops/lista` |
+| `/oficial` | Oficial | Emergencias asignadas al oficial (DESPACHADA, EN CAMINO, EN LUGAR) con un botón por paso: **En camino** → **Llegué al lugar** → **Resolver**. Al resolver permite seleccionar causas relacionadas; `VIA` requiere una descripción de hasta 280 caracteres. Refresco cada 30 s, pausado con la pestaña oculta. Mismo panel lateral (y barra inferior en celular) que ciudadano y dispatcher: **Asignaciones** y **Mi cuenta** |
+| `/oficial/cuenta` | Oficial | Mi cuenta y logout (misma vista que ciudadano y dispatcher) |
 
-Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_INTERVAL_MS`).
+Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 30 s (`POLLING_INTERVAL_MS`), pausado con la pestaña oculta.
 
-**No hay vistas de oficial.** El backend ya tiene el grupo `officer` y las rutas para que el oficial avance el estado (`en-route`, `on-scene`, `resolve`), pero el front no tiene pantallas ni código que las use. Un token de oficial cae en `/inicio`, como un ciudadano.
+En `/ops`, el dispatcher puede cerrar una emergencia desde la columna **Resuelta**. La acción pide confirmación y solo se ofrece para registros en `RESOLVED`; el backend los pasa a `CLOSED`.
+
+**Vista de oficial (MVP).** `/oficial` lista lo asignado al oficial (`GET /api/emergencies`, que el backend filtra por `assignedOfficerId` = `sub`) y avanza el estado con `PATCH /api/emergencies/:id/en-route`, `/on-scene` y `/resolve`. Al resolver puede registrar `VIA`, `ESPACIO_PUBLICO` o `RESIDUOS`; `descripcionProblema` es obligatoria solo si selecciona `VIA`. Todavía no tiene observaciones ni refuerzos. Un oficial no entra a las pantallas de ciudadano ni a `/ops`: el middleware lo manda a `/oficial`. Es oficial quien trae el grupo `officer` o `poli` (el grupo LDAP de los oficiales en el Login Federado).
 
 ---
 
@@ -111,19 +116,21 @@ Las vistas del dispatcher (kanban, lista y mapa) refrescan cada 60 s (`POLLING_I
 | `POST` | `/api/auth/login` | Con `{email, password}` llama a `POST /auth/login`. Con `{sub, groups}` (atajos demo) llama a `POST /auth/dev/login`. Después completa el usuario con `GET /api/user` y setea la cookie. |
 | `POST` | `/api/auth/register` | `POST /auth/register` con email, contraseña y nombre. Setea la cookie. |
 | `GET` | `/api/auth/session` | Usuario de la sesión: `GET /api/user` o, si falla, los claims del JWT. |
+| `POST` | `/api/auth/refresh` | Solo para sesiones del Login Federado (LDAP): canjea el refresh token de la cookie `citypass_refresh` en el IdP por un JWT nuevo y rota el refresh token. Sin esa cookie responde 401 (`reason: "no_refresh_token"`) sin llamar al IdP. Lo usan `SessionRefreshManager` y `apiFetch` (ante un 401 del proxy). |
 | `POST` | `/api/auth/logout` | Borra la cookie. |
 | `POST` | `/api/auth/forgot-password` | **Stub:** responde 200 siempre y no llama al backend. |
 | `GET` `POST` `PUT` `PATCH` `DELETE` | `/api/backend/[...path]` | Proxy al backend (ver abajo). |
-| `GET` | `/api/geocode?lat=&lng=` | Dirección legible de una coordenada (`lib/geocode-server.js`): caché de 24 h, agrupa pedidos iguales, BigDataCloud primero y Nominatim de respaldo. |
+| `GET` | `/api/geocode?lat=&lng=` | Dirección legible de una coordenada (`lib/geocode-server.js`). Exige sesión (401 sin ella, en el middleware y en el route). Caché de 24 h, agrupa pedidos iguales, BigDataCloud primero y Nominatim de respaldo. |
 | `GET` | `/api/warmup` | Pega a `BACKEND_WARMUP_PATH` para despertar al backend. Lo llama `BackendWarmup` al cargar la app. |
 
 ### Proxy `/api/backend/[...path]`
 
 - Exporta `GET`, `POST`, `PUT`, `PATCH` y `DELETE`. `HEAD` y `OPTIONS` no están exportados.
-- `/api/backend/<path>?<query>` va a `${API_URL}/<path>?<query>` sin tocar el path. Por eso el front llama a `/api/backend/api/emergencies`, que termina en `/api/emergencies` del backend.
+- Solo pasan las rutas de una lista (`ALLOWED_ROUTES` en el route), cada una con sus métodos: `api/emergencies` (GET y PATCH), `api/panic-button` (POST), `api/officers` (GET), `api/citizen/profile` (GET y PUT) y `api/citizen/saved-locations` (GET, POST, PATCH y DELETE). Una ruta fuera de la lista responde 404, un método no permitido 405 y un segmento inválido (`..`, restos de encoding) 400, sin llamar al backend.
+- Para las rutas permitidas, `/api/backend/<path>?<query>` va a `${API_URL}/<path>?<query>` con el mismo path. Por eso el front llama a `/api/backend/api/emergencies`, que termina en `/api/emergencies` del backend.
 - Agrega `Authorization: Bearer <JWT de la cookie>` y reenvía `Content-Type`, `Idempotency-Key` y el body (salvo en GET y HEAD).
 - Si la cookie no está o venció, responde 401 sin llamar al backend. Si el backend responde 401, borra la cookie.
-- Reintenta 502, 503, 504 y errores de red en todos los métodos. En POST, PUT y PATCH genera un `Idempotency-Key` que se mantiene entre reintentos, pero **el backend hoy no lo usa**: si un POST llegó a procesarse antes del 502, el reintento puede duplicarlo.
+- Los reintentos dependen del método (`lib/backend-fetch.js`). GET, PUT y DELETE reintentan ante 502, 503, 504 y cualquier error de red o timeout. POST y PATCH solo ante 502 y 503 o si no se llegó a conectar, que es cuando la request no llegó al backend: un 504 o un corte después de conectar devuelven el error en vez de arriesgar un alta duplicada. En POST, PUT y PATCH manda un `Idempotency-Key` que se mantiene entre reintentos, pero **el backend hoy no lo usa**.
 
 Lo que el front consume por el proxy:
 
@@ -132,11 +139,12 @@ Lo que el front consume por el proxy:
 | `POST /api/panic-button` | SOS de `/inicio` y reportes de `/reportar` |
 | `GET /api/emergencies` (con `status`, `page`, `limit`, `sortBy`, `order`) y `GET /api/emergencies/:id` | Ciudadano y dispatcher |
 | `PATCH /api/emergencies/:id/cancel` | Ciudadano, desde el detalle |
-| `PATCH /api/emergencies/:id/validate`, `/discard`, `/assign` | Dispatcher |
+| `PATCH /api/emergencies/:id/validate`, `/discard`, `/assign` y `/close` | Dispatcher |
+| `GET /api/emergencies` (filtrado por el backend) y `PATCH /api/emergencies/:id/en-route`, `/on-scene`, `/resolve` | Oficial, en `/oficial` |
 | `GET /api/officers` (con `status=disponible` en el modal de asignar) | Dispatcher |
 | `GET`/`PUT /api/citizen/profile` y `GET`/`POST`/`PATCH`/`DELETE /api/citizen/saved-locations` | Perfil del ciudadano |
 
-El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencies/:id/close` y `/return` (dispatcher), `/en-route`, `/on-scene` y `/resolve` (oficial), `GET /api/incidents` y `GET /api/outbox-events`.
+El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencies/:id/return` (dispatcher), `GET /api/incidents` y `GET /api/outbox-events`.
 
 ### Middleware
 
@@ -144,18 +152,19 @@ El backend tiene más rutas que el front todavía no usa: `PATCH /api/emergencie
 
 | Caso | Respuesta |
 |---|---|
-| `/api/backend/*` o `/api/auth/session` sin sesión válida | 401 JSON `{ error: "Unauthorized" }`. Si la cookie estaba pero vencida, la borra. |
-| `/acceso` con sesión válida | Redirige al home del rol: `/ops` para el dispatcher y `/inicio` para cualquier otro grupo (ciudadano u oficial) |
+| `/api/backend/*`, `/api/auth/session` o `/api/geocode` sin sesión válida | 401 JSON `{ error: "Unauthorized" }`. Si la cookie estaba pero vencida, la borra. |
+| `/acceso` con sesión válida | Redirige al home del rol: `/ops` para el dispatcher, `/oficial` para el oficial e `/inicio` para cualquier otro grupo |
 | Ruta de ciudadano o de `/ops` sin sesión válida | Redirige a `/acceso` y borra la cookie vencida |
-| `/ops/*` con sesión que no es de dispatcher (ciudadano, oficial o sin grupos) | Redirige a `/inicio` |
+| Cualquier ruta protegida que no sea `/oficial` con sesión de oficial | Redirige a `/oficial` |
+| `/oficial` con sesión que no es de oficial | Redirige a `/ops` (dispatcher) o `/inicio` |
+| `/ops/*` con sesión que no es de dispatcher (ciudadano o sin grupos) | Redirige a `/inicio` |
 | `/inicio`, `/reportar`, `/mis-alertas/*` o `/perfil/*` con sesión de dispatcher | Redirige a `/ops` |
 | Todo lo demás | Pasa |
 
 El filtro por rol es de navegación: evita que cada usuario caiga en pantallas que no son suyas. La autorización real la hace el backend en cada request.
 
-Dos cosas a tener en cuenta:
+A tener en cuenta:
 
-- `/api/geocode` no exige sesión. El comentario del route dice que sí, pero ni el middleware ni el route lo chequean.
 - En Next 16 la convención `middleware` está deprecada en favor de `proxy` (`next build` lo avisa). Sigue funcionando y el renombre queda pendiente.
 
 ---
@@ -171,7 +180,7 @@ Dos cosas a tener en cuenta:
 | Chip **JuanPanico** | Rellena `juanpanico@gmail.com` y la contraseña `abracadabra` | `POST /auth/login` |
 | Chip **LuciaTranquila** | Rellena `luciatranquila@gmail.com` y `abracadabra` | `POST /auth/login` |
 | **Iniciar con cuenta ciudadana** | Entra como `U000042` (ciudadano sin botón SOS) | `POST /auth/dev/login` con `sub` |
-| Bloque **Demo · entrar sin contraseña** (debajo de la tarjeta) | Un botón por cuenta: `DISP-Demo001` (dispatcher, va a `/ops`), `of-001` y `of-002` (oficiales, van a `/inicio` porque no hay home de oficial) y `CIT-JuanPanico` (ciudadano con botón SOS). Salen de `DEMO_LOGIN_SHORTCUTS` en `app/lib/features.js` | `POST /auth/dev/login` con `sub` |
+| Bloque **Demo · entrar sin contraseña** (debajo de la tarjeta) | Un botón por cuenta: `DISP-Demo001` (dispatcher, va a `/ops`), `of-001` y `of-002` (oficiales, van a `/oficial`) y `CIT-JuanPanico` (ciudadano con botón SOS). Salen de `DEMO_LOGIN_SHORTCUTS` en `app/lib/features.js` | `POST /auth/dev/login` con `sub` |
 | Panel de la llave → **Acceso Directo Demo** | Entra como `DISP-Demo001` (dispatcher) | `POST /auth/dev/login` con `sub` |
 
 - **La contraseña demo está en el bundle de JS.** `fillDemo` en `app/acceso/AccesoForm.js` tiene `"abracadabra"` escrito en el código, así que cualquiera que abra las DevTools la ve. Son cuentas públicas de demo, sembradas por la migración V16 del backend. No reutilizar esa contraseña en ningún lado.
@@ -209,7 +218,7 @@ PENDING ──► VALIDATED ──► DISPATCHED ──► EN_ROUTE ──► ON
    └──► DISCARDED        (el dispatcher descarta desde PENDING)
 ```
 
-Desde el front, el ciudadano cancela y el dispatcher valida, descarta y asigna oficial. `app/lib/emergencies.js` además acepta para mostrar algunos alias viejos que el backend no emite: `CREATED` (default de la tabla antes de la migración V5), `ON_SITE` y los nombres en minúscula y en castellano.
+Desde el front, el ciudadano cancela; el dispatcher valida, descarta, asigna oficial y cierra las resueltas; y el oficial avanza de `DISPATCHED` a `RESOLVED`. `app/lib/emergencies.js` además acepta para mostrar algunos alias viejos que el backend no emite: `CREATED` (default de la tabla antes de la migración V5), `ON_SITE` y los nombres en minúscula y en castellano.
 
 ---
 
@@ -222,13 +231,13 @@ npm run test:integration  # integración del BFF
 
 | Suite | Qué cubre | Config | Umbral |
 |---|---|---|---|
-| Unitarios | `lib/**`, `app/lib/**` (menos `app/lib/auth.js`, que depende de `sessionStorage`) y `middleware.js` | `vitest.config.mjs` | 80% en statements, branches, functions y lines |
+| Unitarios | `lib/**`, `app/lib/**` (menos `app/lib/auth.js`, que depende de `sessionStorage`: tiene tests en `tests/auth.test.js` pero no cuenta para la cobertura) y `middleware.js` | `vitest.config.mjs` | 80% en statements, branches, functions y lines |
 | Integración del BFF | Route Handlers de `app/api/**` invocados con `Request` reales | `vitest.integration.config.mjs` | Sin umbral |
 
-Números al 05/11/2026 (Node 22): **259 tests unitarios** en 15 archivos y **29 de integración** en 5. Cobertura de unit: **97,28% statements, 88,86% branches, 97,98% functions y 99,14% lines**. `middleware.js` está al 100%.
+Números al 16/11/2026 (Node 22): **360 tests unitarios** en 19 archivos y **75 de integración** en 7. Cobertura de unit: **97,1% statements, 89,95% branches, 97,95% functions y 98,16% lines**. `middleware.js` está en 84,37% de statements y 85,36% de branches.
 
 - Las dos suites corren en entorno `node` y pasan en Node 20, 22 y 24. Desde Node 21, `navigator` es un global de solo lectura: los tests que lo necesitan usan `vi.stubGlobal` y lo restauran con `vi.unstubAllGlobals()`.
-- Los tests de integración (`tests/integration/`) mockean `global.fetch` (el backend) y `next/headers` (las cookies) con los helpers de `tests/integration/helpers.js`. No levantan servidor ni backend real. Cubren login (email y contraseña, y atajos demo con `sub`), registro, sesión, el proxy y geocode. Quedan sin test `logout`, `warmup` y `forgot-password`.
+- Los tests de integración (`tests/integration/`) mockean `global.fetch` (el backend) y `next/headers` (las cookies) con los helpers de `tests/integration/helpers.js`. No levantan servidor ni backend real. Cubren login (email y contraseña, y atajos demo con `sub`), registro, sesión, refresh, el proxy (lista de rutas, CSRF y reintentos), geocode y el chequeo CSRF de los POST de `/api/auth`. `warmup` no tiene test; de `logout` y `forgot-password` solo se prueba el chequeo CSRF.
 - El umbral del 80% es sobre las librerías y el middleware, no sobre todo el frontend. Los componentes React, las páginas y los layouts no tienen tests.
 - SonarCloud analiza `lib` y `app/lib` (`sonar.sources` en `sonar-project.properties`). Todavía no incluye `middleware.js`.
 - **Deuda declarada:** no hay tests E2E ni de componentes (ni Playwright ni Testing Library), ni smoke tests contra el deploy. Antes de cada demo se prueba a mano: login de cada rol, SOS, validar, asignar y descartar.
@@ -255,7 +264,7 @@ docker run --rm -p 3001:3001 -e API_URL=http://host.docker.internal:3000 emergen
 
 ## Dev server desde otra máquina
 
-El dev server de Next responde **403 en `/_next/*`** cuando el host del request no es `localhost`. La página carga el HTML pero React nunca hidrata: los botones no hacen nada y no aparecen errores en pantalla, solo en la consola del navegador. La IP desde la que se accede tiene que estar en `allowedDevOrigins` de `next.config.mjs`, que hoy tiene la IP de Tailscale y la de la LAN del equipo. Los cambios en `next.config.mjs` requieren reiniciar el dev server.
+El dev server de Next responde **403 en `/_next/*`** cuando el host del request no es `localhost`. La página carga el HTML pero React nunca hidrata: los botones no hacen nada y no aparecen errores en pantalla, solo en la consola del navegador. La IP desde la que se accede tiene que estar en `DEV_ALLOWED_ORIGINS` (por ejemplo en `.env.local`: `DEV_ALLOWED_ORIGINS=100.88.28.30,192.168.100.246`), que `next.config.mjs` pasa a `allowedDevOrigins`. Hay que reiniciar el dev server después de cambiarla.
 
 ---
 

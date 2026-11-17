@@ -43,10 +43,4 @@ export async function removeSavedLocation(id) {
   return true;
 }
 
-/** Solo limpia restos locales. */
-export function clearSavedLocations() {
-  purgeLegacySavedLocationsStorage();
-  return true;
-}
-
 export { LEGACY_STORAGE_KEY as SAVED_LOCATIONS_STORAGE_KEY };

@@ -9,6 +9,7 @@ import {
   fetchEmergencies,
   CITIZEN_POLLING_INTERVAL_MS,
 } from "../../lib/api";
+import { createPoller } from "../../lib/polling";
 import {
   formatTime,
   getStatusConfig,
@@ -98,11 +99,11 @@ export default function MisAlertasPage() {
     }
   }, []);
 
+  // Polling con pausa en pestaña oculta y sin pedidos superpuestos (createPoller).
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-    const interval = setInterval(load, CITIZEN_POLLING_INTERVAL_MS);
-    return () => clearInterval(interval);
+    const poller = createPoller({ load, intervalMs: CITIZEN_POLLING_INTERVAL_MS });
+    poller.start();
+    return () => poller.stop();
   }, [load]);
 
   const activeAlerts = emergencies.filter((e) => isActiveStatus(e.status));

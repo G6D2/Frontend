@@ -62,6 +62,41 @@ function formatUpdatedAgo(lastUpdated, nowTick) {
   return `Actualizado hace ${mins}min`;
 }
 
+/** Devuelve la hora actual y re-renderiza a quien lo usa cada `intervalMs`,
+ * solo con la pestaña visible (al volver se pone al día en el acto). */
+function useVisibleTick(intervalMs) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    let tick = null;
+    const start = () => { if (!tick) tick = setInterval(() => setNow(Date.now()), intervalMs); };
+    const stop = () => { if (tick) { clearInterval(tick); tick = null; } };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") { setNow(Date.now()); start(); } else stop();
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => { stop(); document.removeEventListener("visibilitychange", handleVisibility); };
+  }, [intervalMs]);
+
+  return now;
+}
+
+/** "Actualizado hace Ns" con su propio tick de 1 s: el segundero re-renderiza
+ * solo este texto y no la página entera (tarjetas, tabla y panel). */
+function UpdatedAgo({ lastUpdated }) {
+  const now = useVisibleTick(1000);
+  return (
+    <span className="text-[10px] font-medium text-on-surface-variant whitespace-nowrap">
+      {formatUpdatedAgo(lastUpdated, now)}
+    </span>
+  );
+}
+
+/** Cada cuánto se re-renderiza la página para que avance "Transcurrido"
+ * (elapsedMinutes, granularidad de minutos), aunque el poll falle o tarde. */
+const ELAPSED_TICK_MS = 30_000;
+
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 const STATUS_ORDER = {
   PENDING: 0, pendiente: 0,
@@ -197,7 +232,9 @@ export default function OpsPage() {
   const [actionBusy, setActionBusy] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [nowTick, setNowTick] = useState(() => Date.now());
+  // "Transcurrido" se calcula al renderizar: sin esto solo avanzaría cuando
+  // llega un poll bueno.
+  useVisibleTick(ELAPSED_TICK_MS);
 
   // ── Controles de datos ────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
@@ -258,19 +295,6 @@ export default function OpsPage() {
       poller.stop();
     };
   }, [load, router]);
-
-  // Tick de 1s para el indicador "actualizado hace Xs"
-  useEffect(() => {
-    let tick = null;
-    const start = () => { if (!tick) tick = setInterval(() => setNowTick(Date.now()), 1000); };
-    const stop = () => { if (tick) { clearInterval(tick); tick = null; } };
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") start(); else stop();
-    };
-    if (document.visibilityState === "visible") start();
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => { stop(); document.removeEventListener("visibilitychange", handleVisibility); };
-  }, []);
 
   // ── Datos derivados ───────────────────────────────────────────────
 
@@ -487,11 +511,7 @@ export default function OpsPage() {
       <PageHeader
         title="Lista"
         right={
-          lastUpdated ? (
-            <span className="text-[10px] font-medium text-on-surface-variant whitespace-nowrap">
-              {formatUpdatedAgo(lastUpdated, nowTick)}
-            </span>
-          ) : null
+          lastUpdated ? <UpdatedAgo lastUpdated={lastUpdated} /> : null
         }
       />
       <main className="p-3 sm:p-4 flex-1 flex flex-col gap-3 sm:gap-4 min-h-0">

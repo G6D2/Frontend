@@ -32,13 +32,12 @@ export function isDelegado(user) {
   return list.some((g) => g === "delegados" || g === "delegado");
 }
 
-export function isCitizen(user) {
-  return getUserRoleTokens(user).includes("citizen");
-}
-
-// TODO(back): grupo `officer` + guards de pantallas de terreno (HU-08/09/10)
+// `poli` es el grupo LDAP de los oficiales en el Login Federado. El backend
+// lo traduce a `officer`, pero el middleware decide la ruta con los grupos
+// crudos del token, así que el front también tiene que reconocerlo.
 export function isOfficer(user) {
-  return getUserRoleTokens(user).includes("officer");
+  const list = getUserRoleTokens(user);
+  return list.some((g) => g === "officer" || g === "poli");
 }
 
 export function getHomePathForUser(user) {
@@ -46,5 +45,6 @@ export function getHomePathForUser(user) {
     return process.env.NEXT_PUBLIC_LDAP_PANEL_URL || "https://citypass-login.pp.ua";
   }
   if (isDispatcher(user)) return "/ops";
+  if (isOfficer(user)) return "/oficial";
   return "/inicio";
 }

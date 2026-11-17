@@ -1,19 +1,14 @@
-import {
-  clearStoredUser,
-  getStoredUser,
-  setStoredUser,
-  getHomePathForUser,
-} from "./auth";
+import { clearStoredUser, getStoredUser, setStoredUser } from "./auth";
 import { SEVERITY_CONFIG } from "./emergencies";
 import { normalizeAlertasClimaticas } from "./clima";
 
-/** Intervalo de polling para el dispatcher (15 s). Se pausa con la pestaña
- *  oculta y nunca superpone pedidos (ver createPoller en ./polling). */
-export const POLLING_INTERVAL_MS = 15_000;
-/** Intervalo de polling para la vista del ciudadano (5 s). Permite actualizaciones
- *  casi en tiempo real del historial de estados sin sobrecargar el sistema,
- *  dado que la carga de ciudadanos simultáneos es menor que la del dispatcher. */
-export const CITIZEN_POLLING_INTERVAL_MS = 5_000;
+/** Intervalo de polling para el dispatcher (30 s, 2 por minuto). Se pausa con
+ *  la pestaña oculta y nunca superpone pedidos (ver createPoller en ./polling).
+ *  Se bajó de 15 s para reducir el tráfico del BFF al backend. */
+export const POLLING_INTERVAL_MS = 30_000;
+/** Intervalo de polling para las vistas del ciudadano y del oficial (30 s,
+ *  2 por minuto). Se bajó de 5 s para reducir el tráfico del BFF al backend. */
+export const CITIZEN_POLLING_INTERVAL_MS = 30_000;
 
 function purgeLegacyCitizenLocalStorage() {
   if (typeof window === "undefined") return;
@@ -306,15 +301,6 @@ export async function fetchCurrentUser() {
   return merged;
 }
 
-export async function hasValidSession() {
-  try {
-    await fetchCurrentUser();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // Tope del backend para el campo opcional `address` (string ≤ 200, ver
 // POST /api/panic-button en emergencies-backend).
 const ADDRESS_MAX_LENGTH = 200;
@@ -500,6 +486,14 @@ export async function validateEmergency(id) {
   return res.data;
 }
 
+export async function closeEmergency(id) {
+  const res = await apiFetch(`/api/emergencies/${id}/close`, {
+    method: "PATCH",
+    body: {},
+  });
+  return res.data;
+}
+
 export async function discardEmergency(id, reason) {
   const res = await apiFetch(`/api/emergencies/${id}/discard`, {
     method: "PATCH",
@@ -556,16 +550,45 @@ export async function assignOfficer(emergencyId, officerId) {
 }
 
 /**
- * @deprecated Stub 501: el backend todavía no expone estados de oficial
- * EN_ROUTE/ON_SITE/RESOLVED (HU-08). Ver Task Tracker issue #21. No debe
- * invocarse ni mostrarse ninguna acción que dependa de esto en pantallas del
- * ciudadano.
+ * Estados en los que el oficial todavía tiene algo que hacer. RESOLVED sale
+ * de su lista: el cierre definitivo (CLOSED) lo hace el dispatcher.
  */
-export async function updateEmergencyStatus() {
-  throw new ApiError(
-    "TODO(back): PATCH estado EN_ROUTE/ON_SITE/RESOLVED (HU-08)",
-    { status: 501 }
-  );
+export const OFFICER_STATUSES = ["DISPATCHED", "EN_ROUTE", "ON_SCENE"];
+
+/**
+ * Emergencias asignadas al oficial logueado. El backend fuerza el filtro
+ * assignedOfficerId = sub del token: acá no se manda.
+ */
+export async function fetchOfficerEmergencies() {
+  const { data } = await fetchEmergenciesPage({
+    status: OFFICER_STATUSES.join(","),
+    limit: 100,
+    sortBy: "priority",
+    order: "desc",
+  });
+  return data;
+}
+
+/**
+ * Próximo paso del oficial según el estado (máquina de estados del backend:
+ * DISPATCHED → EN_ROUTE → ON_SCENE → RESOLVED). null si no hay acción.
+ */
+export const OFFICER_NEXT_STEP = {
+  DISPATCHED: { action: "en-route", label: "En camino", icon: "directions_car" },
+  EN_ROUTE: { action: "on-scene", label: "Llegué al lugar", icon: "location_on" },
+  ON_SCENE: { action: "resolve", label: "Resolver", icon: "task_alt" },
+};
+
+/** PATCH /api/emergencies/:id/{en-route|on-scene|resolve} (solo oficial asignado). */
+export async function advanceOfficerStatus(id, action, resolution = {}) {
+  if (!["en-route", "on-scene", "resolve"].includes(action)) {
+    throw new ApiError(`Acción de oficial desconocida: ${action}`, { status: 400 });
+  }
+  const res = await apiFetch(`/api/emergencies/${id}/${action}`, {
+    method: "PATCH",
+    body: action === "resolve" ? resolution : {},
+  });
+  return res?.data;
 }
 
 /**
@@ -683,4 +706,5 @@ export function getCurrentLocation(options = {}) {
   });
 }
 
-export { getStoredUser, setStoredUser, getHomePathForUser, clearStoredUser as clearSession };
+export { getStoredUser, setStoredUser };
+export { getHomePathForUser } from "./auth";

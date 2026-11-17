@@ -11,7 +11,7 @@
 // lo que el BFF le reenvía al backend, un 400/401 del backend se propaga tal
 // cual, y los 502 transitorios del backend dormido (Render free) se resuelven
 // solos gracias a lib/backend-fetch.js.
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
@@ -19,7 +19,13 @@ import { cookies } from "next/headers";
 import { POST } from "../../app/api/auth/login/route.js";
 import { DEMO_LOGIN_SHORTCUTS } from "../../app/lib/features.js";
 import { getHomePathForUser } from "../../app/lib/auth-roles.js";
-import { mockNextCookies, mockBackend, makeRequest } from "./helpers.js";
+import {
+  mockNextCookies,
+  mockBackend,
+  mockHangingFetch,
+  fakeAbortSignalTimeout,
+  makeRequest,
+} from "./helpers.js";
 
 const LOGIN_URL = "http://localhost/api/auth/login";
 
@@ -191,8 +197,8 @@ describe("POST /api/auth/login", () => {
   // Atajos "Demo" de /acceso: el body es el que arma loginDev con cada cuenta.
   it.each([
     ["DISP-Demo001", ["dispatcher"], "/ops"],
-    ["of-001", ["officer"], "/inicio"],
-    ["of-002", ["officer"], "/inicio"],
+    ["of-001", ["officer"], "/oficial"],
+    ["of-002", ["officer"], "/oficial"],
     ["CIT-JuanPanico", ["citizen"], "/inicio"],
   ])("atajo demo %s: reenvía sub y grupos a /auth/dev/login y el user lleva a %s", async (sub, groups, home) => {
     const { account } = DEMO_LOGIN_SHORTCUTS.find((s) => s.account.sub === sub);
@@ -400,5 +406,102 @@ describe("POST /api/auth/login", () => {
     } finally {
       global.fetch = originalFetch;
     }
+  });
+});
+
+// El Login Federado es un servicio externo: si no responde, el login no puede
+// quedar colgado. La ruta corta a los 8 s (AbortSignal.timeout) y devuelve 504;
+// los demás errores del IdP se siguen informando como antes.
+describe("POST /api/auth/login con loginType ldap: el IdP no responde o falla", () => {
+  const originalFetch = global.fetch;
+  let timeoutSpy;
+
+  // Usuario y contraseña inventados: el IdP está mockeado.
+  const ldapRequest = () =>
+    makeRequest(LOGIN_URL, {
+      method: "POST",
+      body: { username: "usuario-de-prueba", password: "x", loginType: "ldap" },
+    });
+
+  const TIMEOUT_BODY = {
+    error: "Gateway Timeout",
+    message: "El Login Federado no responde. Probá de nuevo.",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockNextCookies(cookies);
+    vi.useFakeTimers();
+    timeoutSpy = fakeAbortSignalTimeout();
+  });
+
+  afterEach(() => {
+    timeoutSpy.mockRestore();
+    vi.useRealTimers();
+    global.fetch = originalFetch;
+  });
+
+  it("sin respuesta: espera 8 s, devuelve 504 con mensaje claro y no setea cookies", async () => {
+    const { calls } = mockHangingFetch();
+
+    let settled = false;
+    const pending = POST(ldapRequest()).finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(7999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const res = await pending;
+
+    expect(res.status).toBe(504);
+    expect(await res.json()).toEqual(TIMEOUT_BODY);
+    expect(res.cookies.get("citypass_session")).toBeUndefined();
+    expect(res.cookies.get("citypass_refresh")).toBeUndefined();
+    expect(timeoutSpy).toHaveBeenCalledWith(8000);
+    // Una sola llamada, al IdP: no reintenta ni cae al login del backend.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].path).toBe("/auth/login");
+    expect(calls[0].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("responde los headers y se cuelga el cuerpo: también 504", async () => {
+    mockHangingFetch({ afterHeaders: true });
+
+    const pending = POST(ldapRequest());
+    await vi.advanceTimersByTimeAsync(8000);
+    const res = await pending;
+
+    expect(res.status).toBe(504);
+    expect(await res.json()).toEqual(TIMEOUT_BODY);
+    expect(res.cookies.get("citypass_session")).toBeUndefined();
+  });
+
+  it("error de red (no es timeout): sigue siendo 502 con el mensaje de siempre", async () => {
+    mockBackend({ "POST /auth/login": "network-error" });
+
+    const res = await POST(ldapRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(502);
+    expect(json.message).toBe("No se pudo conectar con el servidor de Login Federado (LDAP).");
+  });
+
+  it("credenciales inválidas con cuerpo que no es JSON: propaga el status del IdP", async () => {
+    // El .catch de res.json() solo deja pasar el timeout; cualquier otro
+    // error de parseo sigue tratándose como "sin cuerpo".
+    global.fetch = vi.fn(async () => ({
+      status: 401,
+      ok: false,
+      json: async () => {
+        throw new SyntaxError("Unexpected token <");
+      },
+    }));
+
+    const res = await POST(ldapRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(json.message).toBe("Usuario o contraseña inválidos en LDAP");
   });
 });

@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import { isTokenExpired } from "@/lib/jwt";
 import { SESSION_COOKIE } from "@/lib/session";
 import { decodeJwtPayload } from "@/lib/jwt";
-import { getHomePathForUser, isDispatcher, isDelegado } from "@/app/lib/auth-roles";
+import { isDispatcher, isDelegado, isOfficer } from "@/app/lib/auth-roles";
 
 /**
  * Guard UX de rutas (existencia de cookie + exp).
@@ -20,24 +20,9 @@ import { getHomePathForUser, isDispatcher, isDelegado } from "@/app/lib/auth-rol
  * Este middleware NO valida la firma del JWT.
  */
 
-const PUBLIC_PREFIXES = [
-  "/acceso",
-  "/api/auth/login",
-  "/api/auth/logout",
-  "/api/auth/register",
-  "/_next",
-  "/favicon.ico",
-];
-
 const CITIZEN_PREFIXES = ["/inicio", "/reportar", "/mis-alertas", "/perfil"];
 const OPS_PREFIXES = ["/ops"];
-
-function isPublic(pathname) {
-  if (pathname === "/") return true;
-  return PUBLIC_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
-  );
-}
+const OFFICER_PREFIXES = ["/oficial"];
 
 /**
  * Rutas que requieren sesión activa (autenticación).
@@ -45,8 +30,9 @@ function isPublic(pathname) {
  */
 function isProtected(pathname) {
   return (
-    CITIZEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
-    OPS_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+    matchesAny(pathname, CITIZEN_PREFIXES) ||
+    matchesAny(pathname, OPS_PREFIXES) ||
+    matchesAny(pathname, OFFICER_PREFIXES)
   );
 }
 
@@ -86,7 +72,11 @@ export function middleware(request) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const valid = Boolean(token) && !isTokenExpired(token);
 
-  if (pathname.startsWith("/api/backend") || pathname.startsWith("/api/auth/session")) {
+  // Rutas del BFF que exigen sesión: 401 JSON en vez de redirect. /api/geocode
+  // también lo chequea en el route; acá queda como segunda barrera.
+  if (
+    matchesAny(pathname, ["/api/backend", "/api/auth/session", "/api/geocode"])
+  ) {
     if (!valid) {
       const res = NextResponse.json(
         { error: "Unauthorized", message: "Sin sesión" },
@@ -122,6 +112,9 @@ export function middleware(request) {
       if (isDispatcher(user)) {
         return NextResponse.redirect(new URL("/ops", request.url));
       }
+      if (isOfficer(user)) {
+        return NextResponse.redirect(new URL("/oficial", request.url));
+      }
       return NextResponse.redirect(new URL("/inicio", request.url));
     }
     return NextResponse.next();
@@ -133,10 +126,21 @@ export function middleware(request) {
     return res;
   }
 
-  // Guard de rol (UX): citizen ↔ ops. El backend sigue siendo la autoridad.
+  // Guard de rol (UX): citizen ↔ ops ↔ oficial. El backend sigue siendo la autoridad.
   if (valid && isProtected(pathname)) {
     const user = userFromToken(token);
     const dispatcher = isDispatcher(user);
+    // Un oficial (que no sea también dispatcher) solo tiene /oficial: las
+    // pantallas de ciudadano le darían 403 "Insufficient group membership".
+    const officer = !dispatcher && isOfficer(user);
+
+    if (officer && !matchesAny(pathname, OFFICER_PREFIXES)) {
+      return NextResponse.redirect(new URL("/oficial", request.url));
+    }
+    if (!officer && matchesAny(pathname, OFFICER_PREFIXES)) {
+      const target = dispatcher ? "/ops" : "/inicio";
+      return NextResponse.redirect(new URL(target, request.url));
+    }
 
     if (matchesAny(pathname, OPS_PREFIXES) && !dispatcher) {
       const target = isDelegado(user)
@@ -152,10 +156,7 @@ export function middleware(request) {
     }
   }
 
-  if (isPublic(pathname) || !isProtected(pathname)) {
-    return NextResponse.next();
-  }
-
+  // Todo lo que no es una ruta protegida (o lo es y pasó los guards) sigue.
   return NextResponse.next();
 }
 
