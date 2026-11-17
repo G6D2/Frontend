@@ -466,39 +466,40 @@ describe("getZoneContext", () => {
     expect(context.reason).toBe("Prioridad elevada: evento en la zona · Feria en el parque");
   });
 
-  it("describes a climate alert with phenomenon, severity and the emergency's barrio", () => {
+  it("describes a climate alert with the backend description (ADR #39 format), without barrio", () => {
+    // priorityContext tal como lo arma el backend para un punto de una alerta.
     const context = getZoneContext({
-      barrio: "VILLA DEL PARQUE",
+      barrio: "SAN NICOLAS",
       priorityContext: {
         tipo: "ALERTA_CLIMATICA",
-        barrios: ["VILLA DEL PARQUE", "AGRONOMIA"],
-        fenomeno: "TORMENTA_ELECTRICA",
-        gravedad: "ALTA",
+        latitud: -34.6037,
+        longitud: -58.3816,
+        radioMetros: 1000,
+        origen: "espacios",
+        referenciaExterna: "a7f0e2c4-1b3d-4e5f-8a9b-0c1d2e3f4a5b#0",
+        descripcion: "Alerta climática CRITICA: tormenta fuerte",
+        vigenteDesde: "2026-11-12T21:00:00.000Z",
         vigenteHasta: "2026-11-13T03:00:00.000Z",
       },
     });
     expect(context).toEqual({
       tipo: "ALERTA_CLIMATICA",
       label: "Alerta climática",
-      barrio: "Villa del Parque",
-      fenomeno: "Tormenta eléctrica",
-      gravedad: "alta",
-      descripcion: null,
+      barrio: null,
+      descripcion: "Alerta climática CRITICA: tormenta fuerte",
       vigenteHasta: "2026-11-13T03:00:00.000Z",
-      reason: "Elevada por alerta climática (Tormenta eléctrica, alta) en Villa del Parque",
+      reason: "Prioridad elevada por alerta climática CRITICA: tormenta fuerte",
     });
   });
 
-  it("is null-safe with missing barrio, phenomenon, description and unknown type", () => {
+  it("is null-safe with missing barrio, description and unknown type", () => {
     expect(getZoneContext({ priorityContext: { tipo: "ALERTA_CLIMATICA" } })).toEqual({
       tipo: "ALERTA_CLIMATICA",
       label: "Alerta climática",
       barrio: null,
-      fenomeno: null,
-      gravedad: null,
       descripcion: null,
       vigenteHasta: null,
-      reason: "Elevada por alerta climática",
+      reason: "Prioridad elevada por alerta climática",
     });
     expect(getZoneContext({ priorityContext: { tipo: "OTRO", barrio: 7 } }).label).toBe(
       "Contexto de zona"

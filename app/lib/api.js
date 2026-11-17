@@ -525,12 +525,12 @@ export async function fetchOfficers({ status } = {}) {
 export const ALERTAS_CLIMA_POLLING_INTERVAL_MS = 60_000;
 
 /**
- * Alertas climáticas activas o por empezar (GET
- * /api/contextos-zona/activos?tipo=ALERTA_CLIMATICA), ya normalizadas para
- * el banner. Incluye las que no elevan prioridad (gravedad LEVE/MEDIA).
+ * Alertas climáticas activas o por empezar (GET /api/contextos-zona/activos,
+ * una entrada por alerta), ya normalizadas para el banner. Solo ALTA y
+ * CRITICA: MEDIA y BAJA no suben prioridades y el backend no las lista.
  */
 export async function fetchAlertasClimaticasActivas() {
-  const res = await apiFetch("/api/contextos-zona/activos?tipo=ALERTA_CLIMATICA");
+  const res = await apiFetch("/api/contextos-zona/activos");
   return normalizeAlertasClimaticas(res);
 }
 

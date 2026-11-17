@@ -25,6 +25,7 @@ import {
   discardEmergency,
   overridePriority,
   fetchOfficers,
+  fetchAlertasClimaticasActivas,
   assignOfficer,
   fetchOfficerEmergencies,
   advanceOfficerStatus,
@@ -677,6 +678,23 @@ describe("api.js", () => {
     // de la migración V11) y filtra por igualdad exacta: cualquier otro valor
     // (p. ej. "AVAILABLE") devuelve una lista vacía. AssignOfficerModal pide
     // `disponible`.
+    it("fetchAlertasClimaticasActivas: pide el endpoint sin filtro y normaliza una entrada por alerta", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { alertaId: "a-1", nivel: "CRITICA", fenomenoEtiqueta: "Granizo", barrios: ["PALERMO"], enCurso: true, puntos: 1, radioMetros: 1000 },
+            { alertaId: "a-2", nivel: "MEDIA" },
+          ],
+        }),
+      });
+      const alertas = await fetchAlertasClimaticasActivas();
+      expect(global.fetch).toHaveBeenCalledWith("/api/backend/api/contextos-zona/activos", expect.anything());
+      expect(alertas).toHaveLength(1);
+      expect(alertas[0]).toMatchObject({ id: "a-1", nivelLabel: "crítica", fenomenoLabel: "Granizo", barrios: ["Palermo"] });
+    });
+
     it("fetchOfficers: devuelve lista con o sin filtro de status", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,

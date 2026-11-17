@@ -1,5 +1,4 @@
 import { formatBarrio } from "./barrio";
-import { formatFenomeno, formatGravedad } from "./clima";
 
 /**
  * Config de severidad: fuente única de verdad para label + color semántico.
@@ -316,6 +315,10 @@ function barrioOrNull(value) {
   return typeof value === "string" && value.trim() ? formatBarrio(value) : null;
 }
 
+function lowerFirst(text) {
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
 /**
  * Contexto de zona que está elevando la prioridad de despacho de la
  * emergencia (`priorityContext` del backend), normalizado para mostrar:
@@ -325,9 +328,12 @@ function barrioOrNull(value) {
  * - Evento en un espacio público: la zona es un radio alrededor del evento
  *   (backend #96), así que el contexto no trae barrio; si lo trae (formato
  *   anterior), se muestra.
- * - Alerta climática: la zona son barrios y el motivo nombra el barrio de
- *   la emergencia ("Elevada por alerta climática (Tormenta eléctrica, alta)
- *   en Palermo").
+ * - Alerta climática: también es un radio, alrededor de cada punto de la
+ *   alerta (ADR "Responder a las alertas climáticas de Espacios"). El
+ *   backend arma la descripción con el nivel y el fenómeno ("Alerta
+ *   climática CRITICA: tormenta fuerte"), así que el motivo es
+ *   "Prioridad elevada por alerta climática CRITICA: tormenta fuerte". El
+ *   barrio de la emergencia no se nombra: no es lo que la eleva.
  */
 export function getZoneContext(emergency) {
   const context = emergency?.priorityContext;
@@ -346,14 +352,10 @@ export function getZoneContext(emergency) {
   };
 
   if (context.tipo === "ALERTA_CLIMATICA") {
-    const barrio = barrioOrNull(emergency.barrio);
-    const fenomeno = formatFenomeno(context.fenomeno);
-    const gravedad = formatGravedad(context.gravedad);
-    const detalle = [fenomeno, gravedad].filter(Boolean).join(", ");
-    let reason = "Elevada por alerta climática";
-    if (detalle) reason += ` (${detalle})`;
-    if (barrio) reason += ` en ${barrio}`;
-    return { ...base, barrio, fenomeno, gravedad, reason };
+    const reason = descripcion
+      ? `Prioridad elevada por ${lowerFirst(descripcion)}`
+      : "Prioridad elevada por alerta climática";
+    return { ...base, barrio: null, reason };
   }
 
   const barrio = barrioOrNull(context.barrio);

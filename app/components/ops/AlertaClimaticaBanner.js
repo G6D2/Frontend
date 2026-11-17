@@ -10,10 +10,12 @@ import { formatAlertaClimatica } from "../../lib/clima";
 import { createPoller } from "../../lib/polling";
 
 /**
- * Banner del tablero del dispatcher con las alertas climáticas activas (o
- * por empezar), una línea por alerta. Aparece haya o no emergencias
- * abiertas (ADR "Elevar temporalmente la prioridad con contextos de zona",
- * aviso climático). Sin alertas no renderiza nada.
+ * Banner del tablero del dispatcher con las alertas climáticas ALTA y
+ * CRITICA activas (o por empezar), una línea por alerta: dónde suben un
+ * nivel las prioridades y hasta cuándo. Aparece haya o no emergencias
+ * abiertas. Solo lee: el aviso al resto de la ciudad lo publica Espacios
+ * (ADR "Responder a las alertas climáticas de Espacios"). Sin alertas no
+ * renderiza nada.
  *
  * Un error (backend dormido, endpoint todavía no desplegado) no se muestra:
  * se conserva lo último que se cargó y el poller reintenta en 60 s.
@@ -78,7 +80,7 @@ export default function AlertaClimaticaBanner() {
             <MaterialIcon
               name="warning"
               size={16}
-              className={alerta.eleva ? "text-amber-700" : "text-amber-500"}
+              className={alerta.enCurso ? "text-amber-700" : "text-amber-500"}
             />
             <span>{formatAlertaClimatica(alerta, { now })}</span>
           </li>
