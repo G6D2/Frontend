@@ -52,6 +52,7 @@ import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
 import { shortEmergencyId } from "../../lib/boardLayout";
 import { OriginBadge, OriginNotice } from "../../components/ops/OriginInfo";
 import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
+import StatusHistory, { useEmergencyHistory } from "../../components/ops/StatusHistory";
 import { reporterLabel } from "../../lib/displayText";
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -250,6 +251,9 @@ export default function OpsPage() {
   const [sortDir, setSortDir] = useState("asc");
 
   const pollerRef = useRef(null);
+
+  // El listado no trae statusHistory: se pide el detalle de la seleccionada.
+  const selectedHistory = useEmergencyHistory(selected?.id, selected?.status);
 
   // createPoller no superpone pedidos, así que las respuestas llegan en
   // orden y no hace falta descartar las viejas.
@@ -493,6 +497,9 @@ export default function OpsPage() {
               Cerrar detalle
             </button>
           </div>
+
+          {/* Debajo de las acciones: un historial largo las dejaría bajo el fold en mobile. */}
+          <StatusHistory history={selectedHistory} emergency={selected} />
         </div>
       </>
     );

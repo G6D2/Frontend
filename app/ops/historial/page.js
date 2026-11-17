@@ -25,6 +25,7 @@ import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
 import { shortEmergencyId } from "../../lib/boardLayout";
 import { OriginBadge, OriginNotice } from "../../components/ops/OriginInfo";
 import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
+import StatusHistory from "../../components/ops/StatusHistory";
 import { BTN_BASE, BTN_SECONDARY } from "../../components/ops/buttonStyles";
 import {
   TABLE_CONTAINER,
@@ -311,8 +312,9 @@ export default function HistorialPage() {
 
   // Al abrir el detalle se hidrata con GET /api/emergencies/:id (trae
   // statusHistory), que expone el motivo real de cierre/descarte —el
-  // listado no lo manda. getEmergencyReason (app/lib/emergencies.js) lee
-  // ambas formas y cae a "—" si no hay nada.
+  // listado no lo manda— y quién hizo cada cambio (StatusHistory).
+  // getEmergencyReason (app/lib/emergencies.js) lee ambas formas y cae a "—"
+  // si no hay nada.
   async function handleSelect(row) {
     setSelected(row);
     if (row.statusHistory) return;
@@ -320,7 +322,9 @@ export default function HistorialPage() {
       const detail = await fetchEmergencyDetail(row.id);
       setSelected((prev) => (prev?.id === row.id ? { ...row, ...detail } : prev));
     } catch {
-      // El panel se queda con lo que ya tenía (motivo "—" si no hay campo directo).
+      // El panel se queda con lo que ya tenía (motivo "—" si no hay campo
+      // directo) y el historial avisa que no se pudo traer.
+      setSelected((prev) => (prev?.id === row.id ? { ...prev, statusHistory: null } : prev));
     }
   }
 
@@ -441,6 +445,8 @@ export default function HistorialPage() {
               </span>
             </div>
           </div>
+
+          <StatusHistory history={selected.statusHistory} emergency={selected} />
 
           <button
             type="button"
