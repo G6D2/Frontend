@@ -140,6 +140,26 @@
      barra de ScrollArea (Mantine) solo se recalcula cuando cambia el tamaño
      de sus contenedores, así que quedaba desfasada. */
   overflow-x: auto;
+  /* Barra siempre visible: en macOS se oculta hasta que se scrollea y la
+     última columna parecía cortada. Los ::-webkit-scrollbar de abajo la
+     fijan en Chrome y Safari; no se usa scrollbar-color porque, si está
+     definido, Chrome ignora esos estilos y vuelve a la barra que se oculta. */
+  scrollbar-width: auto;
+  padding-bottom: 4px;
+}
+
+.boardScrollArea::-webkit-scrollbar {
+  height: 10px;
+}
+
+.boardScrollArea::-webkit-scrollbar-track {
+  background: var(--mantine-color-gray-1);
+  border-radius: 6px;
+}
+
+.boardScrollArea::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 6px;
 }
 
 .boardStatus {
@@ -185,6 +205,19 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Red de seguridad para textos largos: una palabra larga corta línea en vez
+   de salirse del borde, y el texto de un botón se acorta con "…". */
+.boardColumnCards :global(.mantine-Card-root) {
+  overflow-wrap: anywhere;
+}
+
+.boardColumnCards :global(.mantine-Button-label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .boardColumnCards::-webkit-scrollbar {

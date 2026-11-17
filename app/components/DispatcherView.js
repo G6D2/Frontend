@@ -331,17 +331,14 @@ export default function DispatcherView() {
         <div className={classes.boardScrollArea}>
           <div
             className={classes.boardStatus}
-            style={boardGridStyle(
-              boardColumns.map(({ items }) => items.length),
-              { loading }
-            )}
+            style={boardGridStyle(boardColumns.map(({ items }) => items.length))}
           >
             {boardColumns.map(({ col, items }) => {
               return (
                 <div key={col.key} className={classes.boardColumnStatus}>
                   <div className={classes.boardColumnHeader}>
-                    {/* Sin wrap: en una columna vacía (angosta) el contador
-                        de "Despachadas" bajaba a una segunda línea. */}
+                    {/* Sin wrap: con columnas angostas el contador de
+                        "Despachadas" bajaba a una segunda línea. */}
                     <Group justify="space-between" align="center" wrap="nowrap" gap={6}>
                       <Group gap="xs" wrap="nowrap">
                         <div

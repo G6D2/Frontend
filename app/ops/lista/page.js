@@ -642,8 +642,11 @@ export default function OpsPage() {
             )}
 
             {/* Desktop & Tablet Table */}
-            <div className="hidden sm:block flex-1 overflow-auto w-full">
-              <table className="w-full text-left border-collapse">
+            {/* Ancho mínimo y scroll horizontal con la barra siempre visible:
+                con el detalle abierto la tabla se angosta y las columnas de la
+                derecha quedaban cortadas sin que se notara que había scroll. */}
+            <div className="hidden sm:block flex-1 overflow-auto w-full [scrollbar-width:auto] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface-container [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-black/25">
+              <table className="w-full min-w-[880px] text-left border-collapse">
                 <thead className={`sticky top-0 z-10 ${TABLE_HEAD}`}>
                   <tr>
                     {SORTABLE_COLS.map((col) => (
