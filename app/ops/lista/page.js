@@ -52,6 +52,7 @@ import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
 import { shortEmergencyId } from "../../lib/boardLayout";
 import { OriginBadge, OriginNotice } from "../../components/ops/OriginInfo";
 import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
+import { reporterLabel } from "../../lib/displayText";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -724,7 +725,7 @@ export default function OpsPage() {
                           {elapsedMinutes(em.createdAt)}
                         </td>
                         <td className={`${TABLE_CELL_MONO} text-on-surface-variant`}>
-                          {em.userId}
+                          {reporterLabel(em)}
                         </td>
                       </tr>
                     ))

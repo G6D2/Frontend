@@ -23,6 +23,7 @@ import {
   formatTimeShort,
 } from "../../../lib/emergencies";
 import GeoLabel from "../../../components/civic/GeoLabel";
+import { formatHistoryReason, severityLabel } from "../../../lib/displayText";
 
 export default function AlertDetailPage() {
   const params = useParams();
@@ -168,7 +169,7 @@ export default function AlertDetailPage() {
               </div>
               <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                 <MaterialIcon name="priority_high" size={18} className="text-error" />
-                <span>Severidad: {emergency.severity || "critical"}</span>
+                <span>Severidad: {severityLabel(emergency.severity)}</span>
               </div>
             </section>
 
@@ -202,7 +203,7 @@ export default function AlertDetailPage() {
                           <div className="text-xs text-on-surface-variant">
                             {formatTimeShort(entry.createdAt) ||
                               formatTime(entry.createdAt)}
-                            {entry.reason ? ` · ${entry.reason}` : ""}
+                            {formatHistoryReason(entry.reason) ? ` · ${formatHistoryReason(entry.reason)}` : ""}
                           </div>
                         </div>
                       </li>
