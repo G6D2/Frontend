@@ -18,7 +18,7 @@
     "@mantine/notifications": "^9.5.2",
     "@tabler/icons-react": "^3.46.0",
     "leaflet": "^1.9.4",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "postcss": "^8.5.26",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -27,7 +27,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4.3.3",
     "vitest": "^4.1.12"
   },
