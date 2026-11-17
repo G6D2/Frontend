@@ -96,8 +96,9 @@ async function proxy(request, context) {
   let backendRes;
   try {
     // Reintenta el cold start de Render. POST y PATCH solo ante 502/503 o si
-    // no llegó a conectar: el backend no implementa Idempotency-Key, así que
-    // reintentar un 504 podía duplicar el alta (ver lib/backend-fetch.js).
+    // no llegó a conectar: fuera del alta del SOS el backend no usa el
+    // Idempotency-Key, así que reintentar un 504 podría repetir la operación
+    // (ver lib/backend-fetch.js).
     backendRes = await fetchBackend(target, init);
   } catch {
     return NextResponse.json(
