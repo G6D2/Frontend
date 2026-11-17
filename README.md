@@ -92,10 +92,10 @@ Navegador ──► Next.js (este repo) ─────────────�
 | `/mis-alertas/[id]` | Ciudadano | Detalle con historial de estados y cancelar con confirmación. Refresca cada 30 s, pausado con la pestaña oculta, y deja de consultar cuando la emergencia queda cancelada, cerrada o descartada |
 | `/perfil`, `/perfil/datos`, `/perfil/ubicaciones`, `/perfil/ayuda` | Ciudadano | Cuenta, datos personales y ubicaciones guardadas (en el backend, cifrados) y ayuda |
 | `/ops` | Dispatcher | Tablero kanban (Mantine) con una columna por estado: validar, descartar, asignar oficial y cerrar emergencias resueltas |
-| `/ops/lista` | Dispatcher | Lista ordenada por prioridad, con métricas que filtran, búsqueda, orden por columna y panel de detalle |
+| `/ops/lista` | Dispatcher | Lista ordenada por prioridad, con métricas que filtran, búsqueda, orden por columna y panel de detalle con el historial de cambios y quién hizo cada uno |
 | `/ops/asignar/[id]` | Dispatcher | Elegir oficial disponible para una emergencia validada |
 | `/ops/mapa` | Dispatcher | Mapa Leaflet con las emergencias de `GET /api/emergencies` (hasta 100) |
-| `/ops/historial` | Dispatcher | Emergencias cerradas, canceladas, descartadas y resueltas, en una sola llamada |
+| `/ops/historial` | Dispatcher | Emergencias cerradas, canceladas, descartadas y resueltas, en una sola llamada. El detalle muestra el historial de cambios y quién hizo cada uno |
 | `/ops/oficiales` | Dispatcher | Catálogo de oficiales y su estado |
 | `/ops/cuenta` | Dispatcher | Mi cuenta y logout |
 | `/ops/emergencias` | Dispatcher | Redirige a `/ops/lista` |
@@ -241,7 +241,7 @@ Números al 16/11/2026 (Node 22): **360 tests unitarios** en 19 archivos y **75 
 - Los tests de integración (`tests/integration/`) mockean `global.fetch` (el backend) y `next/headers` (las cookies) con los helpers de `tests/integration/helpers.js`. No levantan servidor ni backend real. Cubren login (email y contraseña, y atajos demo con `sub`), registro, sesión, refresh, el proxy (lista de rutas, CSRF y reintentos), geocode y el chequeo CSRF de los POST de `/api/auth`. `warmup` no tiene test; de `logout` y `forgot-password` solo se prueba el chequeo CSRF.
 - El umbral del 80% es sobre las librerías y el middleware, no sobre todo el frontend. Los componentes React, las páginas y los layouts no tienen tests.
 - SonarCloud analiza `lib` y `app/lib` (`sonar.sources` en `sonar-project.properties`). Todavía no incluye `middleware.js`. `tests` y `e2e` están declarados como código de test (`sonar.tests`): no cuentan como código sin cobertura.
-- **Deuda declarada:** no hay tests de componentes (Testing Library) ni smoke tests contra el deploy. Los e2e cubren los dos flujos principales; el oficial, `/reportar`, la lista, el mapa y el historial del dispatcher se siguen probando a mano.
+- **Deuda declarada:** no hay tests de componentes (Testing Library) ni smoke tests contra el deploy. Los e2e cubren los dos flujos principales; el oficial, `/reportar`, el mapa y las métricas, filtros y búsqueda de la lista y el historial del dispatcher se siguen probando a mano.
 
 ### Tests e2e (Playwright)
 
@@ -250,7 +250,7 @@ Dos specs en `e2e/`, que corren en Chromium contra el build de producción (`nex
 | Spec | Flujo |
 |---|---|
 | `e2e/ciudadano.spec.mjs` | Login con email y contraseña → botón de pánico (ubicación fija del navegador y cuenta regresiva de 3 s) → detalle de la alerta → **Mis alertas** → detalle desde la lista → cancelar con motivo. Al final recarga y comprueba que la cancelación y el motivo vienen del backend. |
-| `e2e/dispatcher.spec.mjs` | Login por la solapa **Personal Municipal (LDAP)** → kanban con dos emergencias pendientes → validar una → asignarle el oficial disponible → descartar la otra con motivo (el botón no se habilita sin motivo). Al final verifica en el backend el estado, el oficial y el motivo con su autor. |
+| `e2e/dispatcher.spec.mjs` | Login por la solapa **Personal Municipal (LDAP)** → kanban con dos emergencias pendientes → validar una → asignarle el oficial disponible → descartar la otra con motivo (el botón no se habilita sin motivo) → en `/ops/lista` y `/ops/historial`, el panel de detalle muestra cada cambio con su autor. Al final verifica en el backend el estado, el oficial y el motivo con su autor. |
 
 Cada test crea sus propios datos con usuarios nuevos (sufijo único por corrida): el ciudadano se registra por `POST /auth/register` y las emergencias del dispatcher las reporta un vecino nuevo. No se usan las cuentas demo del seed ni datos reales, y nada corre contra producción.
 

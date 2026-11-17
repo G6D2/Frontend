@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { formatHistoryReason, severityLabel, reporterLabel } from "../app/lib/displayText";
+import {
+  formatHistoryActor,
+  formatHistoryReason,
+  severityLabel,
+  reporterLabel,
+} from "../app/lib/displayText";
 
 describe("formatHistoryReason", () => {
   it("traduce la asignación del backend y saca el id del oficial", () => {
@@ -17,6 +22,56 @@ describe("formatHistoryReason", () => {
     expect(formatHistoryReason("   ")).toBe("");
     expect(formatHistoryReason(null)).toBe("");
     expect(formatHistoryReason(undefined)).toBe("");
+  });
+});
+
+describe("formatHistoryActor", () => {
+  const officers = [
+    { id: "of-001", name: "Oficial Carlos Gómez" },
+    { id: "of-020", name: "Ana Paz" },
+  ];
+
+  it("el dispatcher en validar, devolver, descartar, asignar y cerrar", () => {
+    for (const newStatus of ["VALIDATED", "DISCARDED", "DISPATCHED", "CLOSED"]) {
+      expect(formatHistoryActor({ actor: "DISP-Demo001", newStatus })).toBe("Dispatcher (DISP-Demo001)");
+    }
+    // El sub del Login Federado se muestra igual.
+    expect(formatHistoryActor({ actor: "jperez", newStatus: "VALIDATED" })).toBe("Dispatcher (jperez)");
+  });
+
+  it("el oficial por su nombre si está en el catálogo", () => {
+    expect(formatHistoryActor({ actor: "of-001", newStatus: "EN_ROUTE" }, officers)).toBe("Oficial Carlos Gómez");
+    expect(formatHistoryActor({ actor: "of-020", newStatus: "RESOLVED" }, officers)).toBe("Oficial Ana Paz");
+  });
+
+  it("el oficial por su id si no está en el catálogo o no hay catálogo", () => {
+    expect(formatHistoryActor({ actor: "of-099", newStatus: "ON_SCENE" }, officers)).toBe("Oficial (of-099)");
+    expect(formatHistoryActor({ actor: "of-001", newStatus: "ON_SCENE" })).toBe("Oficial (of-001)");
+    expect(formatHistoryActor({ actor: "of-001", newStatus: "ON_SCENE" }, [{ id: "of-001", name: " " }])).toBe(
+      "Oficial (of-001)"
+    );
+  });
+
+  it("los actores de sistema en castellano, sea cual sea la transición", () => {
+    expect(formatHistoryActor({ actor: "eda:reclamos", newStatus: "CANCELLED" })).toBe("Reclamos (automático)");
+    expect(formatHistoryActor({ actor: "eda:espacios", newStatus: "CANCELLED" })).toBe("Espacios (automático)");
+    expect(formatHistoryActor({ actor: "sistema:expiracion", newStatus: "DISCARDED" })).toBe("Expiración automática");
+  });
+
+  it("el ciudadano que cancela, sin su id", () => {
+    expect(formatHistoryActor({ actor: "CIT-JuanPanico", newStatus: "CANCELLED" })).toBe("Ciudadano");
+  });
+
+  it("un actor que no se reconoce se muestra tal cual", () => {
+    expect(formatHistoryActor({ actor: "eda:movilidad", newStatus: "PENDING" })).toBe("eda:movilidad");
+    expect(formatHistoryActor({ actor: " alguien ", newStatus: undefined })).toBe("alguien");
+  });
+
+  it("sin actor no se muestra nada", () => {
+    expect(formatHistoryActor({ actor: null, newStatus: "VALIDATED" })).toBe("");
+    expect(formatHistoryActor({ actor: "  ", newStatus: "VALIDATED" })).toBe("");
+    expect(formatHistoryActor({ newStatus: "VALIDATED" })).toBe("");
+    expect(formatHistoryActor(null)).toBe("");
   });
 });
 

@@ -100,6 +100,30 @@ test("dispatcher: login, kanban, validar, asignar oficial y descartar con motivo
     await expect(card(toDiscard)).toHaveCount(0);
   });
 
+  await test.step("la lista y el historial muestran quién hizo cada cambio", async () => {
+    // El panel de detalle de escritorio: el bottom sheet también está en el DOM.
+    const entries = () => page.getByTestId("history-entry").filter({ visible: true });
+    const byDispatcher = `Por Dispatcher (${dispatcherUser})`;
+
+    await page.goto("/ops/lista");
+    await page.locator("#ops-lista-search").fill(toDispatch.id);
+    await page.locator("tbody tr").filter({ hasText: "DESPACHADA" }).click();
+    await expect(entries()).toHaveCount(2);
+    await expect(entries().nth(0)).toContainText("VALIDADA");
+    await expect(entries().nth(0)).toContainText(byDispatcher);
+    await expect(entries().nth(1)).toContainText("DESPACHADA");
+    await expect(entries().nth(1)).toContainText("Se asignó un oficial");
+    await expect(entries().nth(1)).toContainText(byDispatcher);
+
+    await page.goto("/ops/historial");
+    await page.locator("#historial-search").fill(toDiscard.id);
+    await page.locator("tbody tr").filter({ hasText: "DESCARTADA" }).click();
+    await expect(entries()).toHaveCount(1);
+    await expect(entries().first()).toContainText("DESCARTADA");
+    await expect(entries().first()).toContainText(discardReason);
+    await expect(entries().first()).toContainText(byDispatcher);
+  });
+
   await test.step("el backend guardó el despacho y el descarte con su motivo", async () => {
     const token = await devLogin(api, { sub: dispatcherUser, groups: ["dispatcher"] });
     const dispatched = await getEmergency(api, token, toDispatch.id);
