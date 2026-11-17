@@ -20,6 +20,7 @@ import {
   priorityTextClass,
   getEffectivePriority,
   getZoneContext,
+  getPriorityElevation,
   isPriorityElevatedByIncident,
   getIncidentSummary,
   translateIncidentReasonCode,
@@ -563,6 +564,121 @@ describe("isPriorityElevatedByIncident", () => {
     expect(
       isPriorityElevatedByIncident({ severity: "no-existe", effectivePriority: "critical" })
     ).toBe(false);
+  });
+});
+
+// Tarjeta del oficial (/oficial): la suba entera en una línea.
+describe("getPriorityElevation", () => {
+  const climateAlert = {
+    tipo: "ALERTA_CLIMATICA",
+    descripcion: "Alerta climática CRITICA: tormenta fuerte",
+  };
+  const publicEvent = { tipo: "EVENTO_ESPACIO_PUBLICO", descripcion: "Recital en la plaza" };
+
+  it("returns null for a null emergency", () => {
+    expect(getPriorityElevation(null)).toBeNull();
+  });
+
+  it("returns null when the backend only sends severity (lo que recibe hoy el oficial)", () => {
+    expect(getPriorityElevation({ severity: "medium" })).toBeNull();
+  });
+
+  it("returns null when the dispatch priority equals the severity", () => {
+    expect(
+      getPriorityElevation({
+        severity: "high",
+        effectivePriority: "high",
+        dispatchPriority: "high",
+        priorityContext: null,
+      })
+    ).toBeNull();
+  });
+
+  it("explains a raise by a climate alert, with the full reason as detail", () => {
+    expect(
+      getPriorityElevation({
+        severity: "medium",
+        effectivePriority: "medium",
+        dispatchPriority: "high",
+        priorityContext: climateAlert,
+      })
+    ).toEqual({
+      priority: "high",
+      original: "medium",
+      originalLabel: "Media",
+      reason: "Prioridad elevada por alerta climática (era Media)",
+      detail: "Prioridad elevada por alerta climática CRITICA: tormenta fuerte",
+    });
+  });
+
+  it("explains a raise by a public event in the zone", () => {
+    const elevation = getPriorityElevation({
+      severity: "low",
+      effectivePriority: "low",
+      dispatchPriority: "medium",
+      priorityContext: publicEvent,
+    });
+    expect(elevation.reason).toBe("Prioridad elevada por evento en la zona (era Baja)");
+    expect(elevation.detail).toBe("Prioridad elevada: evento en la zona · Recital en la plaza");
+  });
+
+  it("explains a raise by an incident, without detail", () => {
+    expect(
+      getPriorityElevation({
+        severity: "medium",
+        effectivePriority: "critical",
+        dispatchPriority: "critical",
+        priorityContext: null,
+      })
+    ).toMatchObject({
+      priority: "critical",
+      reason: "Prioridad elevada por incidente (era Media)",
+      detail: null,
+    });
+  });
+
+  it("names both causes when the incident and the zone context raise it", () => {
+    expect(
+      getPriorityElevation({
+        severity: "medium",
+        effectivePriority: "high",
+        dispatchPriority: "critical",
+        priorityContext: climateAlert,
+      }).reason
+    ).toBe("Prioridad elevada por incidente y alerta climática (era Media)");
+  });
+
+  it("does not name a zone context that did not raise anything (ya estaba en Crítica)", () => {
+    const elevation = getPriorityElevation({
+      severity: "high",
+      effectivePriority: "critical",
+      dispatchPriority: "critical",
+      priorityContext: publicEvent,
+    });
+    expect(elevation.reason).toBe("Prioridad elevada por incidente (era Alta)");
+    expect(elevation.detail).toBeNull();
+  });
+
+  it("counts the zone context when effectivePriority does not come", () => {
+    expect(
+      getPriorityElevation({
+        severity: "medium",
+        dispatchPriority: "high",
+        priorityContext: climateAlert,
+      }).reason
+    ).toBe("Prioridad elevada por alerta climática (era Media)");
+  });
+
+  it("still says it was raised when no cause comes with it", () => {
+    expect(
+      getPriorityElevation({ severity: "medium", dispatchPriority: "high" }).reason
+    ).toBe("Prioridad elevada (era Media)");
+  });
+
+  it("returns null for a lower or unknown priority", () => {
+    expect(getPriorityElevation({ severity: "critical", dispatchPriority: "low" })).toBeNull();
+    expect(getPriorityElevation({ severity: "no-existe", dispatchPriority: "high" })).toBeNull();
+    expect(getPriorityElevation({ severity: "medium", dispatchPriority: "urgente" })).toBeNull();
   });
 });
 
