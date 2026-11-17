@@ -1,6 +1,7 @@
 import MaterialIcon from "../civic/MaterialIcon";
 import {
   getIncidentSummary,
+  getPriorityElevation,
   getZoneContext,
   isPriorityElevatedByIncident,
   translateIncidentReasonCode,
@@ -49,6 +50,19 @@ export function ZoneContextBadge({ emergency, className = "" }) {
   );
 }
 
+/** Aviso ámbar de "prioridad elevada" (ZoneContextNotice y PriorityElevationNotice). */
+function ElevationNotice({ title, children }) {
+  return (
+    <p
+      title={title}
+      className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs font-bold text-amber-900 flex items-center gap-2"
+    >
+      <MaterialIcon name="trending_up" size={16} className="shrink-0" />
+      {children}
+    </p>
+  );
+}
+
 /**
  * Línea con el motivo completo de la suba por contexto de zona, para los
  * paneles de detalle. Null-safe.
@@ -56,11 +70,23 @@ export function ZoneContextBadge({ emergency, className = "" }) {
 export function ZoneContextNotice({ emergency }) {
   const context = getZoneContext(emergency);
   if (!context) return null;
+  return <ElevationNotice>{context.reason}</ElevationNotice>;
+}
+
+/**
+ * "Prioridad elevada por alerta climática (era Media)": la suba entera
+ * (incidente y contexto de zona) en una línea, para la tarjeta del oficial,
+ * donde no entran los bloques del panel del dispatcher. El motivo completo
+ * del contexto va en el tooltip. Null-safe: no renderiza nada si la
+ * prioridad no subió o si el backend no manda la prioridad de despacho.
+ */
+export function PriorityElevationNotice({ emergency }) {
+  const elevation = getPriorityElevation(emergency);
+  if (!elevation) return null;
   return (
-    <p className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs font-bold text-amber-900 flex items-center gap-2">
-      <MaterialIcon name="trending_up" size={16} />
-      {context.reason}
-    </p>
+    <ElevationNotice title={elevation.detail || undefined}>
+      {elevation.reason}
+    </ElevationNotice>
   );
 }
 

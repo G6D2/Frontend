@@ -806,6 +806,19 @@ describe("api.js", () => {
         expect(url).not.toContain("assignedOfficerId");
       });
 
+      it("deja pasar la prioridad de despacho y su contexto si el backend los manda", async () => {
+        const row = {
+          id: "e1",
+          status: "DISPATCHED",
+          severity: "medium",
+          dispatchPriority: "high",
+          priorityContext: { tipo: "ALERTA_CLIMATICA" },
+        };
+        mockRows([row]);
+
+        expect(await fetchOfficerEmergencies()).toEqual([row]);
+      });
+
       it("history pide scope=history, las más nuevas primero", async () => {
         mockRows([]);
 

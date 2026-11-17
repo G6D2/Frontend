@@ -5,6 +5,7 @@ import MaterialIcon from "../components/civic/MaterialIcon";
 import GeoLabel from "../components/civic/GeoLabel";
 import PageHeader from "../components/PageHeader";
 import CitizenPageContainer from "../components/civic/CitizenPageContainer";
+import { PriorityElevationNotice } from "../components/ops/IncidentInfo";
 import {
   fetchOfficerEmergencies,
   advanceOfficerStatus,
@@ -15,6 +16,7 @@ import {
 import {
   emergencyTitle,
   formatTime,
+  getEffectivePriority,
   getOfficerStatusConfig,
   PRIORITY_CONFIG,
   TYPE_LABELS,
@@ -32,13 +34,18 @@ const RESOLUTION_CAUSES = [
  * tarjeta con el próximo paso (En camino → Llegué al lugar → Resolver).
  * Al resolver, permite registrar causas relacionadas y su descripción.
  * En las históricas no hay próximo paso: la tarjeta es solo de consulta.
+ *
+ * La prioridad es la misma que ve el dispatcher (getEffectivePriority: la de
+ * despacho si el backend la manda, si no la severidad) y, si subió, una línea
+ * con el motivo y la severidad original. La lista activa ya viene ordenada
+ * por esa prioridad (sortBy=priority).
  */
 function AssignmentCard({ emergency, busy, onAdvance }) {
   const [resolving, setResolving] = useState(false);
   const [relatedCauses, setRelatedCauses] = useState([]);
   const [problemDescription, setProblemDescription] = useState("");
   const statusCfg = getOfficerStatusConfig(emergency);
-  const priority = PRIORITY_CONFIG[emergency.severity];
+  const priority = PRIORITY_CONFIG[getEffectivePriority(emergency)];
   const step = officerNextStep(emergency);
   const hasViaCause = relatedCauses.includes("VIA");
   const typeLabel =
@@ -102,6 +109,8 @@ function AssignmentCard({ emergency, busy, onAdvance }) {
           )}
         </div>
       </div>
+
+      <PriorityElevationNotice emergency={emergency} />
 
       <div className="flex items-center gap-3 bg-surface-container-low p-3 rounded-lg border border-surface-container-highest">
         <MaterialIcon name="location_on" className="text-primary" />

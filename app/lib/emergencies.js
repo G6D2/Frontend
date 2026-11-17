@@ -287,14 +287,16 @@ export function locationLabel(emergency) {
 const PRIORITY_RANK = { low: 0, medium: 1, high: 2, critical: 3 };
 
 /**
- * Prioridad que muestran y ordenan las vistas del dispatcher. En orden:
+ * Prioridad que muestran y ordenan las vistas del dispatcher y la tarjeta
+ * del oficial. En orden:
  *  1. `dispatchPriority`: la prioridad de despacho del backend, que suma un
  *     nivel mientras hay un contexto de zona vigente en el barrio (p. ej. un
  *     evento en un espacio público en curso).
  *  2. `effectivePriority`: la del Risk Engine de detección de incidentes.
  *  3. `severity`: la original.
  * Úsala en vez de `emergency.severity` en cualquier badge/orden de prioridad
- * de las vistas del dispatcher.
+ * de las vistas del dispatcher y del oficial: si el backend no manda las dos
+ * primeras (al oficial, hoy), cae en la severidad.
  */
 export function getEffectivePriority(emergency) {
   if (!emergency) return null;
@@ -382,6 +384,51 @@ export function getZoneContext(emergency) {
   if (descripcion) reason += ` · ${descripcion}`;
 
   return { ...base, barrio, reason };
+}
+
+/**
+ * Cuánto subió la prioridad que se muestra (getEffectivePriority) respecto
+ * de la severidad original, y por qué, en una sola línea para donde no
+ * entran los bloques del panel del dispatcher (la tarjeta del oficial):
+ * "Prioridad elevada por alerta climática (era Media)".
+ *
+ * Las causas son las mismas que explican IncidentDetailBlock y
+ * ZoneContextNotice, en el orden en que suben: el incidente
+ * (effectivePriority sobre severity) y el contexto de zona (dispatchPriority
+ * sobre effectivePriority). Un contexto que no subió nada porque ya estaba en
+ * Crítica no se nombra.
+ *
+ * Devuelve null si no subió o si el backend no manda esas prioridades: al
+ * oficial hoy no se las manda, así que su tarjeta muestra la severidad.
+ * `detail` es el motivo completo del contexto de zona (para un tooltip), o
+ * null.
+ */
+export function getPriorityElevation(emergency) {
+  if (!emergency) return null;
+  const priority = getEffectivePriority(emergency);
+  const original = emergency.severity;
+  const rank = PRIORITY_RANK[priority];
+  const originalRank = PRIORITY_RANK[original];
+  if (rank === undefined || originalRank === undefined || rank <= originalRank) {
+    return null;
+  }
+
+  const causes = [];
+  if (isPriorityElevatedByIncident(emergency)) causes.push("incidente");
+  const zone = getZoneContext(emergency);
+  const beforeZone = Math.max(originalRank, PRIORITY_RANK[emergency.effectivePriority] ?? -1);
+  const raisedByZone = Boolean(zone) && rank > beforeZone;
+  if (raisedByZone) causes.push(zone.label.toLowerCase());
+
+  const originalLabel = SEVERITY_CONFIG[original].label;
+  const motive = causes.length > 0 ? ` por ${causes.join(" y ")}` : "";
+  return {
+    priority,
+    original,
+    originalLabel,
+    reason: `Prioridad elevada${motive} (era ${originalLabel})`,
+    detail: raisedByZone ? zone.reason : null,
+  };
 }
 
 /**
