@@ -9,6 +9,7 @@ import {
   getEffectivePriority,
   getIncidentSummary,
 } from "../../lib/emergencies";
+import { formatEmergencyLocation } from "../../lib/geocoding";
 
 const CABA = [-34.6037, -58.3816];
 const PRIORITY_HEX = {
@@ -142,7 +143,7 @@ export default function OpsMap({ emergencies, selectedId, onSelect, flyTo }) {
       }
 
       marker.bindPopup(
-        `<strong>${escapeHtml(em.description || "Emergencia")}</strong><br/>${status}<br/>${lat.toFixed(4)}, ${lng.toFixed(4)}${incidentLine}`
+        `<strong>${escapeHtml(em.description || "Emergencia")}</strong><br/>${status}<br/>${escapeHtml(formatEmergencyLocation(em))}${incidentLine}`
       );
     });
 

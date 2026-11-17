@@ -22,6 +22,8 @@ import PageHeader from "../../components/PageHeader";
 import { PriorityBadge, StatusBadge } from "../../components/ops/OpsBadges";
 import { IncidentBadge, IncidentDetailBlock } from "../../components/ops/IncidentInfo";
 import EmergencyMobileCard from "../../components/ops/EmergencyMobileCard";
+import { shortEmergencyId } from "../../lib/boardLayout";
+import { OriginBadge, OriginNotice } from "../../components/ops/OriginInfo";
 import EmergencyDetailPanel from "../../components/ops/EmergencyDetailPanel";
 import { BTN_BASE, BTN_SECONDARY } from "../../components/ops/buttonStyles";
 import {
@@ -373,12 +375,13 @@ export default function HistorialPage() {
         <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-start">
           <div>
             <h2 className="text-sm font-bold text-on-surface font-mono truncate max-w-[220px]">
-              #{selected.id?.slice(0, 8)}
+              #{shortEmergencyId(selected.id)}
             </h2>
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
               <StatusBadge status={selected.status} />
               <PriorityBadge severity={getEffectivePriority(selected) || "critical"} />
               <IncidentBadge emergency={selected} />
+              <OriginBadge emergency={selected} />
             </div>
           </div>
           <button
@@ -399,11 +402,12 @@ export default function HistorialPage() {
                 Ubicación
               </span>
               <div className="text-sm font-bold text-on-surface">
-                <GeoLabel emergency={selected} fallback="Sin dirección" showCoords />
+                <GeoLabel emergency={selected} fallback="Sin dirección" />
               </div>
             </div>
           </div>
 
+          <OriginNotice emergency={selected} />
           <IncidentDetailBlock emergency={selected} />
 
           {selected.description && (
@@ -668,7 +672,7 @@ export default function HistorialPage() {
                             : ""
                         }`}
                       >
-                        <td className={TABLE_CELL_MONO}>{row.id?.slice(0, 8)}</td>
+                        <td className={TABLE_CELL_MONO}>{shortEmergencyId(row.id)}</td>
                         <td className={`${TABLE_CELL} font-bold`}>{typeLabelOf(row)}</td>
                         <td className={TABLE_CELL}>
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -716,7 +720,7 @@ export default function HistorialPage() {
                         { icon: "badge",       label: "Oficial interviniente", value: officerLabel(row) },
                         { icon: "description", label: "Motivo",                value: getEmergencyReason(row) || "—" },
                       ]}
-                      idLabel={`#${row.id?.slice(0, 8)}`}
+                      idLabel={`#${shortEmergencyId(row.id)}`}
                       timeLabel={formatTimeShort(closedAtOf(row))}
                       selected={selected?.id === row.id}
                       onClick={() => handleSelect(row)}

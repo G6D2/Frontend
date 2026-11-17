@@ -28,6 +28,8 @@ import {
   ZoneContextBadge,
   ZoneContextNotice,
 } from "../../../components/ops/IncidentInfo";
+import { OriginBadge, OriginNotice } from "../../../components/ops/OriginInfo";
+import { shortEmergencyId } from "../../../lib/boardLayout";
 
 export default function AsignarOficialPage() {
   const params = useParams();
@@ -109,16 +111,18 @@ export default function AsignarOficialPage() {
                 <PriorityBadge severity={getEffectivePriority(emergency)} />
                 <IncidentBadge emergency={emergency} />
                 <ZoneContextBadge emergency={emergency} />
+                <OriginBadge emergency={emergency} />
               </div>
             </div>
             <p className="text-sm text-on-surface-variant">
-              #{emergency.id.slice(0, 8)} · {getStatusConfig(emergency.status).label} ·{" "}
+              #{shortEmergencyId(emergency.id)} · {getStatusConfig(emergency.status).label} ·{" "}
               <GeoLabel emergency={emergency} fallback="Obteniendo dirección…" />
             </p>
             <p className="text-xs text-on-surface-variant mt-2 italic">
               &quot;{emergency.description}&quot;
             </p>
-            <div className="mt-3">
+            <div className="mt-3 flex flex-col gap-3">
+              <OriginNotice emergency={emergency} />
               <IncidentDetailBlock emergency={emergency} />
               <ZoneContextNotice emergency={emergency} />
             </div>
