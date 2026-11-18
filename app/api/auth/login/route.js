@@ -11,6 +11,7 @@ import { ANTIPANIC_MODE, findDemoAccount } from "@/app/lib/features";
 import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
 import { idpRateLimitedResponse } from "@/lib/idp-rate-limit";
+import { detectEdgeBlock, edgeBlockedResponse } from "@/lib/edge-block";
 
 /**
  * POST /api/auth/login
@@ -162,6 +163,12 @@ export async function POST(request) {
         },
         { status: 502 }
       );
+    }
+
+    // 403/429 sin JSON: no lo respondió el backend (ver lib/edge-block.js).
+    const block = detectEdgeBlock(res);
+    if (block) {
+      return edgeBlockedResponse(block, { method: "POST", path: backendPath });
     }
 
     data = await res.json().catch(() => null);

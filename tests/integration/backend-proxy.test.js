@@ -159,6 +159,129 @@ describe("/api/backend/[...path]", () => {
     expect(deleted?.maxAge).toBe(0);
   });
 
+  // ── 403/429 que no salió del backend (lib/edge-block.js) ──────────────
+
+  describe("bloqueo antes de llegar al backend", () => {
+    const CHALLENGE_HTML =
+      "<!DOCTYPE html><html><head><title>Just a moment...</title></head><body>cf-chl</body></html>";
+    let warn;
+
+    beforeEach(() => {
+      mockNextCookies(cookies, { citypass_session: TOKEN });
+      warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    const getEmergencies = () =>
+      GET(
+        makeRequest("http://localhost/api/backend/api/emergencies?status=PENDING"),
+        ctxFor(["api", "emergencies"])
+      );
+
+    it("desafío de Cloudflare (cf-mitigated): 429 identificado, con cf-ray, y una línea [cloudflare] en el log", async () => {
+      mockBackend({
+        "GET /api/emergencies": {
+          status: 429,
+          body: CHALLENGE_HTML,
+          headers: {
+            "content-type": "text/html; charset=UTF-8",
+            "cf-mitigated": "challenge",
+            "cf-ray": "abc123-EZE",
+            server: "cloudflare",
+          },
+        },
+      });
+
+      const res = await getEmergencies();
+      const json = await res.json();
+
+      expect(res.status).toBe(429);
+      expect(res.headers.get("X-Blocked-By")).toBe("cloudflare");
+      expect(json).toEqual({
+        error: "TooManyRequests",
+        reason: "edge_blocked",
+        source: "cloudflare",
+        cfRay: "abc123-EZE",
+        message: "Cloudflare bloqueó el pedido al backend: HTTP 429, cf-ray abc123-EZE",
+      });
+      const line = warn.mock.calls[0][0];
+      expect(line).toMatch(/^\[cloudflare\] 429 en GET api\/emergencies antes de llegar al backend/);
+      expect(line).toContain("cf-mitigated=challenge cf-ray=abc123-EZE");
+      expect(line).toContain('cuerpo="Just a moment... cf-chl"');
+      expect(line).not.toContain(TOKEN);
+    });
+
+    it("página de desafío sin cf-mitigated: también es Cloudflare", async () => {
+      mockBackend({
+        "GET /api/emergencies": {
+          status: 403,
+          body: CHALLENGE_HTML,
+          headers: { "content-type": "text/html", server: "cloudflare" },
+        },
+      });
+
+      const res = await getEmergencies();
+      const json = await res.json();
+
+      expect(res.status).toBe(403);
+      expect(json).toMatchObject({ reason: "edge_blocked", source: "cloudflare", error: "Forbidden" });
+    });
+
+    it("429 sin JSON y sin marcas de Cloudflare: intermediario sin identificar (server: cloudflare no alcanza)", async () => {
+      mockBackend({
+        "GET /api/emergencies": {
+          status: 429,
+          body: "Too Many Requests",
+          headers: { "content-type": "text/plain", server: "cloudflare", "retry-after": "60" },
+        },
+      });
+
+      const res = await getEmergencies();
+      const json = await res.json();
+
+      expect(res.status).toBe(429);
+      expect(res.headers.get("X-Blocked-By")).toBe("edge");
+      expect(res.headers.get("Retry-After")).toBe("60");
+      expect(json.source).toBe("edge");
+      expect(json.message).toBe("Un intermediario bloqueó el pedido antes de llegar al backend: HTTP 429");
+      expect(warn.mock.calls[0][0]).toMatch(/^\[edge\] 429/);
+    });
+
+    it("429 en JSON del propio backend: pasa tal cual, sin marcar", async () => {
+      mockBackend({
+        "GET /api/emergencies": {
+          status: 429,
+          body: { error: "TooManyRequests", message: "Demasiadas solicitudes." },
+        },
+      });
+
+      const res = await getEmergencies();
+
+      expect(res.status).toBe(429);
+      expect(res.headers.get("X-Blocked-By")).toBeNull();
+      expect(await res.json()).toEqual({ error: "TooManyRequests", message: "Demasiadas solicitudes." });
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("500 en HTML (no es 403/429): pasa tal cual", async () => {
+      mockBackend({
+        "GET /api/emergencies": {
+          status: 500,
+          body: "<html>oops</html>",
+          headers: { "content-type": "text/html" },
+        },
+      });
+
+      const res = await getEmergencies();
+
+      expect(res.status).toBe(500);
+      expect(res.headers.get("X-Blocked-By")).toBeNull();
+    });
+  });
+
   // ── Allowlist de rutas y métodos ─────────────────────────────────────
 
   describe("allowlist", () => {

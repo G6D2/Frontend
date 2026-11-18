@@ -104,6 +104,31 @@ describe("POST /api/auth/login", () => {
     expect(calls.some((c) => c.path === "/auth/dev/login")).toBe(false);
   });
 
+  it("email + password con desafío de Cloudflare: 429 identificado, sin cookie", async () => {
+    mockBackend({
+      "POST /auth/login": {
+        status: 429,
+        body: "<html><title>Just a moment...</title></html>",
+        headers: { "content-type": "text/html", "cf-mitigated": "challenge", "cf-ray": "r1-EZE" },
+      },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await POST(
+      makeRequest(LOGIN_URL, {
+        method: "POST",
+        body: { email: "juanpanico@gmail.com", password: "abracadabra" },
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(429);
+    expect(json).toMatchObject({ reason: "edge_blocked", source: "cloudflare", cfRay: "r1-EZE" });
+    expect(res.cookies.get("citypass_session")).toBeUndefined();
+    expect(warn.mock.calls[0][0]).toMatch(/^\[cloudflare\] 429 en POST \/auth\/login/);
+    warn.mockRestore();
+  });
+
   it("email + password inválidos: propaga el 401 del backend sin setear cookie", async () => {
     mockBackend({
       "POST /auth/login": {
