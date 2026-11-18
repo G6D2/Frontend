@@ -16,6 +16,9 @@
  * - Refresh fallido con `sessionActive: true` → no se redirige: el access
  *   token actual sigue sirviendo hasta su `exp`.
  * - `sessionActive: false` → el token ya venció: `onExpired` (→ /acceso).
+ * - `idp_rate_limited` (429 del LDAP, ver lib/idp-rate-limit.js) → no se
+ *   manda a /acceso aunque el token haya vencido: el login gasta el mismo
+ *   cupo por IP del IdP. Se reintenta en el próximo intervalo.
  * - Después de cada intento, salga como salga, se anota la hora: la vuelta a
  *   la pestaña no reintenta hasta que pase otro intervalo.
  * - En las pantallas de autenticación (`isAuthScreen`) no se refresca. El
@@ -61,6 +64,7 @@ export function createSessionRefresher({
       if (res.ok) return "refreshed";
 
       const body = await res.json().catch(() => null);
+      if (body?.reason === "idp_rate_limited") return "rate_limited";
       if (body?.reason === "no_refresh_token") localSession = true;
       if (body?.sessionActive === false) {
         onExpired();

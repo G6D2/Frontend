@@ -484,6 +484,31 @@ describe("POST /api/auth/login con loginType ldap: el IdP no responde o falla", 
     expect(json.message).toBe("No se pudo conectar con el servidor de Login Federado (LDAP).");
   });
 
+  it("429 del LDAP: lo identifica como del Login Federado y no setea cookies", async () => {
+    mockBackend({
+      "POST /auth/login": { status: 429, body: { message: "Too many requests" } },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await POST(ldapRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("X-Rate-Limited-By")).toBe("ldap");
+    expect(res.headers.get("Retry-After")).toBeNull();
+    expect(json).toEqual({
+      error: "TooManyRequests",
+      reason: "idp_rate_limited",
+      source: "ldap",
+      retryAfterSeconds: null,
+      message:
+        "El Login Federado (LDAP) está limitando los ingresos de esta app. Probá de nuevo en unos minutos.",
+    });
+    expect(res.cookies.get("citypass_session")).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[ldap] 429 del Login Federado en /auth/login"));
+    warn.mockRestore();
+  });
+
   it("credenciales inválidas con cuerpo que no es JSON: propaga el status del IdP", async () => {
     // El .catch de res.json() solo deja pasar el timeout; cualquier otro
     // error de parseo sigue tratándose como "sin cuerpo".

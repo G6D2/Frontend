@@ -10,6 +10,7 @@ import {
 import { ANTIPANIC_MODE, findDemoAccount } from "@/app/lib/features";
 import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
+import { idpRateLimitedResponse } from "@/lib/idp-rate-limit";
 
 /**
  * POST /api/auth/login
@@ -120,6 +121,12 @@ export async function POST(request) {
         },
         { status: 502 }
       );
+    }
+
+    // Cupo por IP del IdP agotado: no son credenciales malas, y el 429 no es
+    // nuestro. Se identifica como del LDAP (ver lib/idp-rate-limit.js).
+    if (res.status === 429) {
+      return idpRateLimitedResponse({ endpoint: "/auth/login", idpResponse: res });
     }
 
     if (!res.ok) {

@@ -114,6 +114,38 @@ describe("POST /api/auth/refresh", () => {
       expect(res.cookies.get("citypass_session")?.maxAge).toBe(0);
     });
 
+    it("429 del LDAP: lo identifica (reason, source, Retry-After) y no toca cookies", async () => {
+      mockNextCookies(cookies, { citypass_session: EXPIRED, citypass_refresh: "rt-1" });
+      mockBackend({
+        "POST /auth/refresh": {
+          status: 429,
+          body: { message: "Too many requests" },
+          headers: { "content-type": "application/json", "retry-after": "300" },
+        },
+      });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const res = await refresh(refreshRequest());
+      const json = await res.json();
+
+      expect(res.status).toBe(429);
+      expect(res.headers.get("X-Rate-Limited-By")).toBe("ldap");
+      expect(res.headers.get("Retry-After")).toBe("300");
+      expect(json).toMatchObject({
+        reason: "idp_rate_limited",
+        source: "ldap",
+        retryAfterSeconds: 300,
+        sessionActive: false,
+      });
+      expect(json.message).toBe(
+        "El Login Federado (LDAP) está limitando los ingresos de esta app. Probá de nuevo en 5 minutos."
+      );
+      expect(res.cookies.get("citypass_session")).toBeUndefined();
+      expect(res.cookies.get("citypass_refresh")).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("[ldap] 429 del Login Federado en /auth/refresh"));
+      warn.mockRestore();
+    });
+
     it.each([
       ["sin conexión", "network-error"],
       ["5xx", { status: 503, body: {} }],
