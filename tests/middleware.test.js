@@ -208,6 +208,21 @@ describe("middleware: rutas públicas y no protegidas", () => {
     expectNext(run("/api/geocode?lat=-34.6&lng=-58.4", tokens.officer()));
   });
 
+  it("/api/analitica sin sesión: 401 JSON", async () => {
+    const res = run("/api/analitica");
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "Unauthorized" });
+  });
+
+  it("/api/analitica con sesión: pasa, sin mirar el rol", () => {
+    expectNext(run("/api/analitica", tokens.dispatcher()));
+  });
+
+  it("/ops/analitica exige dispatcher", () => {
+    expectNext(run("/ops/analitica", tokens.dispatcher()));
+    expectRedirect(run("/ops/analitica", tokens.citizen()), "/inicio");
+  });
+
   it("los prefijos matchean por segmento: /opsx o /inicio-demo no son rutas protegidas", () => {
     expectNext(run("/opsx"));
     expectNext(run("/inicio-demo", tokens.dispatcher()));

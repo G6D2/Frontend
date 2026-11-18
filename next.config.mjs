@@ -48,7 +48,22 @@ const nextConfig = {
     .filter(Boolean),
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    // /api/analitica es el HTML del tablero, y /ops/analitica lo muestra en un
+    // iframe del mismo origen. DENY y frame-ancestors 'none' dejan ese iframe
+    // en blanco aunque Analítica haya respondido 200. SAMEORIGIN alcanza: la
+    // cookie de sesión no sale del sitio y otro origen no puede enmarcarlo.
+    const embedHeaders = securityHeaders.map((header) => {
+      if (header.key === "X-Frame-Options") return { ...header, value: "SAMEORIGIN" };
+      if (header.key !== "Content-Security-Policy") return header;
+      return {
+        ...header,
+        value: header.value.replace("frame-ancestors 'none'", "frame-ancestors 'self'"),
+      };
+    });
+    return [
+      { source: "/api/analitica", headers: embedHeaders },
+      { source: "/((?!api/analitica).*)", headers: securityHeaders },
+    ];
   },
 };
 
