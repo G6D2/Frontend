@@ -10,7 +10,8 @@
  *
  * GET /api/contextos-zona/activos devuelve una entrada por alerta con
  * alertaId, nivel, fenomeno, fenomenoEtiqueta, barrios, vigenteDesde,
- * vigenteHasta, enCurso, puntos, radioMetros y descripcion.
+ * vigenteHasta, enCurso, zona (BARRIOS o PUNTOS), puntos, radioMetros y
+ * descripcion.
  */
 import { formatBarrio } from "./barrio";
 
@@ -80,6 +81,9 @@ export function normalizeAlertaClimatica(raw) {
     vigenteDesde: toDate(raw.vigenteDesde),
     vigenteHasta: toDate(raw.vigenteHasta),
     enCurso: raw.enCurso === true,
+    // BARRIOS: la suba es en los barrios de la alerta. PUNTOS (o sin dato,
+    // backend anterior): alrededor de los puntos, con radioMetros.
+    zona: raw.zona === "BARRIOS" ? "BARRIOS" : "PUNTOS",
     puntos: positiveIntOrNull(raw.puntos),
     radioMetros: positiveIntOrNull(raw.radioMetros),
   };
@@ -108,8 +112,15 @@ function formatHora(date, now) {
   return dia.format(date) === dia.format(now) ? hora : `${dia.format(date)} ${hora}`;
 }
 
-/** "sube un nivel a 500 m de 2 puntos", con lo que se sepa. */
-function formatAlcance({ radioMetros, puntos }) {
+/**
+ * Zona por barrio: "sube un nivel en esos barrios" (los barrios ya van en la
+ * línea). Zona por punto: "sube un nivel a 500 m de 2 puntos", con lo que se
+ * sepa.
+ */
+function formatAlcance({ zona, barrios = [], radioMetros, puntos }) {
+  if (zona === "BARRIOS") {
+    return barrios.length === 1 ? "sube un nivel en ese barrio" : "sube un nivel en esos barrios";
+  }
   if (!radioMetros) return "sube un nivel cerca de la alerta";
   const base = `sube un nivel a ${radioMetros} m`;
   if (!puntos) return base;

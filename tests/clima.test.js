@@ -105,9 +105,16 @@ describe("normalizeAlertaClimatica", () => {
       vigenteDesde: null,
       vigenteHasta: null,
       enCurso: false,
+      zona: "PUNTOS",
       puntos: null,
       radioMetros: null,
     });
+  });
+
+  it("keeps the zone: BARRIOS only when the backend says so, PUNTOS otherwise", () => {
+    expect(normalizeAlertaClimatica({ ...ALERTA, zona: "BARRIOS" }).zona).toBe("BARRIOS");
+    expect(normalizeAlertaClimatica({ ...ALERTA, zona: "barrios" }).zona).toBe("PUNTOS");
+    expect(normalizeAlertaClimatica(ALERTA).zona).toBe("PUNTOS");
   });
 });
 
@@ -142,6 +149,15 @@ describe("formatAlertaClimatica", () => {
     expect(formatAlertaClimatica(alerta, { now: NOW })).toBe(
       "Alerta crítica · Granizo · Caballito · desde 21:00 · todavía no sube prioridades"
     );
+  });
+
+  it("a barrio-zoned alert says it raises priority in those barrios, without radius or points", () => {
+    const alerta = normalizeAlertaClimatica({ ...ALERTA, zona: "BARRIOS", radioMetros: null, puntos: 2 });
+    expect(formatAlertaClimatica(alerta, { now: NOW })).toBe(
+      "Alerta alta · Tormenta eléctrica · Palermo, Villa del Parque · hasta 13/11 03:00 · sube un nivel en esos barrios"
+    );
+    const unBarrio = normalizeAlertaClimatica({ ...ALERTA, zona: "BARRIOS", barrios: ["COGHLAN"], puntos: 1 });
+    expect(formatAlertaClimatica(unBarrio, { now: NOW })).toContain("Coghlan · hasta 13/11 03:00 · sube un nivel en ese barrio");
   });
 
   it("says one point in singular and the same-day end time without date", () => {
