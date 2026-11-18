@@ -18,6 +18,7 @@ const DISPATCHER_ROUTES = {
   Mapa: "/ops/mapa",
   Oficiales: "/ops/oficiales",
   Historial: "/ops/historial",
+  Analítica: "/ops/analitica",
   "Mi Cuenta": "/ops/cuenta",
 };
 
@@ -40,6 +41,7 @@ function resolveActive(pathname, role) {
     if (pathname.startsWith("/ops/cuenta")) return "Mi Cuenta";
     if (pathname.startsWith("/ops/lista")) return "Lista";
     if (pathname.startsWith("/ops/historial")) return "Historial";
+    if (pathname.startsWith("/ops/analitica")) return "Analítica";
     if (pathname.startsWith("/ops/mapa")) return "Mapa";
     if (pathname.startsWith("/ops/oficiales")) return "Oficiales";
     // /ops sin subruta = vista de Estados (kanban Mantine / DispatcherView)
