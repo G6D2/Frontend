@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, REFRESH_COOKIE, readRefreshToken } from "@/lib/session";
 import { checkCsrf } from "@/lib/csrf";
+import { log429 } from "@/lib/log-429";
 
 const CLEAR_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -25,12 +26,16 @@ async function revokeIdpSession() {
     const idpLogoutUrl =
       process.env.CITYPASS_IDP_LOGOUT_URL ||
       "https://api.citypass-login.pp.ua/auth/logout";
-    await fetch(idpLogoutUrl, {
+    const res = await fetch(idpLogoutUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
       signal: AbortSignal.timeout(IDP_REVOKE_TIMEOUT_MS),
     });
+    // El logout local sigue igual; el 429 del IdP queda registrado.
+    if (res?.status === 429) {
+      log429({ source: "ldap", method: "POST", route: "/auth/logout", res, note: "revocación del refresh token" });
+    }
   } catch {
     // no bloquear logout del cliente ante fallo de red o timeout del IdP
   }

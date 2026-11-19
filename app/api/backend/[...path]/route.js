@@ -3,6 +3,7 @@ import { BACKEND_URL, readAccessToken, SESSION_COOKIE } from "@/lib/session";
 import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
 import { detectEdgeBlock, edgeBlockedResponse } from "@/lib/edge-block";
+import { log429, markLogged } from "@/lib/log-429";
 
 /**
  * Rutas del backend que el front usa de verdad (app/lib/api.js y
@@ -129,6 +130,12 @@ async function proxy(request, context) {
         backendRes.headers.get("content-type") || "application/json",
     },
   });
+
+  // 429 propio del backend (JSON): pasa tal cual, pero queda registrado.
+  if (backendRes.status === 429) {
+    log429({ source: "backend", method: request.method, route: targetPath, res: backendRes, bodyText: text });
+    markLogged(response);
+  }
 
   if (backendRes.status === 401) {
     const clearOpts = {

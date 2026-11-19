@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchBackend } from "@/lib/backend-fetch";
+import { log429, markLogged } from "@/lib/log-429";
 import { BACKEND_URL, readAccessToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -53,5 +54,13 @@ export async function GET() {
     headers.set("Cache-Control", "no-store");
   }
 
-  return new NextResponse(body, { status: backendRes.status, headers });
+  const response = new NextResponse(body, { status: backendRes.status, headers });
+  // El backend reenvía el status de Analítica tal cual: un 429 acá puede ser
+  // de Analítica o de algo delante de cualquiera de los dos. Queda registrado
+  // con los headers para distinguirlo.
+  if (backendRes.status === 429 || backendRes.headers.get("cf-mitigated")) {
+    log429({ source: "analitica", method: "GET", route: "/admin/analitica", res: backendRes, bodyText: body });
+    markLogged(response);
+  }
+  return response;
 }

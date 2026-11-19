@@ -125,7 +125,8 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(429);
     expect(json).toMatchObject({ reason: "edge_blocked", source: "cloudflare", cfRay: "r1-EZE" });
     expect(res.cookies.get("citypass_session")).toBeUndefined();
-    expect(warn.mock.calls[0][0]).toMatch(/^\[cloudflare\] 429 en POST \/auth\/login/);
+    expect(warn.mock.calls[0][0]).toMatch(/^\[429\]\[cloudflare\] POST \/auth\/login /);
+    expect(res.headers.get("X-429-Logged")).toBe("1");
     warn.mockRestore();
   });
 
@@ -530,7 +531,8 @@ describe("POST /api/auth/login con loginType ldap: el IdP no responde o falla", 
         "El Login Federado (LDAP) está limitando los ingresos de esta app. Probá de nuevo en unos minutos.",
     });
     expect(res.cookies.get("citypass_session")).toBeUndefined();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[ldap] 429 del Login Federado en /auth/login"));
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[429\]\[ldap\] POST \/auth\/login /));
+    expect(res.headers.get("X-429-Logged")).toBe("1");
     warn.mockRestore();
   });
 

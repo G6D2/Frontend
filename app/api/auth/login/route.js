@@ -12,6 +12,7 @@ import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
 import { idpRateLimitedResponse } from "@/lib/idp-rate-limit";
 import { detectEdgeBlock, edgeBlockedResponse } from "@/lib/edge-block";
+import { log429, markLogged } from "@/lib/log-429";
 
 /**
  * POST /api/auth/login
@@ -172,6 +173,9 @@ export async function POST(request) {
     }
 
     data = await res.json().catch(() => null);
+    if (res.status === 429) {
+      log429({ source: "backend", method: "POST", route: backendPath, res, bodyText: data?.message });
+    }
 
     // Si el backend no tiene /auth/login (404), derivamos
     // a /auth/dev/login para que las cuentas ciudadanas/demo funcionen correctamente:
@@ -197,22 +201,30 @@ export async function POST(request) {
           { status: 502 }
         );
       }
+      const devBlock = detectEdgeBlock(devRes);
+      if (devBlock) {
+        return edgeBlockedResponse(devBlock, { method: "POST", path: "/auth/dev/login" });
+      }
       data = await devRes.json().catch(() => null);
       if (!devRes.ok) {
-        return NextResponse.json(
+        const failed = NextResponse.json(
           { error: data?.error || "Login failed", message: data?.message || `Error HTTP ${devRes.status}` },
           { status: devRes.status }
         );
+        if (devRes.status !== 429) return failed;
+        log429({ source: "backend", method: "POST", route: "/auth/dev/login", res: devRes, bodyText: data?.message });
+        return markLogged(failed);
       }
       res = devRes;
     } else if (!res.ok) {
-      return NextResponse.json(
+      const failed = NextResponse.json(
         {
           error: data?.error || "Login failed",
           message: data?.message || `Error HTTP ${res.status}`,
         },
         { status: res.status }
       );
+      return res.status === 429 ? markLogged(failed) : failed;
     }
   }
 

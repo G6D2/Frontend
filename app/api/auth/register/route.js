@@ -7,6 +7,8 @@ import {
 } from "@/lib/session";
 import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
+import { detectEdgeBlock, edgeBlockedResponse } from "@/lib/edge-block";
+import { log429, markLogged } from "@/lib/log-429";
 
 /**
  * POST /api/auth/register → POST {BACKEND}/auth/register
@@ -48,15 +50,24 @@ export async function POST(request) {
     );
   }
 
+  // 403/429 sin JSON: no lo respondió el backend (ver lib/edge-block.js).
+  const block = detectEdgeBlock(res);
+  if (block) {
+    return edgeBlockedResponse(block, { method: "POST", path: "/auth/register" });
+  }
+
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    return NextResponse.json(
+    const failed = NextResponse.json(
       {
         error: data?.error || "Register failed",
         message: data?.message || `Error HTTP ${res.status}`,
       },
       { status: res.status }
     );
+    if (res.status !== 429) return failed;
+    log429({ source: "backend", method: "POST", route: "/auth/register", res, bodyText: data?.message });
+    return markLogged(failed);
   }
 
   const accessToken = data?.access_token;

@@ -200,6 +200,7 @@ describe("/api/backend/[...path]", () => {
 
       expect(res.status).toBe(429);
       expect(res.headers.get("X-Blocked-By")).toBe("cloudflare");
+      expect(res.headers.get("X-429-Logged")).toBe("1");
       expect(json).toEqual({
         error: "TooManyRequests",
         reason: "edge_blocked",
@@ -208,8 +209,10 @@ describe("/api/backend/[...path]", () => {
         message: "Cloudflare bloqueó el pedido al backend: HTTP 429, cf-ray abc123-EZE",
       });
       const line = warn.mock.calls[0][0];
-      expect(line).toMatch(/^\[cloudflare\] 429 en GET api\/emergencies antes de llegar al backend/);
-      expect(line).toContain("cf-mitigated=challenge cf-ray=abc123-EZE");
+      expect(line).toMatch(/^\[429\]\[cloudflare\] GET api\/emergencies /);
+      expect(line).toContain("cf-ray=abc123-EZE cf-mitigated=challenge");
+      expect(line).toContain("content-type=text/html; charset=UTF-8");
+      expect(line).toContain('nota="cortado antes de llegar al backend"');
       expect(line).toContain('cuerpo="Just a moment... cf-chl"');
       expect(line).not.toContain(TOKEN);
     });
@@ -247,10 +250,11 @@ describe("/api/backend/[...path]", () => {
       expect(res.headers.get("Retry-After")).toBe("60");
       expect(json.source).toBe("edge");
       expect(json.message).toBe("Un intermediario bloqueó el pedido antes de llegar al backend: HTTP 429");
-      expect(warn.mock.calls[0][0]).toMatch(/^\[edge\] 429/);
+      expect(warn.mock.calls[0][0]).toMatch(/^\[429\]\[edge\] GET api\/emergencies /);
+      expect(warn.mock.calls[0][0]).toContain("retry-after=60");
     });
 
-    it("429 en JSON del propio backend: pasa tal cual, sin marcar", async () => {
+    it("429 en JSON del propio backend: pasa tal cual, sin marcar como bloqueo, pero queda registrado", async () => {
       mockBackend({
         "GET /api/emergencies": {
           status: 429,
@@ -262,8 +266,11 @@ describe("/api/backend/[...path]", () => {
 
       expect(res.status).toBe(429);
       expect(res.headers.get("X-Blocked-By")).toBeNull();
+      expect(res.headers.get("X-429-Logged")).toBe("1");
       expect(await res.json()).toEqual({ error: "TooManyRequests", message: "Demasiadas solicitudes." });
-      expect(warn).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toMatch(/^\[429\]\[backend\] GET api\/emergencies /);
+      expect(warn.mock.calls[0][0]).toContain("Demasiadas solicitudes.");
     });
 
     it("500 en HTML (no es 403/429): pasa tal cual", async () => {
@@ -279,6 +286,8 @@ describe("/api/backend/[...path]", () => {
 
       expect(res.status).toBe(500);
       expect(res.headers.get("X-Blocked-By")).toBeNull();
+      expect(res.headers.get("X-429-Logged")).toBeNull();
+      expect(warn).not.toHaveBeenCalled();
     });
   });
 

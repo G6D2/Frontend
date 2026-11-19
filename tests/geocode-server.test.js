@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { reverseGeocodeServer, buildLabel, buildLabelBigDataCloud, cacheKey, _resetGeocodeState, CACHE_MAX_ENTRIES } from "../lib/geocode-server.js";
 
 function nominatimMock(responses = {}) {
@@ -118,5 +118,15 @@ describe("geocode-server", () => {
     await reverseGeocodeServer(-34.6, -58.3, deps);
 
     expect(calls.bdc()).toHaveLength(2);
+  });
+  it("un 429 de los proveedores queda registrado como [429][geocode] y la etiqueta cae a null", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { fetchImpl } = nominatimMock({ bdcStatus: 429, status: 429 });
+    const label = await reverseGeocodeServer(-34.6, -58.4, fastDeps({ fetchImpl }));
+    expect(label).toBeNull();
+    const lines = warn.mock.calls.map((c) => c[0]);
+    expect(lines.some((l) => l.startsWith("[429][geocode] GET bigdatacloud"))).toBe(true);
+    expect(lines.some((l) => l.startsWith("[429][geocode] GET nominatim"))).toBe(true);
+    warn.mockRestore();
   });
 });

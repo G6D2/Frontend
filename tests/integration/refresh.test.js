@@ -142,7 +142,8 @@ describe("POST /api/auth/refresh", () => {
       );
       expect(res.cookies.get("citypass_session")).toBeUndefined();
       expect(res.cookies.get("citypass_refresh")).toBeUndefined();
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("[ldap] 429 del Login Federado en /auth/refresh"));
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[429\]\[ldap\] POST \/auth\/refresh .*retry-after=300/));
+      expect(res.headers.get("X-429-Logged")).toBe("1");
       warn.mockRestore();
     });
 

@@ -8,6 +8,7 @@ import { Notifications } from "@mantine/notifications";
 
 import BackendWarmup from "./components/BackendWarmup";
 import SessionRefreshManager from "./components/SessionRefreshManager";
+import Report429Watcher from "./components/Report429Watcher";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -52,6 +53,7 @@ export default function RootLayout({ children }) {
           <Notifications position="top-right" />
           <BackendWarmup />
           <SessionRefreshManager />
+          <Report429Watcher />
           {children}
         </MantineProvider>
       </body>

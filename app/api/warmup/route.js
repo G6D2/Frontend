@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { BACKEND_URL } from "@/lib/session";
+import { detectEdgeBlock } from "@/lib/edge-block";
+import { log429 } from "@/lib/log-429";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,19 @@ export async function GET() {
       cache: "no-store",
       signal: AbortSignal.timeout(WARMUP_TIMEOUT_MS),
     });
+    // Un 429 o un bloqueo acá es el mismo tramo BFF → backend que usa el
+    // tablero: se registra aunque el warmup no lo muestre a nadie.
+    const block = detectEdgeBlock(res);
+    if (res.status === 429 || block) {
+      log429({
+        source: block?.source || "backend",
+        method: "GET",
+        route: path,
+        res,
+        bodyText: await res.text().catch(() => ""),
+        note: "warmup",
+      });
+    }
     return NextResponse.json({ warmed: true, status: res.status });
   } catch {
     return NextResponse.json({ warmed: false, reason: "unreachable" });
