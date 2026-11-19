@@ -104,6 +104,31 @@ describe("POST /api/auth/login", () => {
     expect(calls.some((c) => c.path === "/auth/dev/login")).toBe(false);
   });
 
+  it("email + password con desafío de Cloudflare: 429 identificado, sin cookie", async () => {
+    mockBackend({
+      "POST /auth/login": {
+        status: 429,
+        body: "<html><title>Just a moment...</title></html>",
+        headers: { "content-type": "text/html", "cf-mitigated": "challenge", "cf-ray": "r1-EZE" },
+      },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await POST(
+      makeRequest(LOGIN_URL, {
+        method: "POST",
+        body: { email: "juanpanico@gmail.com", password: "abracadabra" },
+      })
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(429);
+    expect(json).toMatchObject({ reason: "edge_blocked", source: "cloudflare", cfRay: "r1-EZE" });
+    expect(res.cookies.get("citypass_session")).toBeUndefined();
+    expect(warn.mock.calls[0][0]).toMatch(/^\[cloudflare\] 429 en POST \/auth\/login/);
+    warn.mockRestore();
+  });
+
   it("email + password inválidos: propaga el 401 del backend sin setear cookie", async () => {
     mockBackend({
       "POST /auth/login": {
@@ -482,6 +507,31 @@ describe("POST /api/auth/login con loginType ldap: el IdP no responde o falla", 
 
     expect(res.status).toBe(502);
     expect(json.message).toBe("No se pudo conectar con el servidor de Login Federado (LDAP).");
+  });
+
+  it("429 del LDAP: lo identifica como del Login Federado y no setea cookies", async () => {
+    mockBackend({
+      "POST /auth/login": { status: 429, body: { message: "Too many requests" } },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await POST(ldapRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("X-Rate-Limited-By")).toBe("ldap");
+    expect(res.headers.get("Retry-After")).toBeNull();
+    expect(json).toEqual({
+      error: "TooManyRequests",
+      reason: "idp_rate_limited",
+      source: "ldap",
+      retryAfterSeconds: null,
+      message:
+        "El Login Federado (LDAP) está limitando los ingresos de esta app. Probá de nuevo en unos minutos.",
+    });
+    expect(res.cookies.get("citypass_session")).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[ldap] 429 del Login Federado en /auth/login"));
+    warn.mockRestore();
   });
 
   it("credenciales inválidas con cuerpo que no es JSON: propaga el status del IdP", async () => {

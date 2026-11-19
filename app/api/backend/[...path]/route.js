@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { BACKEND_URL, readAccessToken, SESSION_COOKIE } from "@/lib/session";
 import { fetchBackend } from "@/lib/backend-fetch";
 import { checkCsrf } from "@/lib/csrf";
+import { detectEdgeBlock, edgeBlockedResponse } from "@/lib/edge-block";
 
 /**
  * Rutas del backend que el front usa de verdad (app/lib/api.js y
@@ -108,6 +109,19 @@ async function proxy(request, context) {
   }
 
   const text = await backendRes.text();
+
+  // 403/429 que no salió del backend (Cloudflare u otro intermediario): se
+  // identifica en vez de pasar la página HTML tal cual (ver lib/edge-block.js).
+  const block = detectEdgeBlock(backendRes, text);
+  if (block) {
+    return edgeBlockedResponse(block, {
+      method: request.method,
+      path: targetPath,
+      bodyText: text,
+      retryAfter: backendRes.headers.get("retry-after"),
+    });
+  }
+
   const response = new NextResponse(text, {
     status: backendRes.status,
     headers: {

@@ -231,4 +231,13 @@ describe("createSessionRefresher", () => {
       expect(refresh).toHaveBeenCalledTimes(1);
     });
   });
+  it("429 del LDAP con el token vencido: no manda a /acceso (el login gasta el mismo cupo)", async () => {
+    const { refresher, onExpired } = setup([
+      response(429, { reason: "idp_rate_limited", source: "ldap", sessionActive: false }),
+    ]);
+
+    await expect(refresher.tick("/ops")).resolves.toBe("rate_limited");
+    expect(onExpired).not.toHaveBeenCalled();
+    expect(refresher.isLocalSession()).toBe(false);
+  });
 });

@@ -5,6 +5,7 @@ import {
   STATUS_CONFIG,
   SEVERITY_CONFIG,
   ApiError,
+  _resetIdpRateLimit,
   loginDev,
   loginWithPassword,
   loginWithLdap,
@@ -53,6 +54,7 @@ describe("api.js", () => {
 
   beforeEach(() => {
     originalFetch = global.fetch;
+    _resetIdpRateLimit();
 
     const store = new Map();
     mockSessionStorage = {
@@ -979,6 +981,67 @@ describe("api.js", () => {
           json: async () => ({ message: "Token vencido" }),
         })
         .mockRejectedValueOnce(new Error("Network failure"));
+
+      await expect(fetchEmergencyDetail("e1")).rejects.toThrow(ApiError);
+      expect(global.window.location.replace).toHaveBeenCalledWith("/acceso");
+    });
+
+    it("apiFetch: si el refresh vuelve con 429 del LDAP, muestra ese error y no redirige a login", async () => {
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          json: async () => ({ message: "Token vencido" }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          json: async () => ({
+            error: "TooManyRequests",
+            reason: "idp_rate_limited",
+            source: "ldap",
+            retryAfterSeconds: 120,
+            message: "El Login Federado (LDAP) está limitando los ingresos de esta app. Probá de nuevo en 2 minutos.",
+          }),
+        });
+
+      const error = await fetchEmergencyDetail("e1").catch((e) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(429);
+      expect(error.body).toMatchObject({ reason: "idp_rate_limited", source: "ldap" });
+      expect(error.message).toMatch(/Login Federado \(LDAP\)/);
+      expect(global.window.location.replace).not.toHaveBeenCalled();
+    });
+
+    it("apiFetch: durante la espera del 429 del LDAP no vuelve a pedir refresh", async () => {
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          json: async () => ({
+            error: "TooManyRequests",
+            reason: "idp_rate_limited",
+            source: "ldap",
+            retryAfterSeconds: 120,
+            message: "El Login Federado (LDAP) está limitando los ingresos de esta app. Probá de nuevo en 2 minutos.",
+          }),
+        })
+        .mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+
+      await expect(fetchEmergencyDetail("e1")).rejects.toThrow(ApiError);
+      const second = await fetchEmergencyDetail("e1").catch((e) => e);
+
+      expect(second.status).toBe(429);
+      const refreshCalls = global.fetch.mock.calls.filter(([url]) => url === "/api/auth/refresh");
+      expect(refreshCalls).toHaveLength(1);
+      expect(global.window.location.replace).not.toHaveBeenCalled();
+    });
+
+    it("apiFetch: un 429 en el refresh que no es del LDAP sigue a login", async () => {
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) })
+        .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: "TooManyRequests" }) });
 
       await expect(fetchEmergencyDetail("e1")).rejects.toThrow(ApiError);
       expect(global.window.location.replace).toHaveBeenCalledWith("/acceso");

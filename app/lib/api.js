@@ -116,6 +116,44 @@ async function parseJsonSafe(res) {
   }
 }
 
+// ── 429 del Login Federado (LDAP) ────────────────────────────────────
+// El IdP limita /auth/refresh por IP y todo el personal sale por el BFF con
+// la misma IP. Si el refresh vuelve con `reason: "idp_rate_limited"`
+// (lib/idp-rate-limit.js), no se manda a /acceso (el login gasta el mismo
+// cupo) y no se vuelve a pedir refresh hasta que pase la espera: con el
+// polling cada 30 s, cada 401 pedía otro refresh y el cupo no se liberaba.
+export const IDP_RATE_LIMITED_REASON = "idp_rate_limited";
+const IDP_RATE_LIMIT_DEFAULT_COOLDOWN_MS = 5 * 60 * 1000;
+let idpRateLimit = null; // { until: number, error: ApiError }
+
+function idpRateLimitError(body) {
+  return new ApiError(
+    body?.message || "El Login Federado (LDAP) está limitando los ingresos de esta app.",
+    { status: 429, body }
+  );
+}
+
+function rememberIdpRateLimit(body, now = Date.now()) {
+  const seconds = Number(body?.retryAfterSeconds);
+  const cooldownMs =
+    Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : IDP_RATE_LIMIT_DEFAULT_COOLDOWN_MS;
+  const error = idpRateLimitError(body);
+  idpRateLimit = { until: now + cooldownMs, error };
+  return error;
+}
+
+/** Error del LDAP vigente, o null si no hay espera pendiente. */
+export function getIdpRateLimitError(now = Date.now()) {
+  if (idpRateLimit && now < idpRateLimit.until) return idpRateLimit.error;
+  idpRateLimit = null;
+  return null;
+}
+
+/** Solo para tests. */
+export function _resetIdpRateLimit() {
+  idpRateLimit = null;
+}
+
 async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) {
@@ -143,19 +181,31 @@ async function apiFetch(path, { method = "GET", body, auth = true } = {}) {
 
   if (!res.ok) {
     if (res.status === 401 && auth) {
+      const pendingIdpLimit = getIdpRateLimitError();
+      if (pendingIdpLimit) throw pendingIdpLimit;
       try {
         const refreshRes = await fetch("/api/auth/refresh", {
           method: "POST",
           credentials: "same-origin",
         });
+        if (refreshRes.status === 429) {
+          const refreshBody = await parseJsonSafe(refreshRes);
+          if (refreshBody?.reason === IDP_RATE_LIMITED_REASON) {
+            throw rememberIdpRateLimit(refreshBody);
+          }
+        }
         if (refreshRes.ok) {
           const retryRes = await send();
           if (retryRes.ok) {
             return await parseJsonSafe(retryRes);
           }
         }
-      } catch {
-        // Continuar con redirectToLogin
+      } catch (error) {
+        // El 429 del LDAP se muestra tal cual; cualquier otra falla sigue a
+        // redirectToLogin.
+        if (error instanceof ApiError && error.body?.reason === IDP_RATE_LIMITED_REASON) {
+          throw error;
+        }
       }
       redirectToLogin();
     }

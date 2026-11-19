@@ -9,6 +9,7 @@ import {
   userFromJwt,
 } from "@/lib/session";
 import { checkCsrf } from "@/lib/csrf";
+import { idpRateLimitedResponse } from "@/lib/idp-rate-limit";
 
 // Tope de espera al IdP. Sin esto, si el Login Federado no respondía, el
 // refresh (y el pedido del browser que lo esperaba) quedaba colgado.
@@ -112,6 +113,13 @@ export async function POST(request) {
     path: "/",
     maxAge: 0,
   };
+
+  // Cupo por IP del IdP agotado. No es un refresh token rechazado: se
+  // conservan las cookies (borrarlas cerraba la sesión y el nuevo login
+  // gastaba más cupo) y la respuesta lo identifica como del LDAP.
+  if (res.status === 429) {
+    return idpRateLimitedResponse({ endpoint: "/auth/refresh", idpResponse: res, sessionActive });
+  }
 
   if (res.status >= 500) {
     return idpError(sessionActive, `El IdP respondió ${res.status}.`);
